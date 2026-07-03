@@ -55,7 +55,7 @@ export function createConversation(body: {
     id: crypto.randomUUID(), agentId: body.agentId,
     title: body.title ?? "New Chat", trigger: body.trigger ?? "manual",
     ownerId: body.ownerId ?? "user",
-    status: "running", startedAt: now, createdAt: now,
+    status: "done", startedAt: now, createdAt: now,
   };
   getDb().insert(agentConversations).values(conv).run();
   wsHub.emit("conversations:created", conv);

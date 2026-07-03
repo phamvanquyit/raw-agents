@@ -27,6 +27,8 @@ export const agents = sqliteTable("agents", {
   teamId: text("team_id").references(() => agentTeams.id, {
     onDelete: "set null",
   }),
+  /** Which user created this agent */
+  createdBy: text("created_by"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),

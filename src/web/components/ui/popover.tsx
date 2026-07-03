@@ -32,4 +32,6 @@ const PopoverContent = forwardRef<React.ComponentRef<typeof PopoverPrimitive.Con
   },
 );
 
-export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };
+const PopoverArrow = PopoverPrimitive.Arrow;
+
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent, PopoverArrow };

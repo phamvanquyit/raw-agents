@@ -1,7 +1,7 @@
-import { eq, and, desc } from "drizzle-orm";
-import { getDb, agents, agentConversations, agentMessages } from "../../common/db/client.js";
-import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { and, desc, eq } from "drizzle-orm";
 import { SignJWT, jwtVerify } from "jose";
+import { agentConversations, agentMessages, agentToolAssignments, agentTools, agents, getDb, llmProviders } from "../../common/db/client.js";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
 
 // ── Public access token helpers ───────────────────────────────────────────────
 
@@ -36,14 +36,32 @@ export function getPublicAgent(agentId: string) {
   const db = getDb();
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!agent) throw new BadRequestException("Agent not found");
-  if (!agent.isPublic)
-    throw new BadRequestException("Thật đáng tiếc, Agent này không được chia sẻ công khai.");
+  if (!agent.isPublic) throw new BadRequestException("Thật đáng tiếc, Agent này không được chia sẻ công khai.");
+
+  // Resolve provider label
+  let providerLabel: string | undefined;
+  if (agent.aiProvider) {
+    const provider = db.select().from(llmProviders).where(eq(llmProviders.id, agent.aiProvider)).get();
+    providerLabel = provider?.label;
+  }
+
+  // Resolve assigned tools
+  const toolRows = db
+    .select({ name: agentTools.name, label: agentTools.label, icon: agentTools.icon })
+    .from(agentToolAssignments)
+    .innerJoin(agentTools, eq(agentToolAssignments.toolId, agentTools.id))
+    .where(eq(agentToolAssignments.agentId, agentId))
+    .all();
+
   return {
     data: {
       id: agent.id,
       name: agent.name,
       description: agent.description,
       requiresPassword: !!agent.publicPassword && agent.publicPassword.length > 0,
+      model: agent.aiModel ?? undefined,
+      providerLabel: providerLabel ?? undefined,
+      tools: toolRows.map((t) => ({ name: t.name, label: t.label, icon: t.icon })),
     },
   };
 }
@@ -55,9 +73,7 @@ export async function verifyPublicPassword(agentId: string, password?: string) {
   if (agent.publicPassword && agent.publicPassword !== password) {
     throw new BadRequestException("Mật khẩu không chính xác.");
   }
-  const token = agent.publicPassword
-    ? await generatePublicToken(agentId, agent.publicPassword)
-    : undefined;
+  const token = agent.publicPassword ? await generatePublicToken(agentId, agent.publicPassword) : undefined;
   return { valid: true, token };
 }
 
@@ -82,13 +98,7 @@ export function listPublicConversations(agentId: string, fingerprint: string) {
   const convs = db
     .select()
     .from(agentConversations)
-    .where(
-      and(
-        eq(agentConversations.agentId, agentId),
-        eq(agentConversations.trigger, "public"),
-        eq(agentConversations.ownerId, fingerprint),
-      ),
-    )
+    .where(and(eq(agentConversations.agentId, agentId), eq(agentConversations.trigger, "public"), eq(agentConversations.ownerId, fingerprint)))
     .orderBy(desc(agentConversations.createdAt))
     .all();
 
@@ -97,12 +107,7 @@ export function listPublicConversations(agentId: string, fingerprint: string) {
     const firstMsg = db
       .select()
       .from(agentMessages)
-      .where(
-        and(
-          eq(agentMessages.conversationId, conv.id),
-          eq(agentMessages.role, "user"),
-        ),
-      )
+      .where(and(eq(agentMessages.conversationId, conv.id), eq(agentMessages.role, "user")))
       .orderBy(agentMessages.createdAt)
       .get();
     return {
@@ -132,7 +137,7 @@ export function createPublicConversation(agentId: string, fingerprint: string) {
       title: "New Chat",
       trigger: "public",
       ownerId: fingerprint,
-      status: "running",
+      status: "done",
       startedAt: now,
       createdAt: now,
     })

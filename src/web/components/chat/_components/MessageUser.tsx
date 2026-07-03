@@ -10,21 +10,9 @@ export function MessageUser({ msg }: MessageUserProps) {
       {/* Message row */}
       <div className="flex items-start gap-3 px-4 pt-3 pb-2">
         {/* Left: tag + message */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          {/* YOU badge — game HUD style */}
-          <span
-            className="self-start inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase select-none"
-            style={{
-              background: "#6b9a4a",
-              color: "#fff",
-              letterSpacing: "0.08em",
-            }}
-          >
-            YOU
-          </span>
-
+        <div className="flex-1 min-w-0 flex flex-col bg-[#6b9a4a]/10 px-4 py-2.5 rounded-lg border border-primary/50">
           {/* Message text */}
-          <span className="text-sm leading-relaxed text-main whitespace-pre-wrap wrap-break-word">{msg.content}</span>
+          <span className="text-sm text-main whitespace-pre-wrap wrap-break-word">{msg.content}</span>
         </div>
 
         {/* Timestamp — monospace, far right */}

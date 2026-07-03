@@ -1,19 +1,25 @@
 import { eq } from "drizzle-orm";
-import {
-  getDb,
-  agents,
-  agentNotes,
-  agentTeams,
-  agentToolAssignments,
-  type NewAgent,
-  type NewAgentNote,
-} from "../../common/db/client.js";
+import { type NewAgent, type NewAgentNote, agentNotes, agentTeams, agentToolAssignments, agents, getDb } from "../../common/db/client.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 
 // ─── Agents ───────────────────────────────────────────────────────────────────
 
 export function getAgent(id: string) {
   return getDb().select().from(agents).where(eq(agents.id, id)).get();
+}
+
+/**
+ * List agents filtered by ownership:
+ * - admin sees all agents
+ * - member sees only agents they created
+ */
+export function listAgents(user?: { id: string; role: string }) {
+  const db = getDb();
+  if (!user || user.role === "admin") {
+    return db.select().from(agents).all();
+  }
+  // member: only own agents
+  return db.select().from(agents).where(eq(agents.createdBy, user.id)).all();
 }
 
 export function createAgent(body: Omit<NewAgent, "id" | "createdAt" | "updatedAt">) {
@@ -25,7 +31,11 @@ export function createAgent(body: Omit<NewAgent, "id" | "createdAt" | "updatedAt
 }
 
 export function updateAgent(id: string, body: Partial<NewAgent>) {
-  getDb().update(agents).set({ ...body, updatedAt: new Date() }).where(eq(agents.id, id)).run();
+  getDb()
+    .update(agents)
+    .set({ ...body, updatedAt: new Date() })
+    .where(eq(agents.id, id))
+    .run();
   const updated = getDb().select().from(agents).where(eq(agents.id, id)).get();
   wsHub.emit("agents:updated", updated);
   return updated;
@@ -36,7 +46,7 @@ export function deleteAgent(id: string) {
   wsHub.emit("agents:deleted", { id });
 }
 
-export function cloneAgent(sourceId: string) {
+export function cloneAgent(sourceId: string, createdBy?: string) {
   const db = getDb();
   const src = db.select().from(agents).where(eq(agents.id, sourceId)).get();
   if (!src) return null;
@@ -74,6 +84,7 @@ export function cloneAgent(sourceId: string) {
     memoryContent: src.memoryContent,
     callableAgentIds: src.callableAgentIds ?? [],
     teamId: src.teamId,
+    createdBy: createdBy ?? src.createdBy,
     createdAt: now,
     updatedAt: now,
   };
@@ -82,12 +93,14 @@ export function cloneAgent(sourceId: string) {
   // Copy tool assignments
   const srcAssignments = db.select().from(agentToolAssignments).where(eq(agentToolAssignments.agentId, sourceId)).all();
   for (const a of srcAssignments) {
-    db.insert(agentToolAssignments).values({
-      id: crypto.randomUUID(),
-      agentId: newId,
-      toolId: a.toolId,
-      createdAt: now,
-    }).run();
+    db.insert(agentToolAssignments)
+      .values({
+        id: crypto.randomUUID(),
+        agentId: newId,
+        toolId: a.toolId,
+        createdAt: now,
+      })
+      .run();
   }
 
   const result = db.select().from(agents).where(eq(agents.id, newId)).get();
@@ -104,9 +117,12 @@ export function listAgentNotes(agentId: string) {
 export function createAgentNote(agentId: string, body: { title: string; content?: string }) {
   const now = new Date();
   const note: NewAgentNote = {
-    id: crypto.randomUUID(), agentId,
-    title: body.title, content: body.content ?? "",
-    createdAt: now, updatedAt: now,
+    id: crypto.randomUUID(),
+    agentId,
+    title: body.title,
+    content: body.content ?? "",
+    createdAt: now,
+    updatedAt: now,
   };
   getDb().insert(agentNotes).values(note).run();
   return note;

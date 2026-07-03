@@ -2,7 +2,7 @@
 // Dark neon sidebar — icon-only collapsed mode with expand toggle.
 // Neon lime active indicator bar, glassmorphism hover, tooltips.
 
-import { AltArrowLeft, AltArrowRight, Bolt, HomeAngle, Logout2, Settings, UsersGroupTwoRounded } from "@solar-icons/react";
+import { AltArrowLeft, AltArrowRight, FaceScanSquare, HomeAngle, Logout2, Programming, Settings } from "@solar-icons/react";
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { clearAuthToken } from "src/common/api";
@@ -17,9 +17,9 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: <HomeAngle width={20} height={20} /> },
-  { to: "/agents", label: "Agents", icon: <UsersGroupTwoRounded width={20} height={20} /> },
-  { to: "/tools", label: "Tools", icon: <Bolt width={20} height={20} /> },
+  { to: "/", label: "Dashboard", icon: <HomeAngle weight="BoldDuotone" width={20} height={20} /> },
+  { to: "/agents", label: "Agents", icon: <FaceScanSquare weight="BoldDuotone" width={20} height={20} /> },
+  { to: "/tools", label: "Tools", icon: <Programming weight="BoldDuotone" width={20} height={20} /> },
 ];
 
 /* ── Sidebar Tooltip (inline — no lib needed) ────────────────────────────── */

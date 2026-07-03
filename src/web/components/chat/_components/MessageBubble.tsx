@@ -35,14 +35,5 @@ export function MessageBubble({
   if (msg.role === "user") return <MessageUser msg={msg} />;
 
   // assistant + custom roles
-  return (
-    <MessageAgent
-      msg={msg}
-      assistantLabel={assistantLabel}
-      assistantColor={assistantColor}
-      isFirstInGroup={isFirstInGroup}
-      isLastInGroup={isLastInGroup}
-      showAvatar={isFirstInAgentChain}
-    />
-  );
+  return <MessageAgent msg={msg} isFirstInGroup={isFirstInGroup} isLastInGroup={isLastInGroup} />;
 }

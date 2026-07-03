@@ -36,22 +36,27 @@ export default function AgentCard({ agent, toolCount, onNavigate }: AgentCardPro
       {/* Meta info — label:value rows */}
       <div className="flex flex-col gap-3 pt-5 border-t border-border">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-muted shrink-0">Model</span>
+          <span className="text-xs font-medium text-muted shrink-0">Model</span>
           <RenderIf condition={!!modelName} fallback={<span className="text-xs text-muted italic">—</span>}>
-            <span className="text-sm font-medium text-muted truncate">{modelName}</span>
+            <span className="text-xs font-medium text-muted truncate">{modelName}</span>
           </RenderIf>
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-muted shrink-0">Tools</span>
-          <span className="text-sm text-muted">
+          <span className="text-xs font-medium text-muted shrink-0">Tools</span>
+          <span className="text-xs text-muted">
             {toolCount} {toolCount === 1 ? "tool" : "tools"}
           </span>
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-muted shrink-0">Visibility</span>
-          {agent.isPublic ? <span className="text-sm font-medium text-[#4a6e34]">Published</span> : <span className="text-sm text-muted">Private</span>}
+          <span className="text-xs font-medium text-muted shrink-0">Visibility</span>
+          {agent.isPublic ? <span className="text-xs font-medium text-[#4a6e34]">Published</span> : <span className="text-xs text-muted">Private</span>}
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-muted shrink-0">Creator</span>
+          <span className="text-xs text-muted truncate">{agent?.creatorName || "-"}</span>
         </div>
       </div>
     </div>

@@ -17,8 +17,8 @@ const PublicChatPage = lazy(() => import("./modules/chat/[id]/page"));
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"));
 const SetupPage = lazy(() => import("./modules/auth/SetupPage"));
 const EditToolPage = lazy(() => import("./modules/tools/[id]/EditToolPage"));
-const AgentDetailPage = lazy(() => import("./modules/agents/AgentDetailPage"));
-const AgentToolFlowPage = lazy(() => import("./modules/dashboard/AgentToolFlowPage"));
+const AgentDetailPage = lazy(() => import("./modules/agents/[id]/page"));
+const DashboardPage = lazy(() => import("./modules/dashboard/DashboardPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
 const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
@@ -98,7 +98,7 @@ function AppContent() {
 
           {/* Sidebar pages — wrapped in AppLayout */}
           <Route element={<AppLayout />}>
-            <Route path="/" element={<AgentToolFlowPage />} />
+            <Route path="/" element={<DashboardPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/settings/*" element={<SettingsPage />} />

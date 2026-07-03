@@ -1,14 +1,14 @@
-import { AddCircle, GhostSmile, Plain3 } from "@solar-icons/react";
+import { GhostSmile, Plain3 } from "@solar-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAgentRunner } from "src/common/hooks/useAgent";
 import type { ChatAgentMessage } from "src/components/chat/ChatAgent";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageBubble } from "src/components/chat/_components/MessageBubble";
-import { buildRenderItems } from "src/components/chat/_components/MessageList";
+import { groupMessages } from "src/components/chat/_components/MessageList";
 import { ToolCallBubble } from "src/components/chat/_components/ToolCallBubble";
-import { ToolCallGroupBubble } from "src/components/chat/_components/ToolCallGroupBubble";
+
 import { useAutoScroll } from "src/components/chat/_components/useAutoScroll";
-import { useAgentDetailContext } from "src/modules/agents/common/agentDetailContext";
 import { updateAgent } from "src/modules/agents/common/agentsSlice";
 import {
   clearMessages,
@@ -17,9 +17,12 @@ import {
   fetchMessages,
   markConversationDone,
   setActiveConversationId,
+  updateConversation,
 } from "src/modules/chat/common/chatSlice";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
+import { useAgentDetailContext } from "../common/agentDetailContext";
+import { ConversationList } from "./components/ConversationList";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,6 +63,7 @@ function toDisplayMsg(m: {
 export function ChatPage() {
   const { agent } = useAgentDetailContext();
   const dispatch = useAppDispatch();
+  const [searchParams, setSearchParams] = useSearchParams();
   const messages = useAppSelector((s) => s.chat.messages);
   const activeConversationId = useAppSelector((s) => s.chat.activeConversationId);
   const conversations = useAppSelector((s) => s.chat.conversations);
@@ -73,7 +77,6 @@ export function ChatPage() {
   const showGenerating = running || isServerRunning;
 
   const [loading, setLoading] = useState(false);
-  const [pendingNewChat, setPendingNewChat] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [thinkingContent, setThinkingContent] = useState("");
   const [activityStatus, setActivityStatus] = useState("Thinking...");
@@ -130,10 +133,23 @@ export function ChatPage() {
       .unwrap()
       .then(async (convs) => {
         const agentConvs = convs.filter((c) => c.agentId === agent.id);
-        const latest = agentConvs.find((c) => c.trigger === "manual") ?? agentConvs[0] ?? null;
-        if (latest) {
-          dispatch(setActiveConversationId(latest.id));
-          await dispatch(fetchMessages(latest.id));
+        // Prefer conversation ID from URL if present
+        const urlConvId = searchParams.get("conv");
+        const target = urlConvId ? agentConvs.find((c) => c.id === urlConvId) : null;
+        const selected = target ?? agentConvs.find((c) => c.trigger === "manual") ?? agentConvs[0] ?? null;
+        if (selected) {
+          dispatch(setActiveConversationId(selected.id));
+          await dispatch(fetchMessages(selected.id));
+          if (selected.id !== urlConvId) {
+            setSearchParams(
+              (prev) => {
+                const p = new URLSearchParams(prev);
+                p.set("conv", selected.id);
+                return p;
+              },
+              { replace: true },
+            );
+          }
         }
       })
       .finally(() => setLoading(false));
@@ -142,21 +158,37 @@ export function ChatPage() {
   const handleNewChat = useCallback(() => {
     dispatch(clearMessages());
     setStreamingContent("");
-    setPendingNewChat(true);
     dispatch(setActiveConversationId(null));
-  }, [dispatch]);
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.delete("conv");
+        return p;
+      },
+      { replace: true },
+    );
+  }, [dispatch, setSearchParams]);
 
   const handleSend = useCallback(
     async (text: string) => {
       if (!agent || running) return;
 
       let convId = activeConversationId;
-      if (pendingNewChat || !convId) {
-        const newConv = await dispatch(createConversation({ agentId: agent.id, title: "New Chat" })).unwrap();
+      // No active conversation → create one with the message as title
+      if (!convId) {
+        const title = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+        const newConv = await dispatch(createConversation({ agentId: agent.id, title })).unwrap();
         dispatch(setActiveConversationId(newConv.id));
         convId = newConv.id;
-        setPendingNewChat(false);
         await dispatch(fetchConversations(agent.id));
+        setSearchParams(
+          (prev) => {
+            const p = new URLSearchParams(prev);
+            p.set("conv", newConv.id);
+            return p;
+          },
+          { replace: true },
+        );
       }
       if (!convId) return;
 
@@ -164,6 +196,13 @@ export function ChatPage() {
       setThinkingContent("");
       setActivityStatus("Thinking...");
       scrollToBottom();
+
+      // If first message in a conversation still titled "New Chat", rename it
+      const activeConv = conversations.find((c) => c.id === convId);
+      if (activeConv && activeConv.title === "New Chat") {
+        const title = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+        dispatch(updateConversation({ id: convId, title }));
+      }
 
       run({
         agent,
@@ -202,7 +241,7 @@ export function ChatPage() {
         },
       });
     },
-    [agent, running, pendingNewChat, activeConversationId, dispatch, run, scrollToBottom],
+    [agent, running, activeConversationId, dispatch, run, scrollToBottom, setSearchParams],
   );
 
   const handleCancel = useCallback(() => {
@@ -213,106 +252,94 @@ export function ChatPage() {
   }, [cancel]);
 
   return (
-    <div className="flex flex-col h-full w-full" style={{ fontFamily: "var(--font-family-chat)" }}>
-      {/* New chat button */}
-      <div className="flex items-center justify-end px-3 py-1.5 shrink-0 border-b border-[#d8cca8]/40">
-        <button
-          type="button"
-          onClick={handleNewChat}
-          disabled={pendingNewChat}
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-[#8a7a5a] hover:text-[#4a3a20] hover:bg-[#ede4cc]/60 transition-all disabled:opacity-30 cursor-pointer"
-        >
-          <AddCircle width={13} height={13} />
-          New chat
-        </button>
-      </div>
+    <div className="flex h-full w-full" style={{ fontFamily: "var(--font-family-chat)" }}>
+      {/* Conversation list sidebar */}
+      <ConversationList onNewChat={handleNewChat} />
 
-      {/* Messages area */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto game-scrollbar">
-        {loading && (
-          <div className="flex items-center justify-center gap-2 py-12 text-[#8a7a5a] text-[12px]">
-            <GhostSmile width={14} height={14} className="animate-pulse" />
-            Loading...
-          </div>
-        )}
+      {/* Chat content */}
+      <div className="flex flex-col flex-1 min-w-0 h-full">
+        {/* Messages area */}
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto game-scrollbar">
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-12 text-[#8a7a5a] text-[12px]">
+              <GhostSmile width={14} height={14} className="animate-pulse" />
+              Loading...
+            </div>
+          )}
 
-        {!loading && !pendingNewChat && !activeConversationId && liveMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
-            <Plain3 width={28} height={28} className="text-[#5a5040] opacity-40" />
-            <span className="text-[12px] text-[#8a7a5a]">Start a conversation with {agent.name}</span>
-          </div>
-        )}
+          {!loading && !activeConversationId && liveMessages.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 px-4 text-center">
+              <Plain3 width={28} height={28} className="text-[#5a5040] opacity-40" />
+              <span className="text-[12px] text-[#8a7a5a]">Start a conversation with {agent.name}</span>
+            </div>
+          )}
 
-        {!loading && (pendingNewChat || activeConversationId || liveMessages.length > 0) && (
-          <div className="px-1 pt-2 pb-20 max-w-[760px] mx-auto w-full">
-            {pendingNewChat && liveMessages.length === 0 && (
-              <div className="flex flex-col items-center gap-2 py-10 text-[#8a7a5a]">
-                <Plain3 width={20} height={20} className="opacity-30" />
-                <span className="text-[11px]">Type a message to begin</span>
-              </div>
-            )}
-            {buildRenderItems(liveMessages).map((item) => {
-              if (item.kind === "tool-group") {
-                return (
-                  <ToolCallGroupBubble key={`tg-${item.messages[0].id}`} messages={item.messages} assistantLabel={agent.name} showAvatar={item.showAvatar} />
-                );
-              }
-              return item.msg.role === "tool-call" ? (
-                <ToolCallBubble key={item.msg.id} msg={item.msg} assistantLabel={agent.name} showAvatar={item.showAvatar} />
-              ) : (
-                <MessageBubble
-                  key={item.msg.id}
-                  msg={item.msg}
-                  assistantLabel={agent.name}
-                  isFirstInGroup={item.isFirstInGroup}
-                  isLastInGroup={item.isLastInGroup}
-                  isFirstInAgentChain={item.showAvatar}
-                />
-              );
-            })}
-            {showGenerating && !streamingContent && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5">
-                <div className="flex gap-1 items-center">
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="w-1.5 h-1.5 rounded-full bg-primary opacity-70 inline-block"
-                      style={{
-                        animation: `ca-dot-bounce 1.1s ease-in-out ${i * 0.18}s infinite`,
-                      }}
-                    />
-                  ))}
+          {!loading && (activeConversationId || liveMessages.length > 0) && (
+            <div className="px-1 pt-2 pb-20 max-w-[760px] mx-auto w-full">
+              {activeConversationId && liveMessages.length === 0 && (
+                <div className="flex flex-col items-center gap-2 py-10 text-[#8a7a5a]">
+                  <Plain3 width={20} height={20} className="opacity-30" />
+                  <span className="text-[11px]">Type a message to begin</span>
                 </div>
-                <span className="text-[10px] text-[#8a7a5a] italic">{isServerRunning && !running ? "Processing..." : activityStatus}</span>
-              </div>
-            )}
-            {showGenerating && !streamingContent && thinkingContent && (
-              <div className="px-3 pb-1">
-                <div className="px-3 py-2 rounded-lg border border-border bg-surface-raised/50 max-h-40 overflow-y-auto [scrollbar-width:thin]">
-                  <p className="text-[11px] text-muted leading-relaxed whitespace-pre-wrap m-0">{thinkingContent}</p>
+              )}
+              {groupMessages(liveMessages).map((item) =>
+                item.msg.role === "tool-call" ? (
+                  <ToolCallBubble key={item.msg.id} msg={item.msg} assistantLabel={agent.name} showAvatar={item.showAvatar} />
+                ) : (
+                  <MessageBubble
+                    key={item.msg.id}
+                    msg={item.msg}
+                    assistantLabel={agent.name}
+                    isFirstInGroup={item.isFirstInGroup}
+                    isLastInGroup={item.isLastInGroup}
+                    isFirstInAgentChain={item.showAvatar}
+                  />
+                ),
+              )}
+              {showGenerating && !streamingContent && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5">
+                  <div className="flex gap-1 items-center">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full bg-primary opacity-70 inline-block"
+                        style={{
+                          animation: `ca-dot-bounce 1.1s ease-in-out ${i * 0.18}s infinite`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-[#8a7a5a] italic">{isServerRunning && !running ? "Processing..." : activityStatus}</span>
                 </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
-
-      {/* Input area */}
-      {!loading && (
-        <div className="shrink-0 w-full max-w-[760px] mx-auto">
-          <InputArea
-            generating={showGenerating}
-            placeholder={`Message ${agent.name}...`}
-            onSend={(text) => void handleSend(text)}
-            onCancel={handleCancel}
-            providerId={agent.aiProvider ?? undefined}
-            model={agent.aiModel ?? undefined}
-            onProviderChange={(pid) => void dispatch(updateAgent({ id: agent.id, aiProvider: pid }))}
-            onModelChange={(m) => void dispatch(updateAgent({ id: agent.id, aiModel: m }))}
-          />
+              )}
+              {showGenerating && !streamingContent && thinkingContent && (
+                <div className="px-3 pb-1">
+                  <div className="px-3 py-2 rounded-lg border border-border bg-surface-raised/50 max-h-40 overflow-y-auto [scrollbar-width:thin]">
+                    <p className="text-[11px] text-muted leading-relaxed whitespace-pre-wrap m-0">{thinkingContent}</p>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Input area */}
+        {!loading && (
+          <div className="shrink-0 w-full max-w-[760px] mx-auto">
+            <InputArea
+              generating={showGenerating}
+              placeholder={`Message ${agent.name}...`}
+              onSend={(text) => void handleSend(text)}
+              onCancel={handleCancel}
+              providerId={agent.aiProvider ?? undefined}
+              model={agent.aiModel ?? undefined}
+              onProviderChange={(pid) => void dispatch(updateAgent({ id: agent.id, aiProvider: pid }))}
+              onModelChange={(m) => void dispatch(updateAgent({ id: agent.id, aiModel: m }))}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

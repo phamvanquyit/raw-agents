@@ -1,4 +1,4 @@
-import { ChatRound, FileText, InfoCircle, Link, Settings, Tuning2 } from "@solar-icons/react";
+import { ChatRound, Link } from "@solar-icons/react";
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
 
@@ -84,8 +84,8 @@ export function parseCron(cron: string | null | undefined): ScheduleState {
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-export type TabId = "chat" | "info" | "prompt" | "tools" | "publish" | "config";
-export const TABS: { id: TabId; label: string; icon: typeof InfoCircle; desc: string }[] = [
+export type TabId = "chat" | "publish";
+export const TABS: { id: TabId; label: string; icon: typeof ChatRound; desc: string }[] = [
   {
     id: "chat",
     label: "Chat",
@@ -93,34 +93,10 @@ export const TABS: { id: TabId; label: string; icon: typeof InfoCircle; desc: st
     desc: "Chat with the agent",
   },
   {
-    id: "info",
-    label: "Info",
-    icon: InfoCircle,
-    desc: "Basic info and AI configuration",
-  },
-  {
-    id: "prompt",
-    label: "Prompt",
-    icon: FileText,
-    desc: "System prompt for the agent",
-  },
-  {
-    id: "tools",
-    label: "Tools",
-    icon: Settings,
-    desc: "Select tools the agent can use",
-  },
-  {
     id: "publish",
     label: "Publish",
     icon: Link,
     desc: "Public shareable link settings",
-  },
-  {
-    id: "config",
-    label: "Config",
-    icon: Tuning2,
-    desc: "Agent configuration and danger zone",
   },
 ];
 

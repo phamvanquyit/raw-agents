@@ -9,13 +9,8 @@ import { AppLogo } from "src/components/AppLogo";
 
 interface MessageAgentProps {
   msg: ChatAgentMessage;
-  assistantLabel?: string;
-  assistantColor?: string | null;
   isFirstInGroup?: boolean;
   isLastInGroup?: boolean;
-  /** Whether to show the badge + sender label. Controlled by the parent to avoid
-   *  duplicate badges when consecutive agent items (tool-groups + messages) are chained. */
-  showAvatar?: boolean;
 }
 
 // Custom ReactMarkdown components — plugs in our decorated CodeBlock + MarkdownTable
@@ -59,31 +54,9 @@ export function AgentAvatar({ color }: { color?: string | null }) {
   );
 }
 
-export function MessageAgent({ msg, assistantLabel = "Assistant", assistantColor, showAvatar = true }: MessageAgentProps) {
-  const color = assistantColor ?? DEFAULT_AGENT_COLOR;
-
+export function MessageAgent({ msg }: MessageAgentProps) {
   return (
     <div className="ca-fade-in mt-1">
-      {/* Badge row — only on first in chain */}
-      {showAvatar && (
-        <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
-          {/* Agent badge — game HUD style, uses agent color */}
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase select-none"
-            style={{
-              background: color,
-              color: "#fff",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {assistantLabel}
-          </span>
-
-          {/* Timestamp */}
-          <span className="text-[10px] text-muted/50 font-mono tracking-wide select-none">{formatTime(msg.timestamp)}</span>
-        </div>
-      )}
-
       {/* Markdown content */}
       <div className="px-4 pb-0.5">
         <div className="ca-markdown text-sm leading-relaxed">
@@ -94,12 +67,4 @@ export function MessageAgent({ msg, assistantLabel = "Assistant", assistantColor
       </div>
     </div>
   );
-}
-
-function formatTime(date: Date): string {
-  try {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
 }

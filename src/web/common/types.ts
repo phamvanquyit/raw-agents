@@ -21,6 +21,8 @@ export interface Agent {
   aiModel: string | null;
   memoryContent: string | null;
   teamId: string | null;
+  createdBy: string | null;
+  creatorName: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
