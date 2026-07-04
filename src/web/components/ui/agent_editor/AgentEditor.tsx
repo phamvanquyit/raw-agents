@@ -18,7 +18,6 @@
 import { ChatRound, CloseCircle } from "@solar-icons/react";
 import type * as MonacoNS from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ToolSet } from "src/common/types/tool";
 import { ChatAgent, type ChatAgentMessage, type ToolActionEvent } from "../../chat/ChatAgent";
 import { type EditorInstance, MonacoEditor } from "../MonacoEditor";
 
@@ -42,10 +41,6 @@ export interface AgentEditorProps {
   onMount?: (editor: EditorInstance, monaco: typeof MonacoNS) => void;
   /** Monaco editor options — merged over defaults */
   monacoOptions?: MonacoNS.editor.IStandaloneEditorConstructionOptions;
-  /** Monaco theme. Default: "vs" (light) */
-  monacoTheme?: string;
-  /** Loading background color. Default: "#f6f3ef" */
-  monacoLoadingBg?: string;
   /** Placeholder text shown when editor is empty */
   editorPlaceholder?: string;
 
@@ -53,10 +48,13 @@ export interface AgentEditorProps {
   /** System prompt injected into the AI context */
   systemPrompt?: string;
   /**
-   * ToolSet — FE-only tools (update_editor_code, etc.).
-   * Tool calls streamed back from AI; execution handled via onToolAction.
+   * SSE endpoint URL — e.g. "/api/assistants/coding/stream"
    */
-  tools?: ToolSet;
+  streamUrl: string;
+  /**
+   * Extra body fields for the POST request (e.g. { toolId })
+   */
+  streamBody?: Record<string, unknown>;
   /** Max agentic steps. Default: 12 */
   maxSteps?: number;
   /** Pre-select provider (UUID) */
@@ -191,13 +189,12 @@ export function AgentEditor({
   onChange,
   onMount,
   monacoOptions,
-  monacoTheme = "warm-light",
-  monacoLoadingBg = "#f6f3ef",
   editorPlaceholder,
 
   // AI sidebar
   systemPrompt,
-  tools,
+  streamUrl,
+  streamBody,
   maxSteps = 12,
   aiProviderId,
   aiModel,
@@ -247,15 +244,7 @@ export function AgentEditor({
   const editorPanel = (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="relative flex-1 min-h-0">
-        <MonacoEditor
-          language={language}
-          value={value}
-          onChange={onChange}
-          onMount={handleEditorMount}
-          theme={monacoTheme}
-          loadingBg={monacoLoadingBg}
-          options={monacoOptions}
-        />
+        <MonacoEditor language={language} value={value} onChange={onChange} onMount={handleEditorMount} options={monacoOptions} />
         {/* Placeholder overlay — shown when editor is empty */}
         {editorPlaceholder && isEmpty && (
           <div
@@ -293,7 +282,8 @@ export function AgentEditor({
       aiModel={aiModel}
       messages={messagesRef.current}
       systemPrompt={systemPrompt}
-      tools={tools}
+      streamUrl={streamUrl}
+      streamBody={streamBody}
       maxSteps={maxSteps}
       showProviderPicker
       assistantLabel={assistantLabel}

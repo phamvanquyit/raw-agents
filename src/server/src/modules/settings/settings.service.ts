@@ -1,4 +1,4 @@
-import { getDb, appSettings } from "../../common/db/client.js";
+import { appSettings, getDb } from "../../common/db/client.js";
 
 export function loadSettings() {
   const rows = getDb().select().from(appSettings).all();

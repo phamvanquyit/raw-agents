@@ -1,4 +1,4 @@
-import type { ChatAgentMessage } from "../../../../components/chat/_components/types";
+import type { ChatAgentMessage } from "../../../../components/chat/common/types";
 
 /** Get or create a persistent device fingerprint (survives across sessions). */
 export function getFingerprint(): string {

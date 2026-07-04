@@ -10,8 +10,8 @@
  */
 
 import { eq } from "drizzle-orm";
-import { agentNotes, agents, getDb } from "../db/client.js";
-import { getConfiguredTimezone } from "../utils/cronHelper.js";
+import { agentNotes, agents, getDb } from "../../common/db/client.js";
+import { getConfiguredTimezone } from "../../common/utils/cronHelper.js";
 
 export function buildSystemPrompt(
   agent: {
@@ -42,13 +42,13 @@ export function buildSystemPrompt(
       const utcStr = new Date().toLocaleString("en-US", { timeZone: "UTC" });
       const tzStr = new Date().toLocaleString("en-US", { timeZone: tz });
       return (new Date(tzStr).getTime() - new Date(utcStr).getTime()) / 3_600_000;
-    } catch { return 0; }
+    } catch {
+      return 0;
+    }
   })();
   const tzLabel = `UTC${offsetMs >= 0 ? "+" : ""}${offsetMs}`;
 
-  const parts: string[] = [
-    `<system_info>\nCurrent time: ${now} (${tzLabel}, ${tz})\n</system_info>`,
-  ];
+  const parts: string[] = [`<system_info>\nCurrent time: ${now} (${tzLabel}, ${tz})\n</system_info>`];
 
   // ── Role & Behavior ──
   if (agent.systemPrompt) {
@@ -131,11 +131,7 @@ export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]
   if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
   // Notes titles
-  const noteTitles = db
-    .select({ id: agentNotes.id, title: agentNotes.title })
-    .from(agentNotes)
-    .where(eq(agentNotes.agentId, agentId))
-    .all();
+  const noteTitles = db.select({ id: agentNotes.id, title: agentNotes.title }).from(agentNotes).where(eq(agentNotes.agentId, agentId)).all();
 
   // Callable agents: use param if provided, otherwise read from agent record
   const effectiveCallableIds = callableAgentIds ?? (agent.callableAgentIds as string[] | null) ?? [];
@@ -143,10 +139,7 @@ export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]
   let agentsToDelegate: { id: string; name: string; description: string | null }[] | undefined;
 
   if (effectiveCallableIds.length > 0) {
-    const all = db
-      .select({ id: agents.id, name: agents.name, description: agents.description })
-      .from(agents)
-      .all();
+    const all = db.select({ id: agents.id, name: agents.name, description: agents.description }).from(agents).all();
     agentsToDelegate = all.filter((a) => effectiveCallableIds.includes(a.id));
   }
 

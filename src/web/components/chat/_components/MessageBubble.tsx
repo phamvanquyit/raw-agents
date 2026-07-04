@@ -1,7 +1,7 @@
+import type { ChatAgentMessage } from "../common/types";
 import { MessageAgent } from "./MessageAgent";
 import { MessageUser } from "./MessageUser";
 import { ToolCallBubble } from "./ToolCallBubble";
-import type { ChatAgentMessage } from "./types";
 
 interface MessageBubbleProps {
   msg: ChatAgentMessage;

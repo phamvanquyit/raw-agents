@@ -1,61 +1,94 @@
 /**
- * Base Monaco Editor component — dùng chung toàn app.
+ * MonacoEditor — Base Monaco Editor component dùng chung toàn app.
  *
- * - Tự configure MonacoEnvironment (workers) + loader (bypass CDN)
- * - Lazy load @monaco-editor/react
+ * - Configure MonacoEnvironment (workers) + loader (bypass CDN)
  * - Re-export type EditorInstance để consumer dùng với useRef
  *
  * Usage:
- *   import { MonacoEditor, type EditorInstance } from "@/components/ui/MonacoEditor";
+ *   import { MonacoEditor, type EditorInstance } from "src/components/ui/MonacoEditor";
  *   const ref = useRef<EditorInstance>(null);
  *   <MonacoEditor language="python" value={code} onChange={...} onMount={...} />
  */
 
-import type { EditorProps, Monaco } from "@monaco-editor/react";
-import { Restart } from "@solar-icons/react";
-import type { editor } from "monaco-editor";
-import { Suspense, lazy } from "react";
+import type { EditorProps, Monaco, DiffEditorProps as MonacoDiffEditorProps } from "@monaco-editor/react";
+import MonacoReactEditor, { DiffEditor as MonacoReactDiffEditor, loader } from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
+import type { editor as editorNS } from "monaco-editor";
+import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
+import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+
+// ── Worker setup ──────────────────────────────────────────────────────────────
+(self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+  getWorker(_: unknown, label: string) {
+    if (label === "json") return new JsonWorker();
+    return new EditorWorker();
+  },
+};
+
+// Bypass CDN — dùng monaco-editor đã bundle local qua Vite
+loader.config({ monaco });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-/** Re-export để consumer dùng với useRef */
-export type EditorInstance = editor.IStandaloneCodeEditor;
+export type EditorInstance = editorNS.IStandaloneCodeEditor;
 export type { Monaco };
 
-export interface MonacoEditorProps extends Omit<EditorProps, "loading" | "theme"> {
-  /** Monaco theme — default: "warm-light" */
-  theme?: string;
-  /** Màu nền fallback loading (phù hợp theme) — default: "#faf8f5" */
-  loadingBg?: string;
-}
+// ── Default options ───────────────────────────────────────────────────────────
 
-// ── Lazy Monaco — toàn bộ setup (workers, theme, loader) nằm trong chunk này ──
-//
-// Tất cả static imports của monaco-editor được đặt bên trong module này để
-// chúng chỉ được evaluate khi chunk được load, không ảnh hưởng main bundle.
-
-const LazyMonacoEditor = lazy(() => import("./MonacoEditorInner").then((m) => ({ default: m.MonacoEditorInner })));
+const DEFAULT_OPTIONS: editorNS.IStandaloneEditorConstructionOptions = {
+  fontSize: 13,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  padding: { top: 10, bottom: 10 },
+  tabSize: 2,
+  wordWrap: "off",
+  automaticLayout: true,
+  scrollbar: {
+    verticalScrollbarSize: 4,
+    horizontalScrollbarSize: 4,
+    horizontal: "visible",
+  },
+  stickyScroll: { enabled: false },
+};
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function MonacoEditor({ theme = "warm-light", loadingBg = "#faf8f5", options, height = "100%", ...props }: MonacoEditorProps) {
-  return (
-    <Suspense
-      fallback={
-        <div
-          className="flex items-center justify-center gap-2"
-          style={{
-            height,
-            background: loadingBg,
-            color: "#a89880",
-          }}
-        >
-          <Restart className="animate-spin" style={{ width: 14, height: 14 }} />
-          <span style={{ fontSize: 12 }}>Loading editor...</span>
-        </div>
-      }
-    >
-      <LazyMonacoEditor height={height} theme={theme} options={options} {...props} />
-    </Suspense>
-  );
+export interface MonacoEditorProps extends Omit<EditorProps, "loading" | "theme"> {
+  /** Monaco theme — default: "vs-dark" */
+  theme?: string;
+  height?: string | number;
+  options?: editorNS.IStandaloneEditorConstructionOptions;
+}
+
+export function MonacoEditor({ theme = "vs-dark", options, height = "100%", ...props }: MonacoEditorProps) {
+  return <MonacoReactEditor height={height} theme={theme} options={{ ...DEFAULT_OPTIONS, ...options }} {...props} />;
+}
+
+// ── Diff Editor ───────────────────────────────────────────────────────────────
+
+const DEFAULT_DIFF_OPTIONS: editorNS.IDiffEditorConstructionOptions = {
+  fontSize: 13,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  padding: { top: 10, bottom: 10 },
+  wordWrap: "off",
+  automaticLayout: true,
+  scrollbar: {
+    verticalScrollbarSize: 4,
+    horizontalScrollbarSize: 4,
+    horizontal: "visible",
+  },
+  stickyScroll: { enabled: false },
+  readOnly: true,
+  renderSideBySide: false,
+};
+
+export interface DiffEditorComponentProps extends Omit<MonacoDiffEditorProps, "loading" | "theme"> {
+  theme?: string;
+  height?: string | number;
+  options?: editorNS.IDiffEditorConstructionOptions;
+}
+
+export function MonacoDiffEditor({ theme = "vs-dark", options, height = "100%", ...props }: DiffEditorComponentProps) {
+  return <MonacoReactDiffEditor height={height} theme={theme} options={{ ...DEFAULT_DIFF_OPTIONS, ...options }} {...props} />;
 }

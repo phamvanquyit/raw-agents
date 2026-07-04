@@ -14,8 +14,8 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Agent } from "src/common/types";
 import { useAppSelector } from "src/store/store";
-import type { ChatAgentMessage } from "./types";
-import { prettyJson } from "./utils";
+import type { ChatAgentMessage } from "../common/types";
+import { prettyJson } from "../common/utils";
 
 import RenderIf from "src/components/ui/RenderIf";
 import { CodeBlock } from "./CodeBlock";

@@ -1,7 +1,7 @@
 import { CheckCircle, DangerCircle, Restart } from "@solar-icons/react";
 import { useState } from "react";
-import type { ChatAgentMessage } from "./types";
-import { formatToolName, prettyJson } from "./utils";
+import type { ChatAgentMessage } from "../common/types";
+import { formatToolName, prettyJson } from "../common/utils";
 
 import RenderIf from "src/components/ui/RenderIf";
 import { CallAgentBubble } from "./CallAgentBubble";

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { SignJWT, jwtVerify } from "jose";
 import { agentConversations, agentMessages, agentToolAssignments, agentTools, agents, getDb, llmProviders } from "../../common/db/client.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
@@ -84,7 +84,7 @@ function loadConvMessages(convId: string) {
     .select()
     .from(agentMessages)
     .where(eq(agentMessages.conversationId, convId))
-    .orderBy(agentMessages.createdAt)
+    .orderBy(sql`rowid`)
     .all()
     .filter((r) => !(r.role === "tool" && r.content === ""));
 }
@@ -108,7 +108,7 @@ export function listPublicConversations(agentId: string, fingerprint: string) {
       .select()
       .from(agentMessages)
       .where(and(eq(agentMessages.conversationId, conv.id), eq(agentMessages.role, "user")))
-      .orderBy(agentMessages.createdAt)
+      .orderBy(sql`rowid`)
       .get();
     return {
       id: conv.id,

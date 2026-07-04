@@ -15,10 +15,10 @@ import settingsRoute from "./modules/settings/settings.route.js";
 import teamsRoute from "./modules/teams/teams.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
 
-
-import chatRoute from "./modules/chat/chat.route.js";
+import chatRoute from "./modules/agents/chat.route.js";
 import publicRoute from "./modules/public/public.route.js";
 
+import promptAssistantRoute from "./modules/agents/assistant/prompt.route.js";
 
 import authRoute from "./modules/auth/auth.route.js";
 import usersRoute from "./modules/users/users.route.js";
@@ -45,10 +45,7 @@ export function createApp(): Hono {
   // ── Global error handler (NestJS-style exceptions) ────────────────────────
   app.onError((err, c) => {
     if (err instanceof HttpException) {
-      return c.json(
-        { code: err.statusCode, message: err.message },
-        err.statusCode as any,
-      );
+      return c.json({ code: err.statusCode, message: err.message }, err.statusCode as any);
     }
     console.error("[Unhandled]", err);
     return c.json({ code: 500, message: "Internal Server Error" }, 500);
@@ -66,11 +63,11 @@ export function createApp(): Hono {
   app.route("/api/settings", settingsRoute);
   app.route("/api/teams", teamsRoute);
 
+  app.route("/api/assistants/prompt", promptAssistantRoute);
 
   app.route("/api/users", usersRoute);
 
   app.route("/api/public", publicRoute);
-
 
   // ── Health check ───────────────────────────────────────────────────────────
   app.get("/api/health", (c) =>
@@ -83,16 +80,11 @@ export function createApp(): Hono {
   );
 
   // ── Serve web build (SPA) ──────────────────────────────────────────────────
-  const webDistPaths = [
-    join(__dirname, "../../web/dist"),
-    join(__dirname, "../public"),
-  ];
+  const webDistPaths = [join(__dirname, "../../web/dist"), join(__dirname, "../public")];
 
   const webDist = webDistPaths.find((p) => existsSync(join(p, "index.html")));
 
   if (webDist) {
-    console.log(`[Static] Serving web from: ${webDist}`);
-
     // Unified static handler:
     // - Nếu path trỏ đến file thật trong dist/ → serve file đó (JS, CSS, SVG, ảnh...)
     // - Nếu không có → trả index.html để React Router tự xử lý route (SPA fallback)

@@ -1,11 +1,16 @@
 import { Hono } from "hono";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import {
-  listConversations, getConversation, createConversation,
-  updateConversation, deleteConversation,
-  listMessages, createMessage, patchMessageMeta, getMessageFeed,
+  createConversation,
+  createMessage,
+  deleteConversation,
+  getConversation,
+  getMessageFeed,
+  listConversations,
+  listMessages,
+  patchMessageMeta,
+  updateConversation,
 } from "./conversations.service.js";
-
 
 const app = new Hono();
 

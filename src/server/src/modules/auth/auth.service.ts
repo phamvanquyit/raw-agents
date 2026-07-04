@@ -3,9 +3,9 @@
  */
 
 import { eq, or } from "drizzle-orm";
-import { getDb, users, appSettings, type User } from "../../common/db/client.js";
-import { signToken, type JwtPayload } from "../../common/middleware/auth.middleware.js";
+import { type User, appSettings, getDb, users } from "../../common/db/client.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { type JwtPayload, signToken } from "../../common/middleware/auth.middleware.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,11 +20,7 @@ function toSafeUser(user: User): SafeUser {
 // ─── Setup Status ─────────────────────────────────────────────────────────────
 
 export function checkSetupStatus(): { needsSetup: boolean } {
-  const userCount = getDb()
-    .select()
-    .from(users)
-    .limit(1)
-    .all();
+  const userCount = getDb().select().from(users).limit(1).all();
   return { needsSetup: userCount.length === 0 };
 }
 
@@ -96,9 +92,6 @@ export async function setupFirstAdmin(body: {
   };
   const token = await signToken(payload);
 
-  console.log("[Setup] ✅ First admin created:", username);
-  console.log("[Setup] ✅ Timezone set:", timezone);
-
   return { token, user: toSafeUser(user) };
 }
 
@@ -154,10 +147,7 @@ export function getCurrentUser(user: User): SafeUser {
 
 // ─── Change password ──────────────────────────────────────────────────────────
 
-export async function changePassword(
-  userId: string,
-  body: { oldPassword: string; newPassword: string },
-): Promise<void> {
+export async function changePassword(userId: string, body: { oldPassword: string; newPassword: string }): Promise<void> {
   const { oldPassword, newPassword } = body;
 
   if (!oldPassword || !newPassword) {
@@ -168,11 +158,7 @@ export async function changePassword(
     throw new BadRequestException("New password must be at least 8 characters");
   }
 
-  const user = getDb()
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .get();
+  const user = getDb().select().from(users).where(eq(users.id, userId)).get();
 
   if (!user) {
     throw new BadRequestException("User not found");
@@ -184,9 +170,5 @@ export async function changePassword(
   }
 
   const newHash = await Bun.password.hash(newPassword);
-  getDb()
-    .update(users)
-    .set({ passwordHash: newHash, updatedAt: new Date() })
-    .where(eq(users.id, userId))
-    .run();
+  getDb().update(users).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(users.id, userId)).run();
 }

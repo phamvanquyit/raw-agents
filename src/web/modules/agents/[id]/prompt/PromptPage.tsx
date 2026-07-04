@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { wsClient } from "src/common/api/wsClient";
 
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
@@ -8,7 +9,7 @@ import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
 
 import { PROMPT_AI_SYSTEM_PROMPT } from "../common/promptConstants";
-import { UPDATE_PROMPT_TOOL_NAME, makeUpdatePromptTool } from "../common/promptTools";
+import { UPDATE_PROMPT_TOOL_NAME } from "../common/promptTools";
 
 // ─── Prompt Page ──────────────────────────────────────────────────────────────
 
@@ -64,10 +65,13 @@ export function PromptPage() {
     [setSystemPrompt],
   );
 
-  // ── update_prompt tool (FE-only) ──
-  const [tools] = useState(() => ({
-    [UPDATE_PROMPT_TOOL_NAME]: makeUpdatePromptTool(applyPrompt),
-  }));
+  // ── Listen for WS prompt updates from server (update_prompt tool) ──
+  useEffect(() => {
+    const unsub = wsClient.on<{ prompt: string; summary?: string }>("assistant:prompt-updated" as any, (data) => {
+      if (data?.prompt) applyPrompt(data.prompt);
+    });
+    return unsub;
+  }, [applyPrompt]);
 
   // ── System prompt with current context ──
   const currentPrompt = systemPrompt.trim();
@@ -96,8 +100,6 @@ export function PromptPage() {
       language="markdown"
       value={systemPrompt}
       onChange={(v) => setSystemPrompt(v ?? "")}
-      monacoTheme="neon-dark"
-      monacoLoadingBg="#121317"
       editorPlaceholder={"Write your system prompt here...\n\nDefine the agent's personality, behavior, and instructions."}
       onMount={(editor) => {
         editorRef.current = editor;
@@ -114,7 +116,7 @@ export function PromptPage() {
         hideCursorInOverviewRuler: true,
       }}
       systemPrompt={aiSystemPrompt}
-      tools={tools}
+      streamUrl="/api/assistants/prompt/stream"
       maxSteps={6}
       aiProviderId={providerId}
       aiModel={model}

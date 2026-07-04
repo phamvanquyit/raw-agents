@@ -23,7 +23,7 @@ export function prettyJson(raw: unknown): string {
 
 /**
  * Converts a snake_case or camelCase tool name to a human-readable Title Case label.
- * e.g. "update_editor_code" → "Update Editor Code"
+ * e.g. "generate_code" → "Generate Code"
  *      "fetchWebpage"       → "Fetch Webpage"
  */
 export function formatToolName(name: string): string {

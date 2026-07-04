@@ -37,7 +37,7 @@ app.get("/", (c) => {
     ...result,
     items: result.items.map((a: any) => ({
       ...a,
-      creatorName: a.createdBy ? creatorMap.get(a.createdBy) ?? null : null,
+      creatorName: a.createdBy ? (creatorMap.get(a.createdBy) ?? null) : null,
     })),
   });
 });

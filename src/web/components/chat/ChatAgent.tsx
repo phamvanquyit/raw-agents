@@ -14,11 +14,10 @@
  */
 
 import { type ReactNode, type Ref, useImperativeHandle } from "react";
-import type { ToolSet } from "src/common/types/tool";
 import { InputArea } from "./_components/InputArea";
 import { MessageList } from "./_components/MessageList";
-import type { ChatAgentMessage, ChatAgentRole } from "./_components/types";
-import { type ChatStatus, type ToolActionEvent, useChatAgent } from "./_components/useChatAgent";
+import type { ChatAgentMessage, ChatAgentRole } from "./common/types";
+import { type ChatStatus, type ToolActionEvent, useChatAgent } from "./hooks/useChatAgent";
 
 // ── Re-export types so consumers keep a single import path ───────────────────
 export type { ChatAgentRole, ChatAgentMessage, ChatStatus, ToolActionEvent };
@@ -72,8 +71,10 @@ export interface ChatAgentProps {
   // ── AI config ────────────────────────────────────────────────────────
   /** System prompt */
   systemPrompt?: string;
-  /** AI ToolSet — schema definitions for available tools */
-  tools?: ToolSet;
+  /** SSE endpoint URL — e.g. "/api/assistants/coding/stream" */
+  streamUrl: string;
+  /** Extra body fields for the POST request (e.g. { toolId }) */
+  streamBody?: Record<string, unknown>;
   /** Max agentic steps (default: 12) */
   maxSteps?: number;
 
@@ -125,7 +126,8 @@ export function ChatAgent({
   aiModel,
   messages: externalMessages,
   systemPrompt,
-  tools,
+  streamUrl,
+  streamBody,
   maxSteps,
   onFinish,
   onClear,
@@ -161,7 +163,8 @@ export function ChatAgent({
     propModel: aiModel,
     externalMessages,
     systemPrompt,
-    tools,
+    streamUrl,
+    streamBody,
     maxSteps,
     onFinish,
     onClear,

@@ -1,13 +1,7 @@
-import { desc, eq, and, ne, lt } from "drizzle-orm";
-import {
-  getDb,
-  agentConversations,
-  agentMessages,
-  type NewAgentConversation,
-  type NewAgentMessage,
-} from "../../common/db/client.js";
+import { and, desc, eq, lt, ne, sql } from "drizzle-orm";
+import { type NewAgentConversation, type NewAgentMessage, agentConversations, agentMessages, getDb } from "../../common/db/client.js";
+import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { wsHub } from "../../common/ws/wsHub.js";
-import { listQuery, type RawQuery } from "../../common/db/list-query.util.js";
 
 const STALE_MS = 60_000;
 
@@ -21,10 +15,7 @@ export function listConversations(query: RawQuery = {}) {
   // Remove agentId from query so listQuery doesn't re-apply it as a column filter
   const { agentId: _, ...cleanQuery } = query;
 
-  const result = listQuery(
-    { table: agentConversations, where: staticWhere },
-    cleanQuery,
-  );
+  const result = listQuery({ table: agentConversations, where: staticWhere }, cleanQuery);
 
   // Heal stale "running" conversations
   const now = new Date();
@@ -52,10 +43,14 @@ export function createConversation(body: {
 }) {
   const now = new Date();
   const conv: NewAgentConversation = {
-    id: crypto.randomUUID(), agentId: body.agentId,
-    title: body.title ?? "New Chat", trigger: body.trigger ?? "manual",
+    id: crypto.randomUUID(),
+    agentId: body.agentId,
+    title: body.title ?? "New Chat",
+    trigger: body.trigger ?? "manual",
     ownerId: body.ownerId ?? "user",
-    status: "done", startedAt: now, createdAt: now,
+    status: "done",
+    startedAt: now,
+    createdAt: now,
   };
   getDb().insert(agentConversations).values(conv).run();
   wsHub.emit("conversations:created", conv);
@@ -77,9 +72,12 @@ export function deleteConversation(id: string) {
 // ─── Messages ─────────────────────────────────────────────────────────────────
 
 export function listMessages(conversationId: string) {
-  return getDb().select().from(agentMessages)
+  return getDb()
+    .select()
+    .from(agentMessages)
     .where(eq(agentMessages.conversationId, conversationId))
-    .orderBy(agentMessages.createdAt).all()
+    .orderBy(sql`rowid`)
+    .all()
     .filter((r) => !(r.role === "tool" && r.content === ""));
 }
 
@@ -106,26 +104,26 @@ export function getMessageFeed(agentId: string, cursor?: string) {
   const db = getDb();
   const cursorDate = cursor ? new Date(cursor) : undefined;
 
-  const convRows = db.select().from(agentConversations)
-    .where(eq(agentConversations.agentId, agentId))
-    .orderBy(desc(agentConversations.createdAt)).all();
+  const convRows = db.select().from(agentConversations).where(eq(agentConversations.agentId, agentId)).orderBy(desc(agentConversations.createdAt)).all();
 
   if (convRows.length === 0) return { items: [], hasMore: false };
 
   const convMap = new Map(convRows.map((conv) => [conv.id, conv]));
 
-  const whereClause = cursorDate
-    ? and(eq(agentMessages.agentId, agentId), lt(agentMessages.createdAt, cursorDate))
-    : eq(agentMessages.agentId, agentId);
+  const whereClause = cursorDate ? and(eq(agentMessages.agentId, agentId), lt(agentMessages.createdAt, cursorDate)) : eq(agentMessages.agentId, agentId);
 
-  const msgRows = db.select().from(agentMessages)
+  const msgRows = db
+    .select()
+    .from(agentMessages)
     .where(whereClause)
     .orderBy(desc(agentMessages.createdAt))
-    .limit(PAGE + 1).all();
+    .limit(PAGE + 1)
+    .all();
 
   const filtered = msgRows.filter((r) => !(r.role === "tool" && r.content === ""));
   const hasMore = filtered.length > PAGE;
-  const page = filtered.slice(0, PAGE)
+  const page = filtered
+    .slice(0, PAGE)
     .map((m) => {
       const conv = m.conversationId ? convMap.get(m.conversationId) : undefined;
       return { ...m, convTitle: conv?.title ?? "Unknown", convTrigger: conv?.trigger ?? "manual", convCreatedAt: conv?.createdAt ?? null };

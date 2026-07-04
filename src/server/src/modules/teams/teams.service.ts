@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
-import { getDb, agents, agentTeams, type NewAgentTeam } from "../../common/db/client.js";
+import { type NewAgentTeam, agentTeams, agents, getDb } from "../../common/db/client.js";
+import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { wsHub } from "../../common/ws/wsHub.js";
-import { listQuery, type RawQuery } from "../../common/db/list-query.util.js";
 
 export function listTeams(query: RawQuery = {}) {
   const db = getDb();
@@ -16,8 +16,11 @@ export function listTeams(query: RawQuery = {}) {
 
 export function createTeam(body: { name: string; description?: string }) {
   const team: NewAgentTeam = {
-    id: crypto.randomUUID(), name: body.name,
-    description: body.description ?? null, isActive: true, createdAt: new Date(),
+    id: crypto.randomUUID(),
+    name: body.name,
+    description: body.description ?? null,
+    isActive: true,
+    createdAt: new Date(),
   };
   getDb().insert(agentTeams).values(team).run();
   const payload = { ...team, members: [] };

@@ -4,8 +4,8 @@ import type { AgentMessage } from "src/common/types";
 import { wsClient } from "../../../common/api/wsClient";
 import { useAgentRunner } from "../../../common/hooks/useAgent";
 import { InputArea } from "../../../components/chat/_components/InputArea";
-import type { ChatAgentMessage } from "../../../components/chat/_components/types";
-import { useAutoScroll } from "../../../components/chat/_components/useAutoScroll";
+import type { ChatAgentMessage } from "../../../components/chat/common/types";
+import { useAutoScroll } from "../../../components/chat/hooks/useAutoScroll";
 import {
   ChatMessages,
   ChatSidebar,

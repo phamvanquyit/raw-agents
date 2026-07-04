@@ -1,10 +1,5 @@
-import { eq } from "drizzle-orm";
-import {
-  getDb,
-  agentMessages,
-  agentConversations,
-  type NewAgentMessage,
-} from "../db/client.js";
+import { eq, sql } from "drizzle-orm";
+import { type NewAgentMessage, agentConversations, agentMessages, getDb } from "../../common/db/client.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 
 /** Load last 20 user/assistant messages for a conversation (for AI history). */
@@ -13,7 +8,7 @@ export function loadHistory(conversationId: string) {
     .select()
     .from(agentMessages)
     .where(eq(agentMessages.conversationId, conversationId))
-    .orderBy(agentMessages.createdAt)
+    .orderBy(sql`rowid`)
     .all()
     .filter((m) => m.role === "user" || m.role === "assistant")
     .slice(-20)
@@ -33,10 +28,7 @@ function emit<T>(clientId: string | undefined, type: Parameters<typeof wsHub.bro
  * Save a message to DB and notify via WS.
  * If clientId is provided, sends only to that client; otherwise broadcasts to all.
  */
-export function saveMessage(
-  data: Omit<NewAgentMessage, "id" | "createdAt">,
-  clientId?: string,
-): { id: string } & NewAgentMessage {
+export function saveMessage(data: Omit<NewAgentMessage, "id" | "createdAt">, clientId?: string): { id: string } & NewAgentMessage {
   const db = getDb();
   const id = crypto.randomUUID();
   const msg = { ...data, id, createdAt: new Date() } as NewAgentMessage;
@@ -49,11 +41,7 @@ export function saveMessage(
  * Merge patch into message metadata and notify via WS.
  * If clientId is provided, sends only to that client; otherwise broadcasts to all.
  */
-export function patchMessageMetadata(
-  msgId: string,
-  patch: Record<string, unknown>,
-  clientId?: string,
-) {
+export function patchMessageMetadata(msgId: string, patch: Record<string, unknown>, clientId?: string) {
   const db = getDb();
   const row = db.select().from(agentMessages).where(eq(agentMessages.id, msgId)).get();
   if (!row) return;
@@ -66,18 +54,10 @@ export function patchMessageMetadata(
  * Update conversation status and notify via WS.
  * If clientId is provided, sends only to that client; otherwise broadcasts to all.
  */
-export function updateConversation(
-  conversationId: string,
-  data: { status: "done" | "failed"; finishedAt: Date; errorMessage?: string },
-  clientId?: string,
-) {
+export function updateConversation(conversationId: string, data: { status: "done" | "failed"; finishedAt: Date; errorMessage?: string }, _clientId?: string) {
   const db = getDb();
   db.update(agentConversations).set(data).where(eq(agentConversations.id, conversationId)).run();
-  const updated = db
-    .select()
-    .from(agentConversations)
-    .where(eq(agentConversations.id, conversationId))
-    .get();
+  const updated = db.select().from(agentConversations).where(eq(agentConversations.id, conversationId)).get();
   if (updated) {
     // Always broadcast to ALL clients so other tabs can update their UI
     wsHub.broadcast("conversations:updated", updated);

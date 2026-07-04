@@ -1,24 +1,5 @@
-import {
-  type SQL,
-  and,
-  asc,
-  between,
-  count,
-  desc,
-  eq,
-  gt,
-  gte,
-  inArray,
-  like,
-  lt,
-  lte,
-  ne,
-  or,
-} from "drizzle-orm";
-import type {
-  SQLiteColumn,
-  SQLiteTableWithColumns,
-} from "drizzle-orm/sqlite-core";
+import { type SQL, and, asc, between, count, desc, eq, gt, gte, inArray, like, lt, lte, ne, or } from "drizzle-orm";
+import type { SQLiteColumn, SQLiteTableWithColumns } from "drizzle-orm/sqlite-core";
 import { getDb } from "./client.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -84,10 +65,7 @@ export interface ListQueryOptions<TTable extends SQLiteTableWithColumns<any>> {
 
 const FILTER_RE = /^(lt|lte|gt|gte|ne|eq|in|range):(.*)$/;
 
-function parseFilterValue(
-  col: SQLiteColumn,
-  raw: FilterValue,
-): SQL | undefined {
+function parseFilterValue(col: SQLiteColumn, raw: FilterValue): SQL | undefined {
   const str = String(raw ?? "");
   const match = str.match(FILTER_RE);
 
@@ -119,9 +97,7 @@ function parseFilterValue(
     case "range": {
       const parts = val.split(",").map((v) => v.trim());
       if (parts.length !== 2) {
-        throw new Error(
-          `Invalid range filter value: "${val}". Expected "from,to".`,
-        );
+        throw new Error(`Invalid range filter value: "${val}". Expected "from,to".`);
       }
       return between(col, parts[0], parts[1]);
     }
@@ -130,11 +106,7 @@ function parseFilterValue(
   }
 }
 
-function buildSortSQL(
-  cols: Record<string, SQLiteColumn>,
-  sortsParam?: string,
-  allowedSorts?: string[],
-): SQL[] {
+function buildSortSQL(cols: Record<string, SQLiteColumn>, sortsParam?: string, allowedSorts?: string[]): SQL[] {
   if (!sortsParam?.trim()) {
     // Default: newest first if createdAt exists
     const createdAt = cols.createdAt;
@@ -151,9 +123,7 @@ function buildSortSQL(
     const key = isDesc ? part.slice(1) : part;
 
     if (allowedSorts && !allowedSorts.includes(key)) {
-      throw new Error(
-        `Invalid sort field: "${key}". Allowed: ${allowedSorts.join(", ")}`,
-      );
+      throw new Error(`Invalid sort field: "${key}". Allowed: ${allowedSorts.join(", ")}`);
     }
 
     const col = cols[key];
@@ -191,13 +161,7 @@ export function listQuery<TTable extends SQLiteTableWithColumns<any>>(
   options: ListQueryOptions<TTable>,
   query: RawQuery = {},
 ): PagingResult<TTable["$inferSelect"]> {
-  const {
-    table,
-    allowedSorts,
-    allowedFilters,
-    searchColumns,
-    where: staticWhere,
-  } = options;
+  const { table, allowedSorts, allowedFilters, searchColumns, where: staticWhere } = options;
 
   // ── Parse reserved params ─────────────────────────────────────────────────
   const page = Math.max(1, Number(query.page) || 1);
@@ -227,9 +191,7 @@ export function listQuery<TTable extends SQLiteTableWithColumns<any>>(
   // Filter
   for (const [key, rawValue] of Object.entries(filter)) {
     if (allowedFilters && !allowedFilters.includes(key)) {
-      throw new Error(
-        `Filter column "${key}" is not allowed. Allowed: ${allowedFilters.join(", ")}`,
-      );
+      throw new Error(`Filter column "${key}" is not allowed. Allowed: ${allowedFilters.join(", ")}`);
     }
 
     const col = cols[key];
@@ -259,12 +221,7 @@ export function listQuery<TTable extends SQLiteTableWithColumns<any>>(
     }
   }
 
-  const whereSQL =
-    conditions.length > 0
-      ? conditions.length === 1
-        ? conditions[0]
-        : and(...conditions)
-      : undefined;
+  const whereSQL = conditions.length > 0 ? (conditions.length === 1 ? conditions[0] : and(...conditions)) : undefined;
 
   // ── Sort ──────────────────────────────────────────────────────────────────
   const orderSQL = buildSortSQL(cols, sorts, allowedSorts);

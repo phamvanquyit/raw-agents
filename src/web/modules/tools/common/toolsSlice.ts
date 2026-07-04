@@ -28,7 +28,7 @@ const initialState: IToolsState = {
   total: 0,
   items: [] as AgentTool[],
   selected: [],
-  filter: { page: 1, limit: 200, sorts: "-createdAt" },
+  filter: { page: 1, limit: 1000, sorts: "-createdAt" },
   builtins: [],
 };
 

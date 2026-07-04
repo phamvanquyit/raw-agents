@@ -1,6 +1,6 @@
 import { FullScreen, QuitFullScreen } from "@solar-icons/react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { sanitizeMermaid } from "./sanitizeMermaid";
+import { sanitizeMermaid } from "../common/sanitizeMermaid";
 
 interface MermaidBlockProps {
   children: string;

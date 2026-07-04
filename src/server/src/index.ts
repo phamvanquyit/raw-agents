@@ -1,8 +1,7 @@
 import { createApp } from "./app.js";
 import { closeDb, getDb } from "./common/db/client.js";
 import { wsHub } from "./common/ws/wsHub.js";
-import { handleAiStart, handleAiToolResult } from "./modules/ai/ai.ws.js";
-import { handleWsMessage } from "./modules/chat/chat.route.js";
+import { handleWsMessage } from "./modules/agents/chat.route.js";
 import { seedBuiltinTools } from "./modules/tools/tools.service.js";
 
 export interface ServerOptions {
@@ -17,10 +16,7 @@ const wsClientIds = new Map<object, string>();
 export async function startServer(options: ServerOptions = {}): Promise<void> {
   const port = options.port ?? Number(process.env.PORT ?? "15888");
   const host = options.host ?? process.env.HOST ?? "127.0.0.1";
-  const dataDir =
-    options.dataDir ??
-    process.env.DATA_DIR ??
-    `${process.env.HOME}/.raw-agents`;
+  const dataDir = options.dataDir ?? process.env.DATA_DIR ?? `${process.env.HOME}/.raw-agents`;
 
   // Set DATA_DIR globally so routes can pick it up
   process.env.DATA_DIR = dataDir;
@@ -30,7 +26,6 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
 
   // Seed builtin tools into DB (ensures FK for tool assignments)
   seedBuiltinTools();
-
 
   const app = createApp();
 
@@ -75,12 +70,6 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
                 message: string;
               },
             );
-          } else if (msg.type === "ai:start") {
-            // Non-blocking: fire and forget — streaming happens asynchronously
-            void handleAiStart(clientId, msg.payload as any);
-          } else if (msg.type === "ai:tool-result") {
-            // FE has executed a tool and sends back the result
-            handleAiToolResult(msg.payload as any);
           }
           // ping: no-op
         } catch {
@@ -93,14 +82,8 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
     idleTimeout: 120,
   });
 
-  console.log(
-    `\n🤖 Raw Agents API running at http://${server.hostname}:${server.port}`,
-  );
-  console.log(`   Data dir : ${dataDir}\n`);
-
   // Graceful shutdown
   const shutdown = () => {
-    console.log("\n[Server] Shutting down...");
     closeDb();
     server.stop();
     process.exit(0);

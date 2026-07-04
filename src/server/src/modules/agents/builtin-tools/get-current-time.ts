@@ -6,7 +6,14 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { getConfiguredTimezone } from "../../utils/cronHelper.js";
+import { getConfiguredTimezone } from "../../../common/utils/cronHelper.js";
+
+export const TOOL_DEF = {
+  toolName: "get_current_time",
+  toolLabel: "Get Current Time",
+  description: "Returns the current date and time in the specified timezone (default: UTC).",
+  parameters: { type: "object", properties: {}, required: [] },
+};
 
 export const getCurrentTimeTool = tool(
   async () => {

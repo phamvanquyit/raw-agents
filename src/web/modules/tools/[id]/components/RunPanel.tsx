@@ -200,8 +200,6 @@ export const RunPanel = forwardRef(function RunPanel({ code, toolId = "default" 
             language="json"
             value={jsonText}
             height={editorLineCount * 18}
-            theme="neon-dark"
-            loadingBg="#121317"
             onChange={(v) => {
               const val = v ?? "{}";
               setJsonText(val);

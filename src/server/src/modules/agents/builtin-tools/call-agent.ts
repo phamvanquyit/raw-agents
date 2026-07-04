@@ -8,9 +8,24 @@
  */
 
 import { tool } from "@langchain/core/tools";
-import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { getDb, agents } from "../../db/client.js";
+import { z } from "zod";
+import { agents, getDb } from "../../../common/db/client.js";
+
+export const TOOL_DEF = {
+  toolName: "call_agent",
+  toolLabel: "Call Agent",
+  description: "Delegates a prompt or task to another specialized agent by ID and returns their response.",
+  parameters: {
+    type: "object",
+    properties: {
+      agent_id: { type: "string", description: "The ID of the agent to call (UUID)" },
+      message: { type: "string", description: "The message or task to send to the agent" },
+      context: { type: "string", description: "Optional extra context from your current task" },
+    },
+    required: ["agent_id", "message"],
+  },
+};
 
 export function makeCallAgentTool(callerAgentId?: string) {
   return tool(
@@ -18,8 +33,6 @@ export function makeCallAgentTool(callerAgentId?: string) {
       const agent_id: string | undefined = rawArgs?.agent_id ?? rawArgs?.agentId ?? rawArgs?.id;
       const message: string = rawArgs?.message ?? rawArgs?.msg ?? "";
       const context: string | undefined = rawArgs?.context;
-
-      console.log("[call_agent] rawArgs:", JSON.stringify(rawArgs));
 
       if (!agent_id) {
         return JSON.stringify({
@@ -30,9 +43,7 @@ export function makeCallAgentTool(callerAgentId?: string) {
         });
       }
 
-      const baseMessage = context
-        ? `${message}\n\n---\n**Additional context:**\n${context}`
-        : message;
+      const baseMessage = context ? `${message}\n\n---\n**Additional context:**\n${context}` : message;
 
       // Resolve caller agent name for context injection
       let callerName = "Another agent";
@@ -41,7 +52,9 @@ export function makeCallAgentTool(callerAgentId?: string) {
           const db = getDb();
           const caller = db.select({ name: agents.name }).from(agents).where(eq(agents.id, callerAgentId)).get();
           if (caller?.name) callerName = caller.name;
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
 
       // Wrap message with inter-agent context so the called agent knows
@@ -87,10 +100,7 @@ Tips:
 - Include all context the agent needs to help you effectively.`,
       schema: z.object({
         agent_id: z.string().describe("The ID of the agent to call (UUID)."),
-        message: z
-          .string()
-          .min(1)
-          .describe("The message or task to send to the agent. Be specific."),
+        message: z.string().min(1).describe("The message or task to send to the agent. Be specific."),
         context: z.string().optional().describe("Optional extra context from your current task."),
       }),
     },

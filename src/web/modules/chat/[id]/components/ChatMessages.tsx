@@ -1,6 +1,6 @@
 import { AppLogo } from "../../../../components/AppLogo";
 import { MessageBubble } from "../../../../components/chat/_components/MessageBubble";
-import type { ChatAgentMessage } from "../../../../components/chat/_components/types";
+import type { ChatAgentMessage } from "../../../../components/chat/common/types";
 
 interface ChatMessagesProps {
   scrollRef: (node: HTMLElement | null) => void;

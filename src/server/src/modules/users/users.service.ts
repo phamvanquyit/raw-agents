@@ -3,11 +3,11 @@
  * Admin only.
  */
 
-import { eq, and, ne } from "drizzle-orm";
-import { getDb, users, type User, type NewUser } from "../../common/db/client.js";
-import { wsHub } from "../../common/ws/wsHub.js";
-import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { and, eq, ne } from "drizzle-orm";
+import { type NewUser, type User, getDb, users } from "../../common/db/client.js";
 import { listQuery } from "../../common/db/list-query.util.js";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { wsHub } from "../../common/ws/wsHub.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,21 +71,13 @@ export async function createUser(body: {
   }
 
   // Check unique username
-  const existingUsername = getDb()
-    .select()
-    .from(users)
-    .where(eq(users.username, username))
-    .get();
+  const existingUsername = getDb().select().from(users).where(eq(users.username, username)).get();
   if (existingUsername) {
     throw new BadRequestException("Username already exists");
   }
 
   // Check unique email
-  const existingEmail = getDb()
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .get();
+  const existingEmail = getDb().select().from(users).where(eq(users.email, email)).get();
   if (existingEmail) {
     throw new BadRequestException("Email already exists");
   }
@@ -115,16 +107,12 @@ export async function createUser(body: {
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-export function updateUser(
-  id: string,
-  body: { username?: string; email?: string; name?: string; role?: "admin" | "member" },
-): SafeUser {
+export function updateUser(id: string, body: { username?: string; email?: string; name?: string; role?: "admin" | "member" }): SafeUser {
   const db = getDb();
   const existing = db.select().from(users).where(eq(users.id, id)).get();
   if (!existing) {
     throw new BadRequestException("User not found");
   }
-
 
   // Check unique username (exclude self)
   if (body.username && body.username !== existing.username) {
@@ -174,7 +162,6 @@ export function deleteUser(id: string, currentUserId: string): void {
     throw new BadRequestException("User not found");
   }
 
-
   // Cannot delete self
   if (id === currentUserId) {
     throw new BadRequestException("Cannot delete yourself");
@@ -186,10 +173,7 @@ export function deleteUser(id: string, currentUserId: string): void {
 
 // ─── Reset Password ──────────────────────────────────────────────────────────
 
-export async function resetPassword(
-  id: string,
-  body: { password?: string },
-): Promise<{ password: string }> {
+export async function resetPassword(id: string, body: { password?: string }): Promise<{ password: string }> {
   const db = getDb();
   const user = db.select().from(users).where(eq(users.id, id)).get();
   if (!user) {
@@ -204,10 +188,7 @@ export async function resetPassword(
   }
 
   const passwordHash = await Bun.password.hash(password);
-  db.update(users)
-    .set({ passwordHash, updatedAt: new Date() })
-    .where(eq(users.id, id))
-    .run();
+  db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, id)).run();
 
   return { password };
 }

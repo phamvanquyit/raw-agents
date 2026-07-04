@@ -5,7 +5,7 @@ import rawTimezones from "./timezones.json" with { type: "json" };
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface TimezoneItem {
-  tz: string;    // IANA name, e.g. "Asia/Ho_Chi_Minh"
+  tz: string; // IANA name, e.g. "Asia/Ho_Chi_Minh"
   offset: string; // e.g. "UTC+7" or "UTC+5:30"
 }
 
@@ -30,9 +30,7 @@ function toOffsetMin(value: string): number {
 }
 
 // Map static JSON (label/value) → TimezoneItem (tz/offset), sorted by offset then name
-const TIMEZONE_LIST: TimezoneItem[] = (
-  rawTimezones as Array<{ label: string; value: string }>
-)
+const TIMEZONE_LIST: TimezoneItem[] = (rawTimezones as Array<{ label: string; value: string }>)
   .map(({ label, value }) => ({ tz: label, offset: toUtcLabel(value), _min: toOffsetMin(value) }))
   .sort((a, b) => a._min - b._min || a.tz.localeCompare(b.tz))
   .map(({ tz, offset }) => ({ tz, offset }));

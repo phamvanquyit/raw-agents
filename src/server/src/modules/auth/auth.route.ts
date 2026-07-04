@@ -4,9 +4,9 @@
  */
 
 import { Hono } from "hono";
-import { login, getCurrentUser, changePassword, checkSetupStatus, setupFirstAdmin } from "./auth.service.js";
 import type { User } from "../../common/db/client.js";
 import { UnauthorizedException } from "../../common/exceptions/http.exception.js";
+import { changePassword, checkSetupStatus, getCurrentUser, login, setupFirstAdmin } from "./auth.service.js";
 
 const app = new Hono();
 

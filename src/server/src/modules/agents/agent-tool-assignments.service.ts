@@ -6,11 +6,7 @@
  */
 
 import { and, eq } from "drizzle-orm";
-import {
-  getDb,
-  agentToolAssignments,
-  agentTools,
-} from "../../common/db/client.js";
+import { agentToolAssignments, agentTools, getDb } from "../../common/db/client.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -72,9 +68,7 @@ export function setAssignments(agentId: string, items: NewAssignmentInput[]): As
   const db = getDb();
 
   // Delete existing
-  db.delete(agentToolAssignments)
-    .where(eq(agentToolAssignments.agentId, agentId))
-    .run();
+  db.delete(agentToolAssignments).where(eq(agentToolAssignments.agentId, agentId)).run();
 
   // Insert new
   for (const item of items) {
@@ -101,12 +95,7 @@ export function addAssignment(agentId: string, input: NewAssignmentInput): Assig
   const existing = db
     .select({ id: agentToolAssignments.id })
     .from(agentToolAssignments)
-    .where(
-      and(
-        eq(agentToolAssignments.agentId, agentId),
-        eq(agentToolAssignments.toolId, input.toolId),
-      ),
-    )
+    .where(and(eq(agentToolAssignments.agentId, agentId), eq(agentToolAssignments.toolId, input.toolId)))
     .get();
 
   if (existing) {
@@ -131,18 +120,11 @@ export function addAssignment(agentId: string, input: NewAssignmentInput): Assig
 /** Remove a single assignment by its ID. */
 export function removeAssignment(assignmentId: string): void {
   const db = getDb();
-  const row = db
-    .select({ agentId: agentToolAssignments.agentId })
-    .from(agentToolAssignments)
-    .where(eq(agentToolAssignments.id, assignmentId))
-    .get();
+  const row = db.select({ agentId: agentToolAssignments.agentId }).from(agentToolAssignments).where(eq(agentToolAssignments.id, assignmentId)).get();
 
-  db.delete(agentToolAssignments)
-    .where(eq(agentToolAssignments.id, assignmentId))
-    .run();
+  db.delete(agentToolAssignments).where(eq(agentToolAssignments.id, assignmentId)).run();
 
   if (row) {
     wsHub.emit("agents:tools-updated", { agentId: row.agentId });
   }
 }
-

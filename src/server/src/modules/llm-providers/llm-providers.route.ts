@@ -1,9 +1,9 @@
 import { Hono } from "hono";
-import { createProvider, updateProvider, deleteProvider, getProvider } from "./llm-providers.service.js";
-import { fetchModelsForProvider } from "./fetchModels.js";
-import { listQuery } from "../../common/db/list-query.util.js";
 import { llmProviders } from "../../common/db/client.js";
+import { listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { fetchModelsForProvider } from "./fetchModels.js";
+import { createProvider, deleteProvider, getProvider, updateProvider } from "./llm-providers.service.js";
 
 const app = new Hono();
 

@@ -135,11 +135,13 @@ function AgentFlowInner({
 
     // ── Prepare data ────────────────────────────────────────────────────────
 
-    const sortedTools = [...allTools].sort((a, b) => {
-      // Builtin first, then alphabetical by name
-      if (a.isBuiltin !== b.isBuiltin) return a.isBuiltin ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
+    const sortedTools = [...allTools]
+      .filter((t) => t.isActive !== false && t.name !== "call_agent")
+      .sort((a, b) => {
+        // Builtin first, then alphabetical by name
+        if (a.isBuiltin !== b.isBuiltin) return a.isBuiltin ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
 
     const otherAgents = agents.filter((a) => a.id !== agent.id).sort((a, b) => a.name.localeCompare(b.name));
 

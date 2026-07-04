@@ -8,7 +8,7 @@
  *   - Stop endpoint calls cancel() to abort the background AI task
  */
 
-import type { AgentStreamEvent } from "../../common/ai/agentRunner.js";
+import type { AgentStreamEvent } from "./agentRunner.js";
 
 type RunSubscriber = (event: AgentStreamEvent) => void;
 

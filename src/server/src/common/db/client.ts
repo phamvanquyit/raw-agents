@@ -11,15 +11,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let _raw: Database | null = null;
 
-export function getDb(
-  dataDir?: string,
-): ReturnType<typeof drizzle<typeof schema>> {
+export function getDb(dataDir?: string): ReturnType<typeof drizzle<typeof schema>> {
   if (_db) return _db;
 
-  const dir =
-    dataDir ??
-    process.env.DATA_DIR ??
-    join(process.env.HOME ?? "~", ".raw-agents");
+  const dir = dataDir ?? process.env.DATA_DIR ?? join(process.env.HOME ?? "~", ".raw-agents");
   mkdirSync(dir, { recursive: true });
 
   const dbPath = join(dir, "data.db");
@@ -31,8 +26,6 @@ export function getDb(
 
   _db = drizzle(_raw, { schema });
   runMigrations(_raw);
-
-  console.log(`[DB] Ready — ${dbPath}`);
   return _db;
 }
 
@@ -46,7 +39,6 @@ export function getRawDb(): Database {
   if (!_raw) throw new Error("DB not initialized — call getDb() first");
   return _raw;
 }
-
 
 // ─── Migration runner ─────────────────────────────────────────────────────────
 function runMigrations(raw: Database): void {
@@ -65,9 +57,7 @@ function runMigrations(raw: Database): void {
     .sort();
 
   for (const file of files) {
-    const ran = raw
-      .query("SELECT name FROM __migrations WHERE name = ?")
-      .get(file);
+    const ran = raw.query("SELECT name FROM __migrations WHERE name = ?").get(file);
     if (ran) continue;
 
     const sql = readFileSync(join(migrationsDir, file), "utf8");
@@ -81,7 +71,6 @@ function runMigrations(raw: Database): void {
     }
 
     raw.query("INSERT INTO __migrations (name) VALUES (?)").run(file);
-    console.log(`[DB] Migration ran: ${file}`);
   }
 }
 

@@ -27,37 +27,22 @@ const DEFAULT_BASE: Record<string, string> = {
  * Fetch model list from a provider.
  * Throws on network/auth errors so caller can return 4xx/5xx.
  */
-export async function fetchModelsForProvider(
-  p: ProviderInfo,
-): Promise<string[]> {
+export async function fetchModelsForProvider(p: ProviderInfo): Promise<string[]> {
   const base = p.customBaseUrl.trim();
 
   switch (p.provider) {
     case "openai":
     case "custom":
-      return fetchOpenAiCompatibleModels(
-        p.apiKey,
-        base || DEFAULT_BASE.openai || "https://api.openai.com/v1",
-      );
+      return fetchOpenAiCompatibleModels(p.apiKey, base || DEFAULT_BASE.openai || "https://api.openai.com/v1");
 
     case "openrouter":
-      return fetchOpenRouterModels(
-        p.apiKey,
-        base || DEFAULT_BASE.openrouter || "https://openrouter.ai/api/v1",
-      );
+      return fetchOpenRouterModels(p.apiKey, base || DEFAULT_BASE.openrouter || "https://openrouter.ai/api/v1");
 
     case "ollama":
-      return fetchOllamaModels(
-        base || DEFAULT_BASE.ollama || "http://localhost:11434",
-      );
+      return fetchOllamaModels(base || DEFAULT_BASE.ollama || "http://localhost:11434");
 
     case "google":
-      return fetchGoogleModels(
-        p.apiKey,
-        base ||
-          DEFAULT_BASE.google ||
-          "https://generativelanguage.googleapis.com/v1beta",
-      );
+      return fetchGoogleModels(p.apiKey, base || DEFAULT_BASE.google || "https://generativelanguage.googleapis.com/v1beta");
 
     case "anthropic":
       return []; // Anthropic không có public /models endpoint
@@ -71,10 +56,7 @@ export async function fetchModelsForProvider(
 
 // ─── Per-provider fetchers ──────────────────────────────────────────────────────
 
-async function fetchOpenAiCompatibleModels(
-  apiKey: string,
-  baseUrl: string,
-): Promise<string[]> {
+async function fetchOpenAiCompatibleModels(apiKey: string, baseUrl: string): Promise<string[]> {
   const url = baseUrl.replace(/\/$/, "");
   const res = await fetch(`${url}/models`, {
     headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
@@ -84,10 +66,7 @@ async function fetchOpenAiCompatibleModels(
   return (json.data ?? []).map((m: { id: string }) => m.id).sort();
 }
 
-async function fetchOpenRouterModels(
-  apiKey: string,
-  baseUrl: string,
-): Promise<string[]> {
+async function fetchOpenRouterModels(apiKey: string, baseUrl: string): Promise<string[]> {
   const url = baseUrl.replace(/\/$/, "");
   const headers: Record<string, string> = {
     "HTTP-Referer": "https://raw-agents.app",
@@ -108,15 +87,10 @@ async function fetchOllamaModels(endpoint: string): Promise<string[]> {
   return (json.models ?? []).map((m: { name: string }) => m.name).sort();
 }
 
-async function fetchGoogleModels(
-  apiKey: string,
-  baseUrl = "https://generativelanguage.googleapis.com/v1beta",
-): Promise<string[]> {
+async function fetchGoogleModels(apiKey: string, baseUrl = "https://generativelanguage.googleapis.com/v1beta"): Promise<string[]> {
   const base = baseUrl.replace(/\/$/, "");
   const res = await fetch(`${base}/v1beta/models?key=${apiKey}`);
   if (!res.ok) throw new Error(`Google /models: ${res.status}`);
   const json = await res.json();
-  return (json.models ?? [])
-    .map((m: { name: string }) => m.name.replace("models/", ""))
-    .sort();
+  return (json.models ?? []).map((m: { name: string }) => m.name.replace("models/", "")).sort();
 }

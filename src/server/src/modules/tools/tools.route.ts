@@ -1,7 +1,8 @@
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
-import { listTools, getTool, createTool, updateTool, deleteTool, validateCode, runCode, runTool } from "./tools.service.js";
-
+import { type CodingStreamRequest, streamCodingAgent } from "./services/coding-agent.service.js";
+import { createTool, deleteTool, getTool, listTools, runCode, runTool, updateTool, validateCode } from "./tools.service.js";
 
 const app = new Hono();
 
@@ -21,6 +22,16 @@ app.post("/run-code", async (c) => {
   const body = await c.req.json<{ code: string; inputJson?: string }>();
   if (!body.code?.trim()) throw new BadRequestException("No code provided");
   return c.json(await runCode(body.code, body.inputJson));
+});
+
+// POST /api/tools/:id/coding/stream — coding agent SSE
+app.post("/:id/coding/stream", async (c) => {
+  const toolId = c.req.param("id");
+  const body = await c.req.json<CodingStreamRequest>();
+
+  return streamSSE(c, async (stream) => {
+    await streamCodingAgent(toolId, body, stream);
+  });
 });
 
 // GET /api/tools/:id

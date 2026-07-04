@@ -7,15 +7,12 @@
  * Replaces getLanguageModel.ts (Vercel AI SDK) with LangChain chat models.
  */
 
-import { ChatOpenAI } from "@langchain/openai";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { ChatOpenAI } from "@langchain/openai";
 import { eq } from "drizzle-orm";
 import { getDb, llmProviders } from "../db/client.js";
 
-export async function getChatModel(
-  providerId: string,
-  modelId: string,
-): Promise<BaseChatModel> {
+export async function getChatModel(providerId: string, modelId: string): Promise<BaseChatModel> {
   const db = getDb();
   const p = db.select().from(llmProviders).where(eq(llmProviders.id, providerId)).get();
 
@@ -33,12 +30,14 @@ export async function getChatModel(
       model: modelId,
       apiKey,
       ...(baseURL ? { configuration: { baseURL } } : {}),
-      ...(isReasoningModel ? {
-        useResponsesApi: true,
-        reasoning: { effort: "medium" },
-        // NOTE: add `summary: "auto"` to reasoning once org is verified at
-        // https://platform.openai.com/settings/organization/general
-      } : {}),
+      ...(isReasoningModel
+        ? {
+            useResponsesApi: true,
+            reasoning: { effort: "medium" },
+            // NOTE: add `summary: "auto"` to reasoning once org is verified at
+            // https://platform.openai.com/settings/organization/general
+          }
+        : {}),
     });
   }
 

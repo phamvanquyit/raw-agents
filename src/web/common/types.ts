@@ -104,6 +104,7 @@ export interface AgentTool {
   icon?: string;
   parameters: object;
   codeContent: string;
+  draftCode?: string | null;
   isBuiltin: boolean;
   isActive: boolean;
   createdAt: Date;

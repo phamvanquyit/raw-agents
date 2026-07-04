@@ -1,7 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb, llmProviders, type NewLlmProvider } from "../../common/db/client.js";
-
-
+import { type NewLlmProvider, getDb, llmProviders } from "../../common/db/client.js";
 
 export function getProvider(id: string) {
   return getDb().select().from(llmProviders).where(eq(llmProviders.id, id)).get();
@@ -16,7 +14,10 @@ export function createProvider(body: Pick<NewLlmProvider, "provider" | "label" |
 
 export function updateProvider(id: string, body: Partial<Pick<NewLlmProvider, "provider" | "label" | "apiKey" | "customBaseUrl" | "models">>) {
   const db = getDb();
-  db.update(llmProviders).set({ ...body, updatedAt: new Date() }).where(eq(llmProviders.id, id)).run();
+  db.update(llmProviders)
+    .set({ ...body, updatedAt: new Date() })
+    .where(eq(llmProviders.id, id))
+    .run();
   return db.select().from(llmProviders).where(eq(llmProviders.id, id)).get();
 }
 

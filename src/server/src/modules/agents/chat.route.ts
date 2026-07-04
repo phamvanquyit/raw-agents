@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { BadRequestException, InternalServerErrorException } from "../../common/exceptions/http.exception.js";
-import { handleWsMessage, generateResponse, stopStream } from "./chat.service.js";
+import { generateResponse, handleWsMessage, stopStream } from "./chat.service.js";
 
 const app = new Hono();
 

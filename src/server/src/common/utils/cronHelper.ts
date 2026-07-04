@@ -10,15 +10,17 @@
  *   3. Shift result back to get real UTC timestamp
  */
 
-import { getDb, appSettings } from "../db/client.js";
 import { eq } from "drizzle-orm";
+import { appSettings, getDb } from "../db/client.js";
 
 /** Đọc timezone đã cấu hình từ DB. Fallback: UTC. */
 export function getConfiguredTimezone(): string {
   try {
     const row = getDb().select().from(appSettings).where(eq(appSettings.key, "timezone")).get();
     if (row?.value) return row.value;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return "UTC";
 }
 

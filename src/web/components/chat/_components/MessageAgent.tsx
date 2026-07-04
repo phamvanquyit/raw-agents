@@ -1,9 +1,9 @@
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { ChatAgentMessage } from "../common/types";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownTable } from "./MarkdownTable";
-import type { ChatAgentMessage } from "./types";
 import "./markdown.css";
 import { AppLogo } from "src/components/AppLogo";
 

@@ -33,3 +33,12 @@ export interface Tool {
 }
 
 export type ToolSet = Record<string, Tool>;
+
+/**
+ * ToolHooks — FE callbacks fired when server-side tools are called.
+ *
+ * Hook nhận tool input, có thể:
+ * - Trả void: tool đã execute xong ở server, hook chỉ làm side effect UI
+ * - Trả Promise<unknown>: kết quả gửi lại server làm tool result cho AI
+ */
+export type ToolHooks = Record<string, (input: unknown) => Promise<unknown> | unknown | undefined>;

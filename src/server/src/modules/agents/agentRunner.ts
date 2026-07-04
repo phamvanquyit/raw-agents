@@ -5,7 +5,7 @@
  * - generateAgent(): non-streaming, returns text (for call_agent, task runner)
  * - streamAgent(): streaming via AsyncIterable of AgentStreamEvent
  *
- * LangGraph JS version — uses createReactAgent from @langchain/langgraph/prebuilt
+ * LangGraph JS version — uses createAgent from langchain
  *
  * Tool resolution:
  *   1. agent_tool_assignments (junction table, JOIN agent_tools)
@@ -13,15 +13,15 @@
  *   3. Always-on: update_agent_memory + manage_agent_note
  */
 
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import { eq } from "drizzle-orm";
-import { getDb, agents, llmProviders } from "../db/client.js";
-import { getChatModel } from "./getChatModel.js";
+import { createAgent } from "langchain";
+import { getChatModel } from "../../common/ai/getChatModel.js";
+import { agents, getDb } from "../../common/db/client.js";
+import { type AssignmentWithTool, listAssignments } from "./agent-tool-assignments.service.js";
 import { resolveSystemPrompt } from "./buildSystemPrompt.js";
-import { resolveAgentTools, getToolLabel, getCallAgentLabel } from "./tools/resolveTools.js";
-import { listAssignments, type AssignmentWithTool } from "../../modules/agents/agent-tool-assignments.service.js";
+import { getCallAgentLabel, getToolLabel, resolveAgentTools } from "./resolveTools.js";
 
 // ─── Event types for streaming ────────────────────────────────────────────────
 
@@ -49,10 +49,7 @@ export type AgentResult = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build enabled tool name list from junction table assignments */
-function buildEnabledToolNames(
-  assignments: AssignmentWithTool[],
-  options: { allowCallAgent?: boolean } = {},
-): string[] {
+function buildEnabledToolNames(assignments: AssignmentWithTool[], options: { allowCallAgent?: boolean } = {}): string[] {
   let names = assignments.map((a) => a.tool.name);
 
   if (options.allowCallAgent === false) {
@@ -64,11 +61,7 @@ function buildEnabledToolNames(
 
 /** Convert MessageParam[] to BaseMessage[] for LangGraph */
 function toBaseMessages(messages: MessageParam[]): BaseMessage[] {
-  return messages.map((m) =>
-    m.role === "user"
-      ? new HumanMessage(m.content)
-      : new AIMessage(m.content),
-  );
+  return messages.map((m) => (m.role === "user" ? new HumanMessage(m.content) : new AIMessage(m.content)));
 }
 
 /** Parse final messages from the agent's output state into AgentResult */
@@ -112,9 +105,16 @@ function parseAgentResult(resultMessages: BaseMessage[]): AgentResult {
         const toolMsg = msg as any;
         currentStep.toolResults.push({
           toolName: toolMsg.name ?? "unknown",
-          result: typeof toolMsg.content === "string"
-            ? (() => { try { return JSON.parse(toolMsg.content); } catch { return toolMsg.content; } })()
-            : toolMsg.content,
+          result:
+            typeof toolMsg.content === "string"
+              ? (() => {
+                  try {
+                    return JSON.parse(toolMsg.content);
+                  } catch {
+                    return toolMsg.content;
+                  }
+                })()
+              : toolMsg.content,
         });
       }
     }
@@ -127,11 +127,12 @@ function parseAgentResult(resultMessages: BaseMessage[]): AgentResult {
 
   // Fallback: try to find any text from AI messages if fullText is empty
   if (!fullText) {
-    fullText = resultMessages
-      .filter((m) => m._getType() === "ai")
-      .map((m) => (typeof m.content === "string" ? m.content : ""))
-      .filter(Boolean)
-      .pop() ?? "";
+    fullText =
+      resultMessages
+        .filter((m) => m._getType() === "ai")
+        .map((m) => (typeof m.content === "string" ? m.content : ""))
+        .filter(Boolean)
+        .pop() ?? "";
   }
 
   return { text: fullText, steps };
@@ -157,11 +158,7 @@ export async function generateAgent(
 
   // Get tool assignments from junction table
   const assignments = listAssignments(agentId);
-  const enabledToolNames = [
-    ...buildEnabledToolNames(assignments, options),
-    "update_agent_memory",
-    "manage_agent_note",
-  ];
+  const enabledToolNames = [...buildEnabledToolNames(assignments, options), "update_agent_memory", "manage_agent_note"];
 
   // Callable agents from agent's callableAgentIds column
   const callableAgentIds: string[] = (agent.callableAgentIds as string[]) ?? [];
@@ -172,16 +169,14 @@ export async function generateAgent(
     Promise.resolve(resolveAgentTools(agentId, enabledToolNames)),
   ]);
 
-  const reactAgent = createReactAgent({
-    llm: model,
+  const reactAgent = createAgent({
+    model,
     tools,
+    systemPrompt,
   });
 
   const input = {
-    messages: [
-      new SystemMessage(systemPrompt),
-      ...toBaseMessages(messages),
-    ],
+    messages: toBaseMessages(messages),
   };
 
   // recursionLimit: each "step" in Vercel AI SDK = 1 model call + tools → ~2 nodes in LangGraph
@@ -192,8 +187,8 @@ export async function generateAgent(
   });
 
   // Parse result.messages (BaseMessage[]) → AgentResult
-  // Skip the system message and original input messages
-  const originalCount = messages.length + 1; // +1 for system message
+  // Skip the original input messages (system prompt is handled internally by createAgent)
+  const originalCount = messages.length;
   const newMessages = result.messages.slice(originalCount);
   return parseAgentResult(newMessages);
 }
@@ -227,11 +222,7 @@ export async function* streamAgent(
 
   // Get tool assignments from junction table
   const assignments = listAssignments(agentId);
-  const enabledToolNames = [
-    ...buildEnabledToolNames(assignments),
-    "update_agent_memory",
-    "manage_agent_note",
-  ];
+  const enabledToolNames = [...buildEnabledToolNames(assignments), "update_agent_memory", "manage_agent_note"];
 
   try {
     // Callable agents from agent's callableAgentIds column
@@ -243,16 +234,14 @@ export async function* streamAgent(
       Promise.resolve(resolveAgentTools(agentId, enabledToolNames)),
     ]);
 
-    const reactAgent = createReactAgent({
-      llm: model,
+    const reactAgent = createAgent({
+      model,
       tools,
+      systemPrompt,
     });
 
     const input = {
-      messages: [
-        new SystemMessage(systemPrompt),
-        ...toBaseMessages(messages),
-      ],
+      messages: toBaseMessages(messages),
     };
 
     const maxSteps = options.maxSteps ?? 30;
@@ -263,8 +252,11 @@ export async function* streamAgent(
     });
 
     let fullText = "";
-    // Track which tool calls we've already emitted
+    // Track which tool calls we've already emitted (with complete args)
     const emittedToolCalls = new Set<string>();
+    // Accumulate tool_call_chunks args (streamed incrementally by LangChain)
+    // Key: toolCallId, Value: { name, argsStr (accumulated) }
+    const pendingToolCalls = new Map<string, { name: string; argsStr: string }>();
 
     for await (const chunk of stream) {
       const [mode, data] = chunk as unknown as [string, any];
@@ -275,18 +267,7 @@ export async function* streamAgent(
         const msgType = msgChunk?._getType?.() ?? msgChunk?.type;
 
         if (msgType === "ai" || msgType === "AIMessageChunk") {
-          // DEBUG: log first non-trivial chunk fully
           const content = msgChunk?.content;
-          const addKwargs = msgChunk?.additional_kwargs;
-          if (content && typeof content !== "string") {
-            console.log("[stream-debug] content blocks:", JSON.stringify(content).slice(0, 500));
-          }
-          if (addKwargs && Object.keys(addKwargs).length > 0) {
-            const kwKeys = Object.keys(addKwargs);
-            if (kwKeys.some(k => k !== "tool_calls")) {
-              console.log("[stream-debug] additional_kwargs:", JSON.stringify(addKwargs).slice(0, 500));
-            }
-          }
 
           // ── Extract text + thinking from content ──
           if (typeof content === "string" && content) {
@@ -323,26 +304,25 @@ export async function* streamAgent(
           }
 
           // Fallback: reasoning in additional_kwargs (older LangChain or non-Responses API)
-          const reasoning =
-            msgChunk?.additional_kwargs?.reasoning_content ??
-            msgChunk?.additional_kwargs?.reasoning;
+          const reasoning = msgChunk?.additional_kwargs?.reasoning_content ?? msgChunk?.additional_kwargs?.reasoning;
           if (typeof reasoning === "string" && reasoning) {
             yield { type: "thinking-delta", text: reasoning };
           }
 
-          // Tool calls in the chunk
+          // Tool call chunks — accumulate args, DON'T emit yet.
+          // LangChain streams tool_call_chunks incrementally: first chunk has name+id
+          // but empty/partial args. We buffer until updates mode gives us the complete args.
           if (msgChunk?.tool_call_chunks) {
             for (const tc of msgChunk.tool_call_chunks) {
-              if (tc.name && tc.id && !emittedToolCalls.has(tc.id)) {
-                emittedToolCalls.add(tc.id);
-                const parsedArgs = tc.args ? (() => { try { return JSON.parse(tc.args); } catch { return tc.args; } })() : {};
-                yield {
-                  type: "tool-call",
-                  toolCallId: tc.id,
-                  toolName: tc.name,
-                  toolLabel: tc.name === "call_agent" ? getCallAgentLabel(parsedArgs) : getToolLabel(tc.name),
-                  input: parsedArgs,
-                };
+              if (tc.id) {
+                const pending = pendingToolCalls.get(tc.id);
+                if (pending) {
+                  // Append incremental args fragment
+                  if (tc.args) pending.argsStr += tc.args;
+                } else if (tc.name) {
+                  // First chunk for this tool call — register it
+                  pendingToolCalls.set(tc.id, { name: tc.name, argsStr: tc.args ?? "" });
+                }
               }
             }
           }
@@ -351,14 +331,21 @@ export async function* streamAgent(
           const toolCallId: string = msgChunk?.tool_call_id ?? "";
           const toolName = msgChunk?.name ?? "unknown";
           const rawContent = msgChunk?.content;
-          const result = typeof rawContent === "string"
-            ? (() => { try { return JSON.parse(rawContent); } catch { return rawContent; } })()
-            : rawContent;
+          const result =
+            typeof rawContent === "string"
+              ? (() => {
+                  try {
+                    return JSON.parse(rawContent);
+                  } catch {
+                    return rawContent;
+                  }
+                })()
+              : rawContent;
           yield { type: "tool-result", toolCallId, toolName, result };
         }
       } else if (mode === "updates") {
         // updates mode: { nodeName: { messages: [...] } }
-        // Used as fallback to capture tool calls from AIMessage that messages mode might not surface cleanly
+        // This is the PRIMARY source for tool-call events — it has complete args.
         for (const [nodeName, state] of Object.entries(data as Record<string, any>)) {
           if (nodeName === "agent" && state?.messages) {
             for (const msg of state.messages) {
@@ -367,6 +354,8 @@ export async function* streamAgent(
                   const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
                   if (!emittedToolCalls.has(tcId)) {
                     emittedToolCalls.add(tcId);
+                    // Remove from pending since we're emitting the complete version
+                    pendingToolCalls.delete(tcId);
                     yield {
                       type: "tool-call",
                       toolCallId: tcId,
@@ -380,6 +369,29 @@ export async function* streamAgent(
             }
           }
         }
+      }
+    }
+
+    // Flush any pending tool calls that weren't emitted via updates mode (edge case)
+    for (const [tcId, pending] of pendingToolCalls) {
+      if (!emittedToolCalls.has(tcId)) {
+        emittedToolCalls.add(tcId);
+        const parsedArgs = pending.argsStr
+          ? (() => {
+              try {
+                return JSON.parse(pending.argsStr);
+              } catch {
+                return pending.argsStr;
+              }
+            })()
+          : {};
+        yield {
+          type: "tool-call",
+          toolCallId: tcId,
+          toolName: pending.name,
+          toolLabel: pending.name === "call_agent" ? getCallAgentLabel(parsedArgs) : getToolLabel(pending.name),
+          input: parsedArgs,
+        };
       }
     }
 

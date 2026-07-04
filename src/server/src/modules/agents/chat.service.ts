@@ -1,20 +1,11 @@
 import { eq } from "drizzle-orm";
-import {
-  getDb,
-  agentMessages,
-  agentConversations,
-} from "../../common/db/client.js";
-import { verifyPublicToken } from "../public/public.service.js";
-import { wsHub } from "../../common/ws/wsHub.js";
-import { streamAgent, generateAgent } from "../../common/ai/agentRunner.js";
-import { runRegistry } from "./run-registry.js";
-import {
-  loadHistory,
-  saveMessage,
-  patchMessageMetadata,
-  updateConversation,
-} from "../../common/utils/chat-helpers.js";
+import { agentConversations, agentMessages, getDb } from "../../common/db/client.js";
 import { agents } from "../../common/db/client.js";
+import { wsHub } from "../../common/ws/wsHub.js";
+import { loadHistory, patchMessageMetadata, saveMessage, updateConversation } from "../conversations/chat-helpers.js";
+import { verifyPublicToken } from "../public/public.service.js";
+import { generateAgent, streamAgent } from "./agentRunner.js";
+import { runRegistry } from "./run-registry.js";
 
 export { loadHistory };
 
@@ -33,6 +24,7 @@ export function startBackgroundStream(
   void (async () => {
     let fullText = "";
     let failed = false;
+    let hasSavedSegments = false;
     const toolMsgIds = new Map<string, string>();
 
     try {
@@ -50,14 +42,27 @@ export function startBackgroundStream(
             break;
 
           case "tool-call": {
+            // Flush any accumulated text as an assistant message BEFORE the tool call
+            // so it appears in the correct chronological position
+            if (fullText.trim()) {
+              saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
+              hasSavedSegments = true;
+              fullText = "";
+            }
             const toolMsg = saveMessage({
-              agentId: msgAgentId, conversationId, role: "tool",
+              agentId: msgAgentId,
+              conversationId,
+              role: "tool",
               content: event.toolName,
               metadata: { toolName: event.toolName, toolLabel: event.toolLabel, toolInput: event.input, toolCallId: event.toolCallId },
             });
             if (toolMsg.id) toolMsgIds.set(event.toolCallId, toolMsg.id);
             wsHub.send(clientId, "chat:tool-call", {
-              conversationId, toolCallId: event.toolCallId, toolName: event.toolName, toolLabel: event.toolLabel, input: event.input,
+              conversationId,
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              toolLabel: event.toolLabel,
+              input: event.input,
             });
             break;
           }
@@ -82,21 +87,29 @@ export function startBackgroundStream(
                       return (meta?.toolInput as Record<string, unknown>) ?? {};
                     })();
                     patchData.toolInput = { ...existingInput, agent_id: parsed.agent_id };
-                    const { getCallAgentLabel } = await import("../../common/ai/tools/resolveTools.js");
+                    const { getCallAgentLabel } = await import("./resolveTools.js");
                     patchData.toolLabel = getCallAgentLabel({ agent_id: parsed.agent_id });
                   }
-                } catch { /* ignore parse errors */ }
+                } catch {
+                  /* ignore parse errors */
+                }
               }
               patchMessageMetadata(toolMsgId, patchData);
             }
             wsHub.send(clientId, "chat:tool-result", {
-              conversationId, toolCallId: event.toolCallId, toolName: event.toolName, result: event.result,
+              conversationId,
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              result: event.result,
             });
             break;
           }
 
           case "done":
-            fullText = event.text || fullText;
+            // Don't overwrite fullText with the full concatenated text from agentRunner
+            // since we've already saved intermediate segments. Only use it as fallback
+            // if we haven't accumulated any text in the current segment.
+            if (!fullText && !hasSavedSegments) fullText = event.text || "";
             break;
 
           case "error":
@@ -109,10 +122,7 @@ export function startBackgroundStream(
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const isAbort =
-        msg.includes("AbortError") ||
-        msg === "AbortError" ||
-        (err instanceof Error && err.name === "AbortError");
+      const isAbort = msg.includes("AbortError") || msg === "AbortError" || (err instanceof Error && err.name === "AbortError");
       failed = true;
       wsHub.send(clientId, "chat:error", { conversationId, error: isAbort ? "cancelled" : msg });
     } finally {
@@ -147,10 +157,7 @@ export function startBackgroundStream(
 
 // ─── WS handler ───────────────────────────────────────────────────────────────
 
-export async function handleWsMessage(
-  clientId: string,
-  body: { agentId: string; conversationId: string; message: string; password?: string; token?: string },
-) {
+export async function handleWsMessage(clientId: string, body: { agentId: string; conversationId: string; message: string; password?: string; token?: string }) {
   const { agentId, conversationId, message, password, token } = body;
   if (!conversationId || !agentId || !message) return;
 
@@ -164,11 +171,7 @@ export async function handleWsMessage(
   const msgAgentId = conv?.agentId ?? agentId;
 
   if (conv?.trigger === "public") {
-    const agent = db
-      .select({ publicPassword: agents.publicPassword, isPublic: agents.isPublic })
-      .from(agents)
-      .where(eq(agents.id, msgAgentId))
-      .get();
+    const agent = db.select({ publicPassword: agents.publicPassword, isPublic: agents.isPublic }).from(agents).where(eq(agents.id, msgAgentId)).get();
     if (!agent?.isPublic) {
       wsHub.send(clientId, "chat:error", { conversationId, error: "Agent is not public." });
       return;
@@ -196,12 +199,7 @@ export async function handleWsMessage(
 
 // ─── Generate (non-streaming) ─────────────────────────────────────────────────
 
-export async function generateResponse(
-  agentId: string,
-  message: string,
-  conversationId?: string,
-  maxSteps = 8,
-) {
+export async function generateResponse(agentId: string, message: string, conversationId?: string, maxSteps = 8) {
   const history = conversationId ? loadHistory(conversationId) : [];
   const messages = [...history, { role: "user" as const, content: message }];
   return generateAgent(agentId, messages, { maxSteps });

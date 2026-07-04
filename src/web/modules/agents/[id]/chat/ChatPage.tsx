@@ -8,7 +8,7 @@ import { MessageBubble } from "src/components/chat/_components/MessageBubble";
 import { groupMessages } from "src/components/chat/_components/MessageList";
 import { ToolCallBubble } from "src/components/chat/_components/ToolCallBubble";
 
-import { useAutoScroll } from "src/components/chat/_components/useAutoScroll";
+import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
 import { updateAgent } from "src/modules/agents/common/agentsSlice";
 import {
   clearMessages,
@@ -89,7 +89,6 @@ export function ChatPage() {
     if (!isServerRunning || running || !agent || !activeConversationId) return;
     const timer = setInterval(async () => {
       await dispatch(fetchConversations(agent.id));
-      await dispatch(fetchMessages(activeConversationId));
     }, 3000);
     return () => clearInterval(timer);
   }, [isServerRunning, running, agent, activeConversationId, dispatch]);
@@ -214,6 +213,11 @@ export function ChatPage() {
         },
         onThinking: (chunk) => setThinkingContent((prev) => prev + chunk),
         onToolCall: ({ toolName, toolLabel }) => {
+          // Server saved accumulated text + tool-call as DB messages; re-fetch
+          // so they appear immediately, and reset streaming for the next segment.
+          setStreamingContent("");
+          setThinkingContent("");
+          void dispatch(fetchMessages(convId));
           if (toolName === "call_agent") {
             // toolLabel is "Call Trợ lý giá vàng" → strip "Call " for natural reading
             const agentName = toolLabel?.replace(/^Call\s+/i, "") ?? "agent";
@@ -224,20 +228,23 @@ export function ChatPage() {
         },
         onToolResult: () => {
           setActivityStatus("Thinking...");
+          void dispatch(fetchMessages(convId));
         },
         onDone: async () => {
           setStreamingContent("");
           setThinkingContent("");
           setActivityStatus("Thinking...");
-          await dispatch(fetchMessages(convId));
           dispatch(markConversationDone(convId));
+          // Re-fetch messages from server to ensure tool call metadata (toolInput etc.) is complete
+          await dispatch(fetchMessages(convId));
         },
         onError: async (err) => {
           console.error("[AgentChat] Error:", err);
           setStreamingContent("");
           setThinkingContent("");
           setActivityStatus("Thinking...");
-          if (convId) await dispatch(fetchMessages(convId));
+          // Re-fetch messages from server to ensure any partial tool calls are shown correctly
+          await dispatch(fetchMessages(convId));
         },
       });
     },

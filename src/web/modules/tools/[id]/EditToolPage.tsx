@@ -1,34 +1,31 @@
 // ─── Edit Tool Page ───────────────────────────────────────────────────────────
 // Route: /tools/:id — Full-page editor for a single tool.
-// Layout: Header bar → [ Code editor (left) | Sidebar (right) ]
+// Layout: Header → [ Editor(top) + RunPanel(bottom, collapsible) | CodingAgentPanel(right) ]
+
+import { CheckCircle, CloseCircle, Play, TestTube } from "@solar-icons/react";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
+import { wsClient } from "src/common/api/wsClient";
 import { SettingKey } from "src/common/enum";
 import type { AgentTool } from "src/common/types";
-import type { ToolSet } from "src/common/types/tool";
-import type { ChatAgentMessage, ToolActionEvent } from "src/components/chat/ChatAgent";
-import { type EditorInstance, MonacoEditor } from "src/components/ui/MonacoEditor";
+import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/ui/MonacoEditor";
 import { useAppDispatch, useAppSelector } from "src/store/store";
+import type { ToolActionEvent } from "./components/CodingAgentPanel";
 
-import { AI_SYSTEM_PROMPT } from "../common/constants";
-import {
-  FETCH_WEBPAGE_TOOL_NAME,
-  RUN_CURRENT_SCRIPT_TOOL_NAME,
-  UPDATE_EDITOR_CODE_TOOL_NAME,
-  fetchWebpageToolStub,
-  makeRunCurrentScriptTool,
-  updateEditorCodeTool,
-} from "../common/editorTools";
 import type { EditorUpdate } from "../common/editorTypes";
 import { deleteTool, fetchTools, updateTool } from "../common/toolsSlice";
 import { buildJsonSchemaFromCode, injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams } from "../common/utils";
 
+import { CodingAgentPanel } from "./components/CodingAgentPanel";
 import { EditToolHeader } from "./components/EditToolHeader";
-import type { RunPanelHandle } from "./components/RunPanel";
-import { SidebarPanel } from "./components/SidebarPanel";
+import { RunPanel, type RunPanelHandle } from "./components/RunPanel";
 import { ValidationBanner } from "./components/ValidationBanner";
+
+const BOTTOM_PANEL_DEFAULT = 280;
+const BOTTOM_PANEL_MIN = 120;
+const BOTTOM_PANEL_MAX = 600;
 
 export default function EditToolPage() {
   const { id } = useParams<{ id: string }>();
@@ -54,6 +51,7 @@ export default function EditToolPage() {
   const [localCode, setLocalCode] = useState("");
   const [savedCode, setSavedCode] = useState("");
   const [sharedCode, setSharedCode] = useState("");
+  const [codeDraft, setCodeDraft] = useState<string | null>(null);
   const editorRef = useRef<EditorInstance | null>(null);
   const codeRef = useRef(localCode);
   codeRef.current = localCode;
@@ -71,7 +69,49 @@ export default function EditToolPage() {
     setSavedCode(code);
     setSharedCode(code);
     currentLoadedToolIdRef.current = tool.id;
+
+    // If there's a pending AI draft that differs from saved code, show diff
+    if (tool.draftCode && tool.draftCode !== (tool.codeContent ?? "")) {
+      let draft = injectParamsIntoCode(tool.draftCode, parseParams(tool));
+      draft = injectMetaIntoCode(draft, {
+        label: tool.label,
+        description: tool.description,
+      });
+      if (draft !== code) {
+        setCodeDraft(draft);
+      }
+    }
   }, [tool]);
+
+  // ── Listen for WS tools:updated — sync draftCode from AI / other tabs ──
+  useEffect(() => {
+    if (!id) return;
+    const unsub = wsClient.on<Partial<AgentTool> & { id: string }>("tools:updated", (payload) => {
+      if (payload.id !== id) return;
+
+      // Sync codeContent when another tab saves
+      if ("codeContent" in payload && payload.codeContent != null) {
+        const code = payload.codeContent;
+        setSavedCode(code);
+        setLocalCode(code);
+        setSharedCode(code);
+        // If codeContent now matches the current draft, draft was accepted — clear diff
+        setCodeDraft((prev) => (prev !== null && prev === code ? null : prev));
+      }
+
+      // Only show diff when draftCode differs from codeContent
+      if ("draftCode" in payload && payload.draftCode != null) {
+        const draft = payload.draftCode;
+        const code = payload.codeContent ?? codeRef.current;
+        if (draft !== code) {
+          setCodeDraft(draft);
+        } else {
+          setCodeDraft(null);
+        }
+      }
+    });
+    return unsub;
+  }, [id]);
 
   // ── Save + delete state ──
   const [saving, setSaving] = useState(false);
@@ -115,27 +155,6 @@ export default function EditToolPage() {
     setModel(savedModel);
   }, [providersLoaded, providerItems, settings]);
 
-  // ── AI chat messages ──
-  const messagesRef = useRef<ChatAgentMessage[]>([]);
-
-  // ── Editor tools (FE-only) ──
-  const editorTools: ToolSet = useMemo(
-    () => ({
-      [UPDATE_EDITOR_CODE_TOOL_NAME]: updateEditorCodeTool,
-      [RUN_CURRENT_SCRIPT_TOOL_NAME]: makeRunCurrentScriptTool(() => codeRef.current),
-      [FETCH_WEBPAGE_TOOL_NAME]: fetchWebpageToolStub,
-    }),
-    [],
-  );
-
-  // ── System prompt ──
-  const systemPrompt = [
-    AI_SYSTEM_PROMPT,
-    localCode.trim()
-      ? `\nCurrent code in editor (AI is working based on this):\n\`\`\`python\n${localCode}\n\`\`\``
-      : "\nEditor is currently empty — please write new code.",
-  ].join("\n");
-
   // ── Apply AI code via executeEdits ──
   const applyUpdate = useCallback((upd: EditorUpdate) => {
     const editor = editorRef.current;
@@ -157,29 +176,32 @@ export default function EditToolPage() {
   // ── Handle tool actions from AI ──
   const runPanelRef = useRef<RunPanelHandle>(null);
 
-  const handleToolAction = useCallback(
-    (event: ToolActionEvent) => {
-      if (event.toolName === UPDATE_EDITOR_CODE_TOOL_NAME) {
-        if (event.type === "tool-call") {
-          const input = event.input as { code: string; summary?: string };
-          if (input?.code) applyUpdate({ code: input.code, summary: input.summary });
-        }
-      } else if (event.toolName === RUN_CURRENT_SCRIPT_TOOL_NAME) {
-        if (event.type === "tool-call") {
-          runPanelRef.current?.setRunning(true);
-        } else if (event.type === "tool-result") {
-          const out = event.output as any;
-          runPanelRef.current?.setExternalResult({
-            ok: out?.success ?? false,
-            output: out?.output,
-            error: out?.error,
-            console: out?.console,
-          });
+  const handleToolAction = useCallback((event: ToolActionEvent) => {
+    if (event.toolName === "generate_code") {
+      if (event.type === "tool-call") {
+        const input = event.input as { code: string; summary?: string };
+        if (input?.code) {
+          // If draft code is the same as current code, skip diff
+          if (input.code === codeRef.current) return;
+          setCodeDraft(input.code);
         }
       }
-    },
-    [applyUpdate],
-  );
+    } else if (event.toolName === "run_current_script") {
+      // Auto-open the test panel when AI runs a script
+      setBottomOpen(true);
+      if (event.type === "tool-call") {
+        runPanelRef.current?.setRunning(true);
+      } else if (event.type === "tool-result") {
+        const out = event.output as any;
+        runPanelRef.current?.setExternalResult({
+          ok: out?.success ?? false,
+          output: out?.output,
+          error: out?.error,
+          console: out?.console,
+        });
+      }
+    }
+  }, []);
 
   // ── Active toggle ──
   const isActive = tool?.isActive ?? false;
@@ -201,27 +223,34 @@ export default function EditToolPage() {
   }, [id, isActive, toggling, dispatch, hasValidationErrors]);
 
   // ── Save ──
-  const handleSave = async () => {
+  const handleSave = async (codeOverride?: string) => {
     if (!id) return;
-    if (hasValidationErrors) {
+    const code = codeOverride ?? localCode;
+    const meta = parseMetaFromCode(code);
+    const errors: string[] = [];
+    if (!meta.label) errors.push("@name");
+    if (!meta.description) errors.push("@description");
+    const codeLines = code.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
+    if (codeLines.length === 0) errors.push("code body");
+    if (!/\breturn\b/.test(code)) errors.push("return statement");
+    if (errors.length > 0) {
       setShowValidationError(true);
       return;
     }
-    if (!isDirty) return;
+    if (!codeOverride && !isDirty) return;
     setSaving(true);
     try {
-      const meta = parseMetaFromCode(localCode);
       await dispatch(
         updateTool({
           id,
-          parameters: buildJsonSchemaFromCode(localCode),
-          codeContent: localCode,
+          parameters: buildJsonSchemaFromCode(code),
+          codeContent: code,
           ...(meta.label ? { label: meta.label } : {}),
           ...(meta.name ? { name: meta.name } : {}),
           ...(meta.description ? { description: meta.description } : {}),
         }),
       ).unwrap();
-      setSavedCode(localCode);
+      setSavedCode(code);
       setTool((prev) =>
         prev
           ? {
@@ -250,6 +279,38 @@ export default function EditToolPage() {
   }, [id, deleting, dispatch, navigate]);
 
   const toolLabel = parseMetaFromCode(localCode).label || tool?.label || "Untitled Tool";
+
+  // ── Bottom panel (RunPanel) — hidden by default ──
+  const [bottomOpen, setBottomOpen] = useState(false);
+  const [bottomHeight, setBottomHeight] = useState(BOTTOM_PANEL_DEFAULT);
+  const [isDraggingBottom, setIsDraggingBottom] = useState(false);
+  const bottomDragRef = useRef({ active: false, startY: 0, startH: 0 });
+
+  const handleBottomDragMove = useCallback((e: MouseEvent) => {
+    if (!bottomDragRef.current.active) return;
+    const dy = e.clientY - bottomDragRef.current.startY;
+    setBottomHeight(Math.min(BOTTOM_PANEL_MAX, Math.max(BOTTOM_PANEL_MIN, bottomDragRef.current.startH - dy)));
+  }, []);
+
+  const handleBottomDragUp = useCallback(() => {
+    if (bottomDragRef.current.active) {
+      bottomDragRef.current.active = false;
+      setIsDraggingBottom(false);
+      document.removeEventListener("mousemove", handleBottomDragMove);
+      document.removeEventListener("mouseup", handleBottomDragUp);
+    }
+  }, [handleBottomDragMove]);
+
+  const startBottomDrag = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      bottomDragRef.current = { active: true, startY: e.clientY, startH: bottomHeight };
+      setIsDraggingBottom(true);
+      document.addEventListener("mousemove", handleBottomDragMove);
+      document.addEventListener("mouseup", handleBottomDragUp);
+    },
+    [bottomHeight, handleBottomDragMove, handleBottomDragUp],
+  );
 
   // ── Loading / Not found states ──
   if (loading) {
@@ -305,37 +366,120 @@ export default function EditToolPage() {
       {/* Validation error banner */}
       {showValidationError && hasValidationErrors && <ValidationBanner errors={codeValidationErrors} onDismiss={() => setShowValidationError(false)} />}
 
-      {/* Body: Code editor + Sidebar */}
+      {/* Body: [Editor + RunPanel] | CodingAgentPanel */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Left: Monaco editor */}
-        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-          <MonacoEditor
-            language="python"
-            theme="neon-dark"
-            loadingBg="#121317"
-            value={localCode}
-            onChange={(v) => {
-              const next = v ?? "";
-              setLocalCode(next);
-              setSharedCode(next);
-            }}
-            onMount={(editor) => {
-              editorRef.current = editor;
-            }}
-            options={{ fontSize: 13, tabSize: 2 }}
-          />
+        {/* Left: Editor (top) + RunPanel (bottom) */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          {/* Monaco editor — diff mode when AI draft exists */}
+          <div className="flex-1 min-h-0 overflow-hidden relative">
+            {codeDraft !== null ? (
+              <>
+                <MonacoDiffEditor language="python" original={localCode} modified={codeDraft} options={{ fontSize: 13, renderSideBySide: false }} />
+                {/* Accept / Reject floating bar */}
+                <div
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border/60"
+                  style={{ background: "rgba(14,15,18,0.92)", backdropFilter: "blur(8px)" }}
+                >
+                  <span className="text-[11px] font-semibold text-muted tracking-wide uppercase mr-1">AI Draft</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const draft = codeDraft;
+                      applyUpdate({ code: draft });
+                      setSharedCode(draft);
+                      setSavedCode(draft);
+                      setCodeDraft(null);
+                      // Only send codeContent — draftCode is already saved in DB
+                      if (id) void apiClient.put(`/api/tools/${id}`, { codeContent: draft });
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#A8FF53] hover:text-[#c4ff8a] cursor-pointer bg-[#A8FF53]/10 hover:bg-[#A8FF53]/20 border border-[#A8FF53]/30 rounded-sm px-3 py-1 transition-all duration-150"
+                  >
+                    <CheckCircle size={14} />
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCodeDraft(null);
+                      // Only send draftCode reset
+                      if (id) void apiClient.put(`/api/tools/${id}`, { draftCode: localCode });
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#FF4D6D] hover:text-[#ff7a93] cursor-pointer bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/30 rounded-sm px-3 py-1 transition-all duration-150"
+                  >
+                    <CloseCircle size={14} />
+                    Reject
+                  </button>
+                </div>
+              </>
+            ) : (
+              <MonacoEditor
+                language="python"
+                value={localCode}
+                onChange={(v) => {
+                  const next = v ?? "";
+                  setLocalCode(next);
+                  setSharedCode(next);
+                }}
+                onMount={(editor) => {
+                  editorRef.current = editor;
+                }}
+                options={{ fontSize: 13, tabSize: 2 }}
+              />
+            )}
+          </div>
+
+          {/* Bottom panel toggle bar + RunPanel */}
+          {bottomOpen ? (
+            <>
+              {/* Drag handle */}
+              <div
+                onMouseDown={startBottomDrag}
+                className={[
+                  "h-[3px] shrink-0 w-full cursor-row-resize z-10 transition-colors duration-150",
+                  isDraggingBottom ? "bg-primary/50" : "bg-transparent hover:bg-primary/25",
+                ].join(" ")}
+              />
+
+              {/* Panel header */}
+              <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-border bg-surface">
+                <div className="flex items-center gap-1.5">
+                  <TestTube size={12} className="text-primary" />
+                  <span className="text-[10px] font-bold text-soft uppercase tracking-wider">Test</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBottomOpen(false)}
+                  className="text-[10px] text-muted hover:text-main cursor-pointer bg-transparent border-0 px-1.5 py-0.5 rounded hover:bg-surface-raised transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* RunPanel */}
+              <div className="shrink-0 border-t border-border overflow-hidden" style={{ height: bottomHeight }}>
+                <RunPanel ref={runPanelRef} code={sharedCode} toolId={id} />
+              </div>
+            </>
+          ) : (
+            /* Collapsed: small bottom bar with open button */
+            <div className="shrink-0 flex items-center px-3 py-1 border-t border-border bg-surface">
+              <button
+                type="button"
+                onClick={() => setBottomOpen(true)}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted hover:text-primary cursor-pointer bg-transparent border-0 px-1.5 py-1 rounded hover:bg-surface-raised transition-colors"
+              >
+                <Play size={10} />
+                Test
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Right: Sidebar */}
-        <SidebarPanel
+        {/* Right: AI Chat */}
+        <CodingAgentPanel
           providerId={providerId}
           model={model}
-          systemPrompt={systemPrompt}
-          editorTools={editorTools}
-          messagesRef={messagesRef}
-          sharedCode={sharedCode}
-          toolId={id}
-          runPanelRef={runPanelRef}
+          streamUrl={`/api/tools/${id}/coding/stream`}
           onToolAction={handleToolAction}
           onChangeAiProvider={(pid) => {
             setProviderId(pid);
@@ -349,9 +493,6 @@ export default function EditToolPage() {
             void apiClient.patch("/api/settings", {
               [SettingKey.ToolAssistantModel]: m,
             });
-          }}
-          onMessagesUpdate={(msgs) => {
-            messagesRef.current = msgs;
           }}
         />
       </div>

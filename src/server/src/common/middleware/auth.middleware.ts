@@ -7,12 +7,12 @@
  *   app.use("*", requireRole("admin")); // 403 if role not allowed
  */
 
-import type { Context, Next } from "hono";
-import { jwtVerify, SignJWT } from "jose";
 import { eq } from "drizzle-orm";
+import type { Context, Next } from "hono";
+import { SignJWT, jwtVerify } from "jose";
 import { getDb, users } from "../db/client.js";
-import { UnauthorizedException, ForbiddenException } from "../exceptions/http.exception.js";
 import { appSettings } from "../db/schema.js";
+import { ForbiddenException, UnauthorizedException } from "../exceptions/http.exception.js";
 
 // ─── JWT Secret ───────────────────────────────────────────────────────────────
 
@@ -29,11 +29,7 @@ function getJwtSecret(): Uint8Array {
 
   // 2. From DB (persist across restarts)
   const db = getDb();
-  const row = db
-    .select()
-    .from(appSettings)
-    .where(eq(appSettings.key, "jwt_secret"))
-    .get();
+  const row = db.select().from(appSettings).where(eq(appSettings.key, "jwt_secret")).get();
 
   if (row) {
     _secret = new TextEncoder().encode(row.value);
@@ -42,11 +38,8 @@ function getJwtSecret(): Uint8Array {
 
   // 3. Auto-generate and persist
   const generated = crypto.randomUUID() + crypto.randomUUID();
-  db.insert(appSettings)
-    .values({ key: "jwt_secret", value: generated, updatedAt: new Date() })
-    .run();
+  db.insert(appSettings).values({ key: "jwt_secret", value: generated, updatedAt: new Date() }).run();
   _secret = new TextEncoder().encode(generated);
-  console.log("[Auth] JWT secret auto-generated and persisted");
   return _secret;
 }
 
@@ -84,11 +77,7 @@ export async function resolveAuth(c: Context, next: Next) {
     try {
       const payload = await verifyToken(token);
       // Verify user still exists and is active
-      const user = getDb()
-        .select()
-        .from(users)
-        .where(eq(users.id, payload.sub))
-        .get();
+      const user = getDb().select().from(users).where(eq(users.id, payload.sub)).get();
       if (user?.isActive) {
         (c as any).set("user", user);
       }

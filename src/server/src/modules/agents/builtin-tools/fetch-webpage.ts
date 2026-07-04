@@ -10,6 +10,20 @@ import { tool } from "@langchain/core/tools";
 import TurndownService from "turndown";
 import { z } from "zod";
 
+export const TOOL_DEF = {
+  toolName: "fetch_webpage",
+  toolLabel: "Fetch",
+  description: "Fetches the full HTML content of a webpage by URL. Use this to read articles, documentation, or any public web page.",
+  parameters: {
+    type: "object",
+    properties: {
+      url: { type: "string", description: "The full URL of the webpage to fetch" },
+      output: { type: "string", enum: ["html", "md"], description: 'Output format: "md" (default) or "html"' },
+    },
+    required: ["url"],
+  },
+};
+
 /* ── constants ───────────────────────────────────────────────────────────────── */
 
 /** Rotate through multiple realistic User-Agents to avoid fingerprinting. */
@@ -29,14 +43,12 @@ function buildHeaders(url: string): Record<string, string> {
   const origin = new URL(url).origin;
   return {
     "User-Agent": randomUA(),
-    Accept:
-      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
     "Cache-Control": "no-cache",
     Pragma: "no-cache",
-    "Sec-Ch-Ua":
-      '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     "Sec-Ch-Ua-Mobile": "?0",
     "Sec-Ch-Ua-Platform": '"macOS"',
     "Sec-Fetch-Dest": "document",
@@ -130,13 +142,7 @@ Options:
 The tool automatically retries up to 2 extra times on failure, rotates User-Agent headers to avoid bot detection, and strips noisy tags (script, style, noscript, svg, head).`,
     schema: z.object({
       url: z.string().url().describe("The full URL of the webpage to fetch"),
-      output: z
-        .enum(["html", "md"])
-        .optional()
-        .default("md")
-        .describe(
-          'Output format: "md" (default) converts to Markdown, "html" returns cleaned HTML',
-        ),
+      output: z.enum(["html", "md"]).optional().default("md").describe('Output format: "md" (default) converts to Markdown, "html" returns cleaned HTML'),
     }),
   },
 );

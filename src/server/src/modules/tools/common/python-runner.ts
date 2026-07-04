@@ -147,12 +147,7 @@ function runCmd(
 }
 
 function whichPython(): string {
-  const knownPaths = [
-    "/opt/homebrew/bin/python3",
-    "/usr/local/bin/python3",
-    "/usr/bin/python3",
-    "/usr/bin/python",
-  ];
+  const knownPaths = ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3", "/usr/bin/python"];
   for (const p of knownPaths) {
     if (existsSync(p)) return p;
   }
@@ -182,8 +177,7 @@ function detectPackages(code: string): string[] {
       }
     }
     const fromMatch = t.match(/^from\s+(\S+)\s+import/);
-    if (fromMatch && !fromMatch[1].startsWith("."))
-      pkgs.add(fromMatch[1].split(".")[0]);
+    if (fromMatch && !fromMatch[1].startsWith(".")) pkgs.add(fromMatch[1].split(".")[0]);
   }
   return [...pkgs].filter((p) => !PYTHON_STDLIB.has(p));
 }
@@ -199,11 +193,7 @@ function isPkgInstalled(sandboxDir: string, pkg: string): boolean {
     if (existsSync(join(sitePackages, pkg))) return true;
     for (const sp of readdirSync(sitePackages)) {
       const n = sp.toLowerCase();
-      if (
-        n.startsWith(normalised) &&
-        (n.includes(".dist-info") || n.includes(".egg-info"))
-      )
-        return true;
+      if (n.startsWith(normalised) && (n.includes(".dist-info") || n.includes(".egg-info"))) return true;
     }
   }
   return false;
@@ -229,17 +219,13 @@ function normalizeUserCode(raw: string): string {
   // 2. If the AI sent ONLY a bare "def main(input):" function (no helpers before it),
   //    extract just the body and de-indent it.
   //    Pattern: code starts directly with "def main(...):""
-  const soloDefMainMatch = code.match(
-    /^def\s+main\s*\([^)]*\)\s*(?:->[^:]+)?:\s*\n([\s\S]*)$/,
-  );
+  const soloDefMainMatch = code.match(/^def\s+main\s*\([^)]*\)\s*(?:->[^:]+)?:\s*\n([\s\S]*)$/);
   if (soloDefMainMatch) {
     const body = soloDefMainMatch[1];
     const bodyLines = body.split("\n");
     const nonEmptyLines = bodyLines.filter((l) => l.trim() !== "");
     if (nonEmptyLines.length > 0) {
-      const minIndent = Math.min(
-        ...nonEmptyLines.map((l) => l.match(/^(\s*)/)?.[1].length ?? 0),
-      );
+      const minIndent = Math.min(...nonEmptyLines.map((l) => l.match(/^(\s*)/)?.[1].length ?? 0));
       code = bodyLines
         .map((l) => l.slice(minIndent))
         .join("\n")
@@ -259,18 +245,14 @@ function normalizeUserCode(raw: string): string {
   //          result = helper(...)
   //          return result
   //    → result: helper at top + body of main at bottom
-  const multiMatch = code.match(
-    /^([\s\S]*?)\ndef\s+main\s*\([^)]*\)\s*(?:->[^:]+)?:\s*\n([\s\S]*)$/,
-  );
+  const multiMatch = code.match(/^([\s\S]*?)\ndef\s+main\s*\([^)]*\)\s*(?:->[^:]+)?:\s*\n([\s\S]*)$/);
   if (multiMatch && multiMatch[1].trim() !== "") {
     const before = multiMatch[1].trim(); // helper functions etc.
     const body = multiMatch[2];
     const bodyLines = body.split("\n");
     const nonEmptyLines = bodyLines.filter((l) => l.trim() !== "");
     if (nonEmptyLines.length > 0) {
-      const minIndent = Math.min(
-        ...nonEmptyLines.map((l) => l.match(/^(\s*)/)?.[1].length ?? 0),
-      );
+      const minIndent = Math.min(...nonEmptyLines.map((l) => l.match(/^(\s*)/)?.[1].length ?? 0));
       const strippedBody = bodyLines
         .map((l) => l.slice(minIndent))
         .join("\n")
@@ -337,21 +319,13 @@ except Exception as _e:
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function executeTool(
-  toolId: string,
-  code: string,
-  inputJson: string,
-  dataDir: string,
-): Promise<string> {
+export async function executeTool(toolId: string, code: string, inputJson: string, dataDir: string): Promise<string> {
   const sandboxDir = join(dataDir, "tool_envs", toolId);
   mkdirSync(sandboxDir, { recursive: true });
 
   const pythonPath = whichPython();
   const venvDir = join(sandboxDir, ".venv");
-  const venvPython = join(
-    venvDir,
-    os.platform() === "win32" ? "Scripts/python.exe" : "bin/python",
-  );
+  const venvPython = join(venvDir, os.platform() === "win32" ? "Scripts/python.exe" : "bin/python");
 
   // Ensure venv
   if (!existsSync(venvDir)) {
@@ -362,9 +336,7 @@ export async function executeTool(
   const pkgs = detectPackages(code);
   if (pkgs.length > 0) {
     const cached = installedCache.get(toolId);
-    const missing = cached
-      ? pkgs.filter((p) => !cached.has(p))
-      : pkgs.filter((p) => !isPkgInstalled(sandboxDir, p));
+    const missing = cached ? pkgs.filter((p) => !cached.has(p)) : pkgs.filter((p) => !isPkgInstalled(sandboxDir, p));
     if (missing.length > 0) {
       const installResult = await runCmd(
         venvPython,
@@ -421,9 +393,7 @@ export async function executeTool(
     }
 
     if (!stdout) {
-      return JSON.stringify(
-        attachConsole({ ok: true, result: null, console: stderr || null }),
-      );
+      return JSON.stringify(attachConsole({ ok: true, result: null, console: stderr || null }));
     }
 
     try {
@@ -432,13 +402,15 @@ export async function executeTool(
       return JSON.stringify(attachConsole({ ok: true, result: stdout }));
     }
   } finally {
-    try { unlinkSync(scriptPath); } catch { /* ignore */ }
+    try {
+      unlinkSync(scriptPath);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
-export async function validateToolCode(
-  code: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function validateToolCode(code: string): Promise<{ ok: boolean; error?: string }> {
   const pythonPath = whichPython();
   const tmpFile = join(os.tmpdir(), `continue_agent_validate_${Date.now()}.py`);
   writeFileSync(tmpFile, code, "utf-8");
@@ -464,7 +436,11 @@ except py_compile.PyCompileError as e:
       return { ok: false, error: "Failed to validate" };
     }
   } finally {
-    try { unlinkSync(tmpFile); } catch { /* ignore */ }
+    try {
+      unlinkSync(tmpFile);
+    } catch {
+      /* ignore */
+    }
   }
 }
 

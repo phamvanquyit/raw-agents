@@ -1,10 +1,5 @@
 import { Hono } from "hono";
-import {
-  createTeam,
-  deleteTeam,
-  listTeams,
-  updateTeam,
-} from "./teams.service.js";
+import { createTeam, deleteTeam, listTeams, updateTeam } from "./teams.service.js";
 
 const app = new Hono();
 

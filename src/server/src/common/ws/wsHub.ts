@@ -42,12 +42,7 @@ export type WsEventType =
   | "chat:done"
   | "chat:error"
   // ── AI assistant stream events (editor/prompt assistant) ──
-  | "ai:start"
-  | "ai:tool-result"
-  | "ai:chunk"
-  | "ai:tool-call"
-  | "ai:done"
-  | "ai:error";
+  | "assistant:prompt-updated";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;
@@ -61,12 +56,10 @@ class WsHub {
 
   add(ws: ServerWebSocket<unknown>, clientId: string) {
     this.clients.set(clientId, ws);
-    console.log(`[WsHub] Client connected id=${clientId} (total: ${this.clients.size})`);
   }
 
   remove(clientId: string) {
     this.clients.delete(clientId);
-    console.log(`[WsHub] Client disconnected id=${clientId} (total: ${this.clients.size})`);
   }
 
   /** Broadcast to ALL connected clients */

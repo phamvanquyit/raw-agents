@@ -2,10 +2,9 @@ import { StarsMinimalistic } from "@solar-icons/react"; // used in empty state
 import type { ReactNode, RefObject } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { ToolCallBubble } from "./ToolCallBubble";
-import { ToolCallGroupBubble } from "./ToolCallGroupBubble";
 
 import RenderIf from "src/components/ui/RenderIf";
-import type { ChatAgentMessage } from "./types";
+import type { ChatAgentMessage } from "../common/types";
 
 interface MessageListProps {
   messages: ChatAgentMessage[];
@@ -34,14 +33,7 @@ type SingleItem = {
   showAvatar: boolean;
 };
 
-/** Grouped consecutive tool calls (non-call_agent) */
-type GroupItem = {
-  kind: "tool-group";
-  messages: ChatAgentMessage[];
-  showAvatar: boolean;
-};
-
-export type RenderItem = SingleItem | GroupItem;
+export type RenderItem = SingleItem;
 
 // Flat render item — for backward compat
 type FlatRenderItem = {
@@ -67,62 +59,22 @@ function isSameSender(a: ChatAgentMessage, b: ChatAgentMessage): boolean {
   return a.role === b.role;
 }
 
-/** Threshold: groups with more than this many non-call_agent tool calls get collapsed */
-const GROUP_THRESHOLD = 2;
-
-// ─── Build render items with grouping ─────────────────────────────────────────
+// ─── Build render items — flat, no grouping ───────────────────────────────────
 
 export function buildRenderItems(messages: ChatAgentMessage[]): RenderItem[] {
   const items: RenderItem[] = [];
-  let i = 0;
 
-  while (i < messages.length) {
+  for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
+    const prev = i > 0 ? messages[i - 1] : null;
+    const next = i < messages.length - 1 ? messages[i + 1] : null;
+    const isFirstInGroup = !prev || !isSameSender(prev, msg);
+    const isLastInGroup = !next || !isSameSender(msg, next);
+    const isAgent = isAgentRole(msg.role);
+    const prevIsAgent = prev ? isAgentRole(prev.role) : false;
+    const showAvatar = isAgent && (!prevIsAgent || prevIsCallAgent(prev));
 
-    if (msg.role === "tool-call" && msg.toolName !== "call_agent") {
-      // Collect consecutive non-call_agent tool calls
-      const groupStart = i;
-      while (i < messages.length && messages[i].role === "tool-call" && messages[i].toolName !== "call_agent") {
-        i++;
-      }
-      const groupMsgs = messages.slice(groupStart, i);
-
-      // Determine if this group should show avatar
-      const prev = groupStart > 0 ? messages[groupStart - 1] : null;
-      const prevIsAgent = prev ? isAgentRole(prev.role) : false;
-      // Always show avatar after call_agent (context switches back to parent)
-      const showAvatar = !prevIsAgent || prevIsCallAgent(prev);
-
-      if (groupMsgs.length > GROUP_THRESHOLD) {
-        // Render as collapsed group
-        items.push({ kind: "tool-group", messages: groupMsgs, showAvatar });
-      } else {
-        // Render individually (1-2 tool calls don't need grouping)
-        for (let j = 0; j < groupMsgs.length; j++) {
-          const m = groupMsgs[j];
-          items.push({
-            kind: "single",
-            msg: m,
-            isFirstInGroup: true,
-            isLastInGroup: true,
-            showAvatar: j === 0 && showAvatar,
-          });
-        }
-      }
-    } else {
-      // Non-tool-call message, or call_agent
-      const prev = i > 0 ? messages[i - 1] : null;
-      const next = i < messages.length - 1 ? messages[i + 1] : null;
-      const isFirstInGroup = !prev || !isSameSender(prev, msg);
-      const isLastInGroup = !next || !isSameSender(msg, next);
-      const isAgent = isAgentRole(msg.role);
-      const prevIsAgent = prev ? isAgentRole(prev.role) : false;
-      // Always show avatar after call_agent (context switches back to parent)
-      const showAvatar = isAgent && (!prevIsAgent || prevIsCallAgent(prev));
-
-      items.push({ kind: "single", msg, isFirstInGroup, isLastInGroup, showAvatar });
-      i++;
-    }
+    items.push({ kind: "single", msg, isFirstInGroup, isLastInGroup, showAvatar });
   }
 
   return items;
@@ -178,20 +130,8 @@ export function MessageList({
 
       <RenderIf condition={hasMessages}>
         <div className="pt-4 pb-4 flex flex-col">
-          {items.map((item) => {
-            if (item.kind === "tool-group") {
-              return (
-                <ToolCallGroupBubble
-                  key={`tg-${item.messages[0].id}`}
-                  messages={item.messages}
-                  assistantLabel={assistantLabel}
-                  assistantColor={assistantColor}
-                  showAvatar={item.showAvatar}
-                />
-              );
-            }
-            // kind === "single"
-            return item.msg.role === "tool-call" ? (
+          {items.map((item) =>
+            item.msg.role === "tool-call" ? (
               <ToolCallBubble key={item.msg.id} msg={item.msg} assistantLabel={assistantLabel} assistantColor={assistantColor} showAvatar={item.showAvatar} />
             ) : (
               <MessageBubble
@@ -203,8 +143,8 @@ export function MessageList({
                 isLastInGroup={item.isLastInGroup}
                 isFirstInAgentChain={item.showAvatar}
               />
-            );
-          })}
+            ),
+          )}
 
           {/* Thinking / generating indicator */}
           <RenderIf condition={generating}>
