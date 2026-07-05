@@ -33,7 +33,9 @@
     "typecheck:server": "cd src/server && bunx tsc --noEmit",
     "typecheck:web": "cd src/web && bunx tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@langchain/openrouter": "^0.4.3"
+  },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "concurrently": "^9.2.1",

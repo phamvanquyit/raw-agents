@@ -203,6 +203,31 @@ body,
   display: none;
 }
 
+/* ── Hover-reveal scrollbar ────────────────────────────────────────────────── */
+.hover-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.hover-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.hover-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hover-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+.hover-scrollbar:hover {
+  scrollbar-color: var(--color-scrollbar-thumb) transparent;
+}
+.hover-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+}
+.hover-scrollbar:hover::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
 /* ── Canvas game popup slide-up animation ──────────────────────────────────── */
 @keyframes slideUp {
   from {

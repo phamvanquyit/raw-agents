@@ -130,28 +130,37 @@ export function ChatSidebar({
                 return (
                   <div
                     key={conv.id}
-                    className={`
-                      group relative flex items-center rounded-md transition-all
-                      ${isActive ? "bg-white/10 pl-0" : "border-l-2 border-l-transparent hover:bg-white/4"}
-                    `}
+                    className="group relative flex items-center rounded-md transition-all"
+                    style={{
+                      backgroundColor: isActive ? "rgba(168, 255, 83, 0.08)" : undefined,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.04)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) e.currentTarget.style.backgroundColor = "transparent";
+                    }}
                   >
-                    <button type="button" onClick={() => onSwitchConversation(conv.id)} className="flex-1 text-left px-3 py-2.5 min-w-0">
+                    <button type="button" onClick={() => onSwitchConversation(conv.id)} className="flex-1 text-left pl-3 py-2.5 min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <p
-                          className={`text-sm font-medium leading-snug line-clamp-2 flex-1 min-w-0 ${isActive ? "text-main" : "text-soft group-hover:text-main"}`}
+                          className="text-sm font-medium leading-snug truncate line-clamp-2 flex-1 min-w-0"
+                          style={{
+                            color: isActive ? "var(--color-on-surface, #F3F4F6)" : "var(--color-soft, #D7D9DD)",
+                          }}
                         >
                           {conv.title}
                         </p>
                         {isProcessing && (
-                          <span className="shrink-0 flex items-center gap-1" title="Processing...">
-                            {[0, 1, 2].map((i) => (
-                              <span
-                                key={i}
-                                className="w-1 h-1 rounded-full bg-primary/70 inline-block animate-bounce"
-                                style={{ animationDelay: `${i * 0.15}s`, animationDuration: "0.8s" }}
-                              />
-                            ))}
-                          </span>
+                          <span
+                            className="shrink-0 inline-block rounded-full animate-spin"
+                            style={{
+                              width: 12,
+                              height: 12,
+                              border: "2px solid rgba(168, 255, 83, 0.2)",
+                              borderTopColor: "var(--color-primary, #A8FF53)",
+                            }}
+                          />
                         )}
                       </div>
                     </button>

@@ -6,12 +6,11 @@ interface ToolDefinition {
   description: string;
   parameters: object;
 }
-import { TOOL_DEF as UPDATE_PROMPT_DEF } from "../agents/assistant/update-prompt.js";
-import { TOOL_DEF as CALL_AGENT_DEF } from "../agents/builtin-tools/call-agent.js";
-import { TOOL_DEF as FETCH_WEBPAGE_DEF } from "../agents/builtin-tools/fetch-webpage.js";
-import { TOOL_DEF as GET_TIME_DEF } from "../agents/builtin-tools/get-current-time.js";
-import { TOOL_DEF as MEMORY_DEF } from "../agents/builtin-tools/memory.js";
-import { TOOL_DEF as NOTE_DEF } from "../agents/builtin-tools/note.js";
+import { TOOL_DEF as FETCH_WEBPAGE_DEF } from "../../common/ai/agent-tools/fetch-webpage.tool.js";
+import { TOOL_DEF as CALL_AGENT_DEF } from "../agents/raw-agent/llm-tools/call-agent.tool.js";
+import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
+import { TOOL_DEF as MEMORY_DEF } from "../agents/raw-agent/llm-tools/memory.tool.js";
+import { TOOL_DEF as NOTE_DEF } from "../agents/raw-agent/llm-tools/note.tool.js";
 
 const ALL_TOOL_DEFS: ToolDefinition[] = [
   GET_TIME_DEF,
@@ -53,7 +52,6 @@ const ALL_TOOL_DEFS: ToolDefinition[] = [
       },
     },
   },
-  UPDATE_PROMPT_DEF,
 ];
 import { type NewAgentTool, agentToolAssignments, agentTools, getDb } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
@@ -78,34 +76,6 @@ const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.to
   isActive: true,
   createdAt: new Date(0),
 }));
-
-/**
- * Seed builtin tools into the agent_tools DB table.
- * This ensures FOREIGN KEY references from agent_tool_assignments work correctly.
- * Uses INSERT OR IGNORE to avoid duplicates — safe to call on every startup.
- */
-export function seedBuiltinTools(): void {
-  const db = getDb();
-  const allBuiltins = ALL_TOOL_DEFS.map((b) => ({
-    id: `builtin:${b.toolName}`,
-    name: b.toolName,
-    label: b.toolLabel,
-    description: b.description,
-    parameters: (b.parameters ?? { type: "object", properties: {}, required: [] }) as object,
-    codeContent: "",
-    isBuiltin: true,
-    isActive: !ALWAYS_ON_TOOL_NAMES.has(b.toolName), // always-on tools are hidden from UI
-    createdAt: new Date(0),
-  }));
-
-  for (const bt of allBuiltins) {
-    const existing = db.select({ id: agentTools.id }).from(agentTools).where(eq(agentTools.id, bt.id)).get();
-
-    if (!existing) {
-      db.insert(agentTools).values(bt).run();
-    }
-  }
-}
 
 /** Lookup a builtin tool by its virtual id (e.g. "builtin:fetch_webpage") */
 export function getBuiltinTool(id: string) {

@@ -72,36 +72,32 @@ export function CodeBlock({ language = "", children }: CodeBlockProps) {
   }
 
   return (
-    <div className="rounded-xl border border-border/60 bg-code">
-      {/* Label + Copy — above the code card */}
-      <div className="flex items-center justify-between px-4 py-2 select-none ">
-        <span className="font-mono text-xs font-medium text-muted tracking-wide">{label}</span>
+    <div className="relative rounded-lg overflow-hidden bg-black/20 border border-white/5">
+      {/* Label + Copy — floating inside code block */}
+      <div className="flex items-center justify-between px-3 py-2 select-none border-b border-white/5">
+        <span className="font-mono text-[11px] text-white/30">{label}</span>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1 px-1.5 py-1 rounded-md border border-transparent bg-transparent text-muted text-xs cursor-pointer leading-none transition-colors hover:text-primary hover:border-primary/25 hover:bg-primary/5"
+          className="flex items-center justify-center w-5 h-5 rounded bg-transparent text-white/25 cursor-pointer transition-colors hover:text-white/60"
           title="Copy code"
         >
-          {copied ? (
-            <>
-              <ClipboardCheck size={14} />
-              <span>Copied!</span>
-            </>
-          ) : (
-            <>
-              <Clipboard size={14} />
-              <span>Copy</span>
-            </>
-          )}
+          {copied ? <ClipboardCheck size={13} /> : <Clipboard size={13} />}
         </button>
       </div>
 
-      {/* Code card */}
-      <div className="rounded-xl overflow-hidden bg-code">
-        <SyntaxHighlighter language={lang || "text"} style={atomOneDark} useInlineStyles wrapLongLines={false} PreTag="div" CodeTag="code">
-          {children}
-        </SyntaxHighlighter>
-      </div>
+      {/* Code */}
+      <SyntaxHighlighter
+        language={lang || "text"}
+        style={atomOneDark}
+        useInlineStyles
+        wrapLongLines={false}
+        PreTag="div"
+        CodeTag="code"
+        customStyle={{ fontSize: "12.5px", padding: "0", margin: 0, background: "transparent" }}
+      >
+        {children}
+      </SyntaxHighlighter>
     </div>
   );
 }

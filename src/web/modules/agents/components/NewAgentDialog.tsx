@@ -1,6 +1,6 @@
 import { AddCircle, UsersGroupTwoRounded } from "@solar-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import type { AgentTeam, LlmProvider } from "src/common/types";
+import type { AgentTeam } from "src/common/types";
 import { Button } from "src/components/ui/button";
 import { Input } from "src/components/ui/input";
 import { Field } from "src/components/ui/label";
@@ -10,7 +10,6 @@ import { Select } from "src/components/ui/select";
 import { Textarea } from "src/components/ui/textarea";
 import { createAgent, fetchAgents } from "src/modules/agents/common/agentsSlice";
 
-import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { createTeam, fetchTeams } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
@@ -45,8 +44,6 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
   const nameRef = useRef<HTMLInputElement>(null);
   const newTeamRef = useRef<HTMLInputElement>(null);
 
-  const providers = useAppSelector((s) => s.llmProviders.items) as LlmProvider[];
-  const loaded = useAppSelector((s) => s.llmProviders.items.length > 0 || s.llmProviders.total === 0);
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
 
   // Reset state when opened
@@ -60,7 +57,7 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
       setError("");
       setShowNewTeam(false);
       setNewTeamName("");
-      dispatch(fetchLlmProviders());
+
       dispatch(fetchTeams());
       setTimeout(() => nameRef.current?.focus(), 150);
     }
@@ -216,21 +213,8 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
 
           {/* Model (Provider + Model combined) */}
           <Field label="Model" required>
-            <ModelPicker
-              providers={providers}
-              selectedProviderId={selectedProviderId}
-              selectedModel={aiModel}
-              onChange={handleModelChange}
-              loaded={loaded}
-              disabled={!loaded}
-            />
+            <ModelPicker selectedProviderId={selectedProviderId} selectedModel={aiModel} onChange={handleModelChange} />
           </Field>
-
-          {loaded && providers.length === 0 && (
-            <div className="text-[12px] text-[#c89030] font-medium px-2.5 py-1.5 bg-[#c89030]/10 rounded-lg border border-[#c89030]/20">
-              No AI Provider available. Go to <strong>Settings → API Providers</strong> to add one.
-            </div>
-          )}
 
           {error && <div className="text-[12px] text-[#a03030] font-medium">{error}</div>}
         </div>

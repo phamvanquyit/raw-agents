@@ -5,7 +5,7 @@
 
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LlmProvider } from "src/common/types";
+
 import { AppLogo } from "src/components/AppLogo";
 import { ModelPicker } from "src/components/ui/model-picker";
 import { Switch } from "src/components/ui/switch";
@@ -13,8 +13,7 @@ import { Switch } from "src/components/ui/switch";
 export type AgentConfigNodeData = {
   name: string;
   description: string;
-  providers: LlmProvider[];
-  providersLoaded: boolean;
+
   selectedProviderId: string | null;
   aiModel: string;
   systemPrompt: string;
@@ -145,15 +144,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
         <div className="flex flex-col gap-1 shrink-0">
           <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Model</span>
           <div className="nodrag nopan nowheel">
-            <ModelPicker
-              providers={data.providers}
-              selectedProviderId={data.selectedProviderId}
-              selectedModel={data.aiModel}
-              onChange={data.onModelChange}
-              loaded={data.providersLoaded}
-              disabled={!data.providersLoaded}
-              placeholder="Select model…"
-            />
+            <ModelPicker selectedProviderId={data.selectedProviderId} selectedModel={data.aiModel} onChange={data.onModelChange} placeholder="Select model…" />
           </div>
         </div>
 
@@ -214,9 +205,16 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
         <div className="flex flex-col gap-1 shrink-0">
           <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Publish</span>
           <div className="nodrag nopan">
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => data.onTogglePublish(!data.isPublic)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  data.onTogglePublish(!data.isPublic);
+                }
+              }}
               className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left border transition-all duration-150 cursor-pointer group ${
                 data.isPublic
                   ? "bg-[rgba(156,154,242,0.06)] border-[rgba(156,154,242,0.2)] hover:border-[rgba(156,154,242,0.35)]"
@@ -249,7 +247,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
               <div onClick={(e) => e.stopPropagation()}>
                 <Switch checked={data.isPublic} onCheckedChange={data.onTogglePublish} />
               </div>
-            </button>
+            </div>
           </div>
         </div>
       </div>

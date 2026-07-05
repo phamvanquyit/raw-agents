@@ -10,6 +10,8 @@
  *   <MonacoEditor language="python" value={code} onChange={...} onMount={...} />
  */
 
+import { useCallback, useRef } from "react";
+
 import type { EditorProps, Monaco, DiffEditorProps as MonacoDiffEditorProps } from "@monaco-editor/react";
 import MonacoReactEditor, { DiffEditor as MonacoReactDiffEditor, loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
@@ -58,10 +60,26 @@ export interface MonacoEditorProps extends Omit<EditorProps, "loading" | "theme"
   theme?: string;
   height?: string | number;
   options?: editorNS.IStandaloneEditorConstructionOptions;
+  /** Called when user presses Cmd+S / Ctrl+S — also prevents browser "Save Page" */
+  onSave?: () => void;
 }
 
-export function MonacoEditor({ theme = "vs-dark", options, height = "100%", ...props }: MonacoEditorProps) {
-  return <MonacoReactEditor height={height} theme={theme} options={{ ...DEFAULT_OPTIONS, ...options }} {...props} />;
+export function MonacoEditor({ theme = "vs-dark", options, height = "100%", onSave, onMount, ...props }: MonacoEditorProps) {
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
+  const handleMount: EditorProps["onMount"] = useCallback(
+    (editor: EditorInstance, monacoInstance: Monaco) => {
+      // Register Cmd+S / Ctrl+S keybinding
+      editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
+        onSaveRef.current?.();
+      });
+      onMount?.(editor, monacoInstance);
+    },
+    [onMount],
+  );
+
+  return <MonacoReactEditor height={height} theme={theme} options={{ ...DEFAULT_OPTIONS, ...options }} onMount={handleMount} {...props} />;
 }
 
 // ── Diff Editor ───────────────────────────────────────────────────────────────

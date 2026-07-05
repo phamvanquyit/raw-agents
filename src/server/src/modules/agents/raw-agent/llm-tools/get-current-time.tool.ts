@@ -1,19 +1,12 @@
 /**
- * get-current-time.ts — Builtin tool: returns current date/time in configured timezone
+ * get-current-time.tool.ts — Builtin tool: returns current date/time in configured timezone
  *
  * LangGraph JS version — uses @langchain/core/tools
  */
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { getConfiguredTimezone } from "../../../common/utils/cronHelper.js";
-
-export const TOOL_DEF = {
-  toolName: "get_current_time",
-  toolLabel: "Get Current Time",
-  description: "Returns the current date and time in the specified timezone (default: UTC).",
-  parameters: { type: "object", properties: {}, required: [] },
-};
+import { getConfiguredTimezone } from "../../../../common/utils/cronHelper.js";
 
 export const getCurrentTimeTool = tool(
   async () => {
@@ -35,3 +28,10 @@ export const getCurrentTimeTool = tool(
     schema: z.object({}),
   },
 );
+
+export const TOOL_DEF = {
+  toolName: "get_current_time",
+  toolLabel: "Get Current Time",
+  description: "Returns the current date and time in the specified timezone (default: UTC).",
+  parameters: { type: "object", properties: {}, required: [] },
+};

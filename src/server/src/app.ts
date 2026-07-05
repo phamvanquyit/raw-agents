@@ -15,10 +15,7 @@ import settingsRoute from "./modules/settings/settings.route.js";
 import teamsRoute from "./modules/teams/teams.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
 
-import chatRoute from "./modules/agents/chat.route.js";
 import publicRoute from "./modules/public/public.route.js";
-
-import promptAssistantRoute from "./modules/agents/assistant/prompt.route.js";
 
 import authRoute from "./modules/auth/auth.route.js";
 import usersRoute from "./modules/users/users.route.js";
@@ -56,14 +53,11 @@ export function createApp(): Hono {
   app.route("/api/auth", authRoute);
 
   app.route("/api/agents", agentsRoute);
-  app.route("/api/agents", chatRoute); // chat + generate endpoints
   app.route("/api/conversations", conversationsRoute);
   app.route("/api/tools", toolsRoute);
   app.route("/api/providers", providersRoute);
   app.route("/api/settings", settingsRoute);
   app.route("/api/teams", teamsRoute);
-
-  app.route("/api/assistants/prompt", promptAssistantRoute);
 
   app.route("/api/users", usersRoute);
 

@@ -1,45 +1,32 @@
-import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
-import { agents, getDb, users } from "../../common/db/client.js";
-import { listQuery } from "../../common/db/list-query.util.js";
-import { BadRequestException } from "../../common/exceptions/http.exception.js";
-import { addAssignment, listAssignments, removeAssignment, setAssignments } from "./agent-tool-assignments.service.js";
-import { cloneAgent, createAgent, createAgentNote, deleteAgent, getAgent, getTeammates, listAgentNotes, updateAgent } from "./agents.service.js";
+import { streamSSE } from "hono/streaming";
+import { BadRequestException, InternalServerErrorException } from "../../common/exceptions/http.exception.js";
+import {
+  addAssignment,
+  cloneAgent,
+  createAgent,
+  createAgentNote,
+  deleteAgent,
+  getAgent,
+  getTeammates,
+  listAgentNotes,
+  listAgentsEnriched,
+  listAssignments,
+  removeAssignment,
+  setAssignments,
+  updateAgent,
+} from "./agents.service.js";
+import { type PromptStreamRequest, streamPromptAgent } from "./prompt-agent/prompt-agent.service.js";
+import { generateResponse, stopStream } from "./raw-agent/raw-agent.service.js";
 
 const app = new Hono();
+
+// ─── Agent CRUD ──────────────────────────────────────────────────────────────
 
 // GET /api/agents?page=1&limit=50&sorts=-createdAt&search=&status=active
 app.get("/", (c) => {
   const user = (c as any).get("user") as { id: string; role: string } | undefined;
-  const query = c.req.query();
-
-  // Role-based filtering: admin sees all, member sees only own agents
-  const ownerFilter = user && user.role !== "admin" ? eq(agents.createdBy, user.id) : undefined;
-
-  const result = listQuery(
-    {
-      table: agents,
-      searchColumns: ["name", "description"],
-      ...(ownerFilter ? { where: ownerFilter } : {}),
-    },
-    query,
-  );
-
-  // Enrich with creator name
-  const creatorIds = [...new Set(result.items.map((a: any) => a.createdBy).filter(Boolean))];
-  const creatorMap = new Map<string, string>();
-  if (creatorIds.length > 0) {
-    const rows = getDb().select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, creatorIds)).all();
-    for (const r of rows) creatorMap.set(r.id, r.name);
-  }
-
-  return c.json({
-    ...result,
-    items: result.items.map((a: any) => ({
-      ...a,
-      creatorName: a.createdBy ? (creatorMap.get(a.createdBy) ?? null) : null,
-    })),
-  });
+  return c.json(listAgentsEnriched(c.req.query(), user));
 });
 
 // GET /api/agents/:id
@@ -77,6 +64,8 @@ app.delete("/:id", (c) => {
   return c.json({ ok: true });
 });
 
+// ─── Notes ───────────────────────────────────────────────────────────────────
+
 // GET /api/agents/:id/notes?titlesOnly=1
 app.get("/:id/notes", (c) => {
   const agentId = c.req.param("id");
@@ -104,13 +93,18 @@ app.get("/:id/tool-assignments", (c) => {
 
 // PUT /api/agents/:id/tool-assignments — replace all
 app.put("/:id/tool-assignments", async (c) => {
-  const body = await c.req.json<{ items: { toolId: string; parameters?: Record<string, unknown> }[] }>();
+  const body = await c.req.json<{
+    items: { toolId: string; parameters?: Record<string, unknown> }[];
+  }>();
   return c.json(setAssignments(c.req.param("id"), body.items ?? (body as any)));
 });
 
 // POST /api/agents/:id/tool-assignments — add one
 app.post("/:id/tool-assignments", async (c) => {
-  const body = await c.req.json<{ toolId: string; parameters?: Record<string, unknown> }>();
+  const body = await c.req.json<{
+    toolId: string;
+    parameters?: Record<string, unknown>;
+  }>();
   const result = addAssignment(c.req.param("id"), body);
   if (!result) throw new BadRequestException("Failed to add assignment");
   return c.json(result, 201);
@@ -120,6 +114,43 @@ app.post("/:id/tool-assignments", async (c) => {
 app.delete("/:id/tool-assignments/:aid", (c) => {
   removeAssignment(c.req.param("aid"));
   return c.json({ ok: true });
+});
+
+// ─── Chat ────────────────────────────────────────────────────────────────────
+
+// POST /api/agents/:id/chat/stop
+app.post("/:id/chat/stop", async (c) => {
+  const { conversationId } = await c.req.json<{ conversationId: string }>();
+  if (!conversationId) throw new BadRequestException("conversationId is required");
+  return c.json({ ok: stopStream(conversationId) });
+});
+
+// POST /api/agents/:id/generate
+app.post("/:id/generate", async (c) => {
+  const agentId = c.req.param("id");
+  const body = await c.req.json<{
+    message: string;
+    conversationId?: string;
+    maxSteps?: number;
+  }>();
+  try {
+    const result = await generateResponse(agentId, body.message, body.conversationId, body.maxSteps);
+    return c.json({ ok: true, text: result.text });
+  } catch (err) {
+    throw new InternalServerErrorException(err instanceof Error ? err.message : String(err));
+  }
+});
+
+// ─── Prompt Assistant ────────────────────────────────────────────────────────
+
+// POST /api/agents/:id/assistant/prompt/stream
+app.post("/:id/assistant/prompt/stream", async (c) => {
+  const agentId = c.req.param("id");
+  const body = await c.req.json<PromptStreamRequest>();
+
+  return streamSSE(c, async (stream) => {
+    await streamPromptAgent(agentId, body, stream);
+  });
 });
 
 export default app;

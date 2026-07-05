@@ -142,7 +142,7 @@ function SimpleDialog({
           onPointerDownOutside={maskClosable ? undefined : (e) => e.preventDefault()}
           onInteractOutside={maskClosable ? undefined : (e) => e.preventDefault()}
         >
-          <div className="flex-1 rounded-xl border border-border/60 bg-background shadow-panel overflow-visible flex flex-col max-h-[inherit]">
+          <div className="flex-1 rounded-xl border border-border/60 bg-background shadow-panel overflow-hidden flex flex-col max-h-[inherit]">
             <div className="px-4 py-3 border-b border-border/40 shrink-0 flex items-center gap-2.5 min-w-0 rounded-t-xl">
               {icon && (
                 <div className="flex items-center justify-center w-field-sm h-field-sm rounded-lg shrink-0 bg-surface-raised/60">

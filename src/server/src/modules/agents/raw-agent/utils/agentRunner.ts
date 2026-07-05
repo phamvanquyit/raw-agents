@@ -13,13 +13,13 @@
  *   3. Always-on: update_agent_memory + manage_agent_note
  */
 
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import { eq } from "drizzle-orm";
 import { createAgent } from "langchain";
-import { getChatModel } from "../../common/ai/getChatModel.js";
-import { agents, getDb } from "../../common/db/client.js";
-import { type AssignmentWithTool, listAssignments } from "./agent-tool-assignments.service.js";
+import { getChatModel } from "../../../../common/ai/getChatModel.js";
+import { agents, getDb } from "../../../../common/db/client.js";
+import { type AssignmentWithTool, listAssignments } from "../../agents.service.js";
 import { resolveSystemPrompt } from "./buildSystemPrompt.js";
 import { getCallAgentLabel, getToolLabel, resolveAgentTools } from "./resolveTools.js";
 
@@ -33,7 +33,11 @@ export type AgentStreamEvent =
   | { type: "done"; text: string }
   | { type: "error"; error: string };
 
-export type MessageParam = { role: "user" | "assistant"; content: string };
+export type MessageParam =
+  | { role: "user"; content: string }
+  | { role: "assistant"; content: string }
+  | { role: "assistant"; content: string; toolCalls: Array<{ id: string; name: string; args: unknown }> }
+  | { role: "tool-result"; toolCallId: string; toolName: string; result: string };
 
 export type AgentStepSummary = {
   toolCalls: Array<{ toolName: string; label: string; args: unknown }>;
@@ -61,7 +65,24 @@ function buildEnabledToolNames(assignments: AssignmentWithTool[], options: { all
 
 /** Convert MessageParam[] to BaseMessage[] for LangGraph */
 function toBaseMessages(messages: MessageParam[]): BaseMessage[] {
-  return messages.map((m) => (m.role === "user" ? new HumanMessage(m.content) : new AIMessage(m.content)));
+  return messages.map((m) => {
+    if (m.role === "user") return new HumanMessage(m.content);
+    if (m.role === "tool-result") {
+      return new ToolMessage({
+        content: m.result,
+        tool_call_id: m.toolCallId,
+        name: m.toolName,
+      });
+    }
+    // assistant (with or without tool_calls)
+    if ("toolCalls" in m && m.toolCalls.length > 0) {
+      return new AIMessage({
+        content: m.content,
+        tool_calls: m.toolCalls.map((tc) => ({ id: tc.id, name: tc.name, args: tc.args as Record<string, unknown> })),
+      });
+    }
+    return new AIMessage(m.content);
+  });
 }
 
 /** Parse final messages from the agent's output state into AgentResult */
@@ -326,46 +347,51 @@ export async function* streamAgent(
               }
             }
           }
-        } else if (msgType === "tool" || msgType === "ToolMessage" || msgType === "ToolMessageChunk") {
-          // Tool result
-          const toolCallId: string = msgChunk?.tool_call_id ?? "";
-          const toolName = msgChunk?.name ?? "unknown";
-          const rawContent = msgChunk?.content;
-          const result =
-            typeof rawContent === "string"
-              ? (() => {
-                  try {
-                    return JSON.parse(rawContent);
-                  } catch {
-                    return rawContent;
-                  }
-                })()
-              : rawContent;
-          yield { type: "tool-result", toolCallId, toolName, result };
         }
       } else if (mode === "updates") {
         // updates mode: { nodeName: { messages: [...] } }
-        // This is the PRIMARY source for tool-call events — it has complete args.
-        for (const [nodeName, state] of Object.entries(data as Record<string, any>)) {
-          if (nodeName === "agent" && state?.messages) {
-            for (const msg of state.messages) {
-              if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
-                for (const tc of msg.tool_calls) {
-                  const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
-                  if (!emittedToolCalls.has(tcId)) {
-                    emittedToolCalls.add(tcId);
-                    // Remove from pending since we're emitting the complete version
-                    pendingToolCalls.delete(tcId);
-                    yield {
-                      type: "tool-call",
-                      toolCallId: tcId,
-                      toolName: tc.name,
-                      toolLabel: tc.name === "call_agent" ? getCallAgentLabel(tc.args) : getToolLabel(tc.name),
-                      input: tc.args,
-                    };
-                  }
+        // Extract both tool-call and tool-result from updates mode to guarantee ordering
+        // (tool-call from agent node always arrives before tool-result from tools node).
+        for (const [, state] of Object.entries(data as Record<string, any>)) {
+          if (!state?.messages) continue;
+
+          for (const msg of state.messages) {
+            // Agent node: AI message with tool_calls → emit tool-call
+            if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
+              for (const tc of msg.tool_calls) {
+                const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
+                if (!emittedToolCalls.has(tcId)) {
+                  emittedToolCalls.add(tcId);
+                  // Remove from pending since we're emitting the complete version
+                  pendingToolCalls.delete(tcId);
+                  yield {
+                    type: "tool-call",
+                    toolCallId: tcId,
+                    toolName: tc.name,
+                    toolLabel: tc.name === "call_agent" ? getCallAgentLabel(tc.args) : getToolLabel(tc.name),
+                    input: tc.args,
+                  };
                 }
               }
+            }
+
+            // Tools node: ToolMessage → emit tool-result
+            const msgType = msg?._getType?.() ?? msg?.type;
+            if (msgType === "tool" || msgType === "ToolMessage") {
+              const toolCallId: string = msg.tool_call_id ?? "";
+              const toolName = msg.name ?? "unknown";
+              const rawContent = msg.content;
+              const result =
+                typeof rawContent === "string"
+                  ? (() => {
+                      try {
+                        return JSON.parse(rawContent);
+                      } catch {
+                        return rawContent;
+                      }
+                    })()
+                  : rawContent;
+              yield { type: "tool-result", toolCallId, toolName, result };
             }
           }
         }

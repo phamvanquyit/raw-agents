@@ -97,7 +97,7 @@ export function EditToolHeader({ label, toolId, isActive, toggling, deleting, sa
         size="sm"
         disabled={saving || !isDirty}
         loading={saving}
-        onClick={onSave}
+        onClick={() => onSave()}
         icon={!saving ? <Diskette className="w-3 h-3" /> : undefined}
       >
         {saving ? "Saving..." : "Save"}

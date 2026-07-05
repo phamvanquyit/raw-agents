@@ -10,8 +10,7 @@
  */
 
 import { eq } from "drizzle-orm";
-import { agentNotes, agents, getDb } from "../../common/db/client.js";
-import { getConfiguredTimezone } from "../../common/utils/cronHelper.js";
+import { agentNotes, agents, getDb } from "../../../../common/db/client.js";
 
 export function buildSystemPrompt(
   agent: {
@@ -27,28 +26,8 @@ export function buildSystemPrompt(
    * - Empty/undefined → no delegation context injected
    */
   agentsToDelegate?: { id: string; name: string; description: string | null; teamName?: string }[],
-  /** IANA timezone from DB config (e.g. "Asia/Ho_Chi_Minh"). Fallback: UTC. */
-  timezone?: string,
 ): string {
-  // ── System info (time in configured timezone) ──
-  const tz = timezone || "UTC";
-  const now = new Date().toLocaleString("en-US", {
-    timeZone: tz,
-    dateStyle: "full",
-    timeStyle: "medium",
-  });
-  const offsetMs = (() => {
-    try {
-      const utcStr = new Date().toLocaleString("en-US", { timeZone: "UTC" });
-      const tzStr = new Date().toLocaleString("en-US", { timeZone: tz });
-      return (new Date(tzStr).getTime() - new Date(utcStr).getTime()) / 3_600_000;
-    } catch {
-      return 0;
-    }
-  })();
-  const tzLabel = `UTC${offsetMs >= 0 ? "+" : ""}${offsetMs}`;
-
-  const parts: string[] = [`<system_info>\nCurrent time: ${now} (${tzLabel}, ${tz})\n</system_info>`];
+  const parts: string[] = [];
 
   // ── Role & Behavior ──
   if (agent.systemPrompt) {
@@ -143,7 +122,5 @@ export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]
     agentsToDelegate = all.filter((a) => effectiveCallableIds.includes(a.id));
   }
 
-  const timezone = getConfiguredTimezone();
-
-  return buildSystemPrompt(agent, noteTitles, agentsToDelegate, timezone);
+  return buildSystemPrompt(agent, noteTitles, agentsToDelegate);
 }

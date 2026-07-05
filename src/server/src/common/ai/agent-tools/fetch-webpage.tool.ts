@@ -1,5 +1,5 @@
 /**
- * fetch-webpage.ts — Builtin tool: fetches a webpage via plain HTTP with
+ * fetch-webpage.tool.ts — Builtin tool: fetches a webpage via plain HTTP with
  * realistic browser headers (bot-bypass), retry, and output as raw HTML or
  * Markdown (Turndown).
  *
@@ -9,20 +9,6 @@
 import { tool } from "@langchain/core/tools";
 import TurndownService from "turndown";
 import { z } from "zod";
-
-export const TOOL_DEF = {
-  toolName: "fetch_webpage",
-  toolLabel: "Fetch",
-  description: "Fetches the full HTML content of a webpage by URL. Use this to read articles, documentation, or any public web page.",
-  parameters: {
-    type: "object",
-    properties: {
-      url: { type: "string", description: "The full URL of the webpage to fetch" },
-      output: { type: "string", enum: ["html", "md"], description: 'Output format: "md" (default) or "html"' },
-    },
-    required: ["url"],
-  },
-};
 
 /* ── constants ───────────────────────────────────────────────────────────────── */
 
@@ -146,3 +132,17 @@ The tool automatically retries up to 2 extra times on failure, rotates User-Agen
     }),
   },
 );
+
+export const TOOL_DEF = {
+  toolName: "fetch_webpage",
+  toolLabel: "Fetch",
+  description: "Fetches the full HTML content of a webpage by URL. Use this to read articles, documentation, or any public web page.",
+  parameters: {
+    type: "object",
+    properties: {
+      url: { type: "string", description: "The full URL of the webpage to fetch" },
+      output: { type: "string", enum: ["html", "md"], description: 'Output format: "md" (default) or "html"' },
+    },
+    required: ["url"],
+  },
+};

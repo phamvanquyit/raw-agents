@@ -4,12 +4,12 @@ import RenderIf from "src/components/ui/RenderIf";
 
 export interface AgentCardProps {
   agent: Agent;
-  toolCount: number;
   onNavigate: (id: string) => void;
 }
 
-export default function AgentCard({ agent, toolCount, onNavigate }: AgentCardProps) {
+export default function AgentCard({ agent, onNavigate }: AgentCardProps) {
   const modelName = agent.aiModel ? agent.aiModel.split("/").pop() : null;
+  const toolCount = agent.toolCount ?? 0;
 
   return (
     <div

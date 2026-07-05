@@ -5,7 +5,7 @@ import { getAuthToken } from "./common/api";
 import { useSocket } from "./common/hooks/useSocket";
 import { AppLayout } from "./components/AppLayout";
 import { ToastProvider } from "./components/ui/toast";
-import { fetchLlmProviders } from "./modules/llm-providers/common/llmProvidersSlice";
+
 import { fetchSettings } from "./modules/settings/common/settingsSlice";
 import { useAppDispatch } from "./store/store";
 import "./index.css";
@@ -54,7 +54,6 @@ function AppContent() {
     // Only fetch settings if authenticated
     if (!isAuthRoute && getAuthToken()) {
       dispatch(fetchSettings());
-      dispatch(fetchLlmProviders());
     }
   }, [dispatch, isAuthRoute]);
 

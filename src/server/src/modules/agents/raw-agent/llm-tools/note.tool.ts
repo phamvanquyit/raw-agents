@@ -1,5 +1,5 @@
 /**
- * note.ts — Builtin tool: manage agent notes (CRUD)
+ * note.tool.ts — Builtin tool: manage agent notes (CRUD)
  *
  * Actions:
  *   list        — list all note titles (no content)
@@ -15,22 +15,7 @@
 import { tool } from "@langchain/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { agentNotes, getDb } from "../../../common/db/client.js";
-
-export const TOOL_DEF = {
-  toolName: "manage_agent_note",
-  toolLabel: "Manage Agent Note",
-  description: "Create, read, update, or delete long documents, plans, scripts, and lists for the agent.",
-  parameters: {
-    type: "object",
-    properties: {
-      action: { type: "string", enum: ["create", "read", "update", "delete"], description: "The operation to perform" },
-      title: { type: "string", description: "The title of the note" },
-      content: { type: "string", description: "The content of the note" },
-    },
-    required: ["action"],
-  },
-};
+import { agentNotes, getDb } from "../../../../common/db/client.js";
 
 export const makeNoteTool = (agentId: string) =>
   tool(
@@ -134,3 +119,18 @@ Available actions:
       }),
     },
   );
+
+export const TOOL_DEF = {
+  toolName: "manage_agent_note",
+  toolLabel: "Manage Agent Note",
+  description: "Create, read, update, or delete long documents, plans, scripts, and lists for the agent.",
+  parameters: {
+    type: "object",
+    properties: {
+      action: { type: "string", enum: ["create", "read", "update", "delete"], description: "The operation to perform" },
+      title: { type: "string", description: "The title of the note" },
+      content: { type: "string", description: "The content of the note" },
+    },
+    required: ["action"],
+  },
+};

@@ -1,4 +1,5 @@
 import type { ChatAgentMessage } from "../common/types";
+import { CompletedThinking } from "./MessageAgent";
 import { MessageAgent } from "./MessageAgent";
 import { MessageUser } from "./MessageUser";
 import { ToolCallBubble } from "./ToolCallBubble";
@@ -23,6 +24,16 @@ export function MessageBubble({
   if (msg.role === "tool-call")
     return <ToolCallBubble msg={msg} assistantLabel={assistantLabel} assistantColor={assistantColor} showAvatar={isFirstInAgentChain} />;
   if (msg.role === "tool-result") return null;
+
+  if (msg.role === "thinking") {
+    const thinking = msg.content;
+    const duration = (msg.meta?.thinkingDuration as number) ?? 0;
+    return (
+      <div className="ca-fade-in mt-1">
+        <CompletedThinking thinking={thinking} duration={duration} />
+      </div>
+    );
+  }
 
   if (msg.role === "error") {
     return (

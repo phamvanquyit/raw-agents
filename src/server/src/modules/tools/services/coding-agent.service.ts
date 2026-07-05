@@ -7,28 +7,141 @@
  *   - Creates a ReAct agent and streams SSE events
  */
 
-import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
 import { createAgent } from "langchain";
+import { fetchWebpageTool } from "../../../common/ai/agent-tools/fetch-webpage.tool.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
-import { fetchWebpageTool } from "../common/agent-tools/fetch-webpage.tool.js";
+import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
 import { makeGenerateCodeTool } from "../common/agent-tools/generate-code.tool.js";
 import { makeRunCurrentScriptTool } from "../common/agent-tools/run-current-script.tool.js";
 import { buildCodingSystemPrompt } from "../common/constants.js";
-import { getDraftCode } from "../tools.service.js";
+import { getDraftCode, getTool } from "../tools.service.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface ToolCallMessage {
+  role: "tool-call";
+  content: string;
+  toolCallId?: string;
+  toolName?: string;
+  toolInput?: unknown;
+  toolOutput?: string;
+}
+
+interface TextMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
 
 export interface CodingStreamRequest {
   providerId: string;
   modelId: string;
-  messages: { role: string; content: string }[];
+  messages: (TextMessage | ToolCallMessage)[];
   maxSteps?: number;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
+
+/**
+ * Build LangChain BaseMessage[] from the enriched history that includes
+ * user, assistant, and tool-call messages.
+ *
+ * Merges assistant text + following tool-calls into a single AIMessage
+ * with tool_calls, then appends ToolMessage for each tool result.
+ */
+function buildLangChainMessages(messages: CodingStreamRequest["messages"]): BaseMessage[] {
+  const result: BaseMessage[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    if (msg.role === "user") {
+      result.push(new HumanMessage(msg.content));
+      continue;
+    }
+
+    if (msg.role === "system") {
+      result.push(new SystemMessage(msg.content));
+      continue;
+    }
+
+    if (msg.role === "assistant") {
+      // Look ahead: collect any consecutive tool-call messages
+      const toolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+      let j = i + 1;
+      while (j < messages.length && messages[j].role === "tool-call") {
+        const tc = messages[j] as ToolCallMessage;
+        toolCalls.push({
+          id: tc.toolCallId || `tc-${j}`,
+          name: tc.toolName || "unknown",
+          args: (tc.toolInput as Record<string, unknown>) ?? {},
+        });
+        j++;
+      }
+
+      if (toolCalls.length > 0) {
+        // Merge assistant text + tool_calls into one AIMessage
+        result.push(
+          new AIMessage({
+            content: msg.content,
+            tool_calls: toolCalls,
+          }),
+        );
+
+        // Append ToolMessage for each tool-call that has output
+        for (let k = i + 1; k < j; k++) {
+          const tc = messages[k] as ToolCallMessage;
+          if (tc.toolOutput != null) {
+            result.push(
+              new ToolMessage({
+                content: tc.toolOutput,
+                tool_call_id: tc.toolCallId || `tc-${k}`,
+              }),
+            );
+          }
+        }
+
+        i = j - 1; // skip processed tool-calls
+      } else {
+        result.push(new AIMessage(msg.content));
+      }
+      continue;
+    }
+
+    if (msg.role === "tool-call") {
+      // Standalone tool-call without preceding assistant text
+      const tc = msg as ToolCallMessage;
+      const toolCallId = tc.toolCallId || `tc-${i}`;
+
+      result.push(
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              id: toolCallId,
+              name: tc.toolName || "unknown",
+              args: (tc.toolInput as Record<string, unknown>) ?? {},
+            },
+          ],
+        }),
+      );
+
+      if (tc.toolOutput != null) {
+        result.push(
+          new ToolMessage({
+            content: tc.toolOutput,
+            tool_call_id: toolCallId,
+          }),
+        );
+      }
+    }
+  }
+
+  return result;
+}
 
 /**
  * Stream a coding agent session over SSE.
@@ -40,89 +153,24 @@ export interface CodingStreamRequest {
 export async function streamCodingAgent(toolId: string, body: CodingStreamRequest, stream: SSEStreamingApi): Promise<void> {
   const { providerId, modelId, messages, maxSteps = 12 } = body;
 
-  try {
-    // 1. Resolve model
-    const model = await getChatModel(providerId, modelId);
+  // 1. Resolve model
+  const model = await getChatModel(providerId, modelId);
 
-    // 2. Build tools — all local to this module
-    const tools: StructuredToolInterface[] = [makeGenerateCodeTool(toolId), makeRunCurrentScriptTool(toolId), fetchWebpageTool];
+  // 2. Build tools — all local to this module
+  const tools: StructuredToolInterface[] = [makeGenerateCodeTool(toolId), makeRunCurrentScriptTool(toolId), fetchWebpageTool];
 
-    // 3. Create agent
-    const agent = createAgent({ model, tools });
+  // 3. Create agent — system prompt includes current tool metadata + draftCode from DB
+  const currentCode = getDraftCode(toolId);
+  const toolRow = getTool(toolId);
+  const agent = createAgent({
+    model,
+    tools,
+    systemPrompt: buildCodingSystemPrompt(currentCode, toolRow),
+  });
 
-    // 4. Build messages — system prompt includes current draftCode from DB
-    const currentCode = getDraftCode(toolId);
-    const baseMessages: BaseMessage[] = [new SystemMessage(buildCodingSystemPrompt(currentCode))];
-    for (const msg of messages) {
-      if (msg.role === "user") baseMessages.push(new HumanMessage(msg.content));
-      else if (msg.role === "assistant") baseMessages.push(new AIMessage(msg.content));
-      else if (msg.role === "system") baseMessages.push(new SystemMessage(msg.content));
-    }
+  // 4. Build messages — reconstruct proper LangChain messages from enriched history
+  const baseMessages = buildLangChainMessages(messages);
 
-    // 5. Stream
-    //    - messages mode → AI text tokens only
-    //    - updates mode  → tool-call (agent node) + tool-result (tools node)
-    //    LangGraph runs nodes sequentially (agent → tools → agent …),
-    //    so updates always deliver tool-call before tool-result.
-    const agentStream = await agent.stream({ messages: baseMessages }, { recursionLimit: maxSteps * 2 + 1, streamMode: ["messages", "updates"] as any });
-
-    const emittedToolCalls = new Set<string>();
-
-    for await (const chunk of agentStream) {
-      const [mode, data] = chunk as unknown as [string, any];
-
-      if (mode === "messages") {
-        const [msgChunk] = data as [any, any];
-        const msgType = msgChunk?._getType?.() ?? msgChunk?.type;
-
-        // Only stream AI text tokens — tool results come from updates mode
-        if (msgType === "ai" || msgType === "AIMessageChunk") {
-          const content = msgChunk?.content;
-          if (typeof content === "string" && content) {
-            await stream.writeSSE({ data: JSON.stringify({ type: "chunk", text: content }) });
-          }
-        }
-      } else if (mode === "updates") {
-        for (const [, state] of Object.entries(data as Record<string, any>)) {
-          if (!state?.messages) continue;
-
-          for (const msg of state.messages as any[]) {
-            // Agent node: AI message with tool_calls → emit tool-call
-            if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
-              for (const tc of msg.tool_calls) {
-                const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
-                if (!emittedToolCalls.has(tcId)) {
-                  emittedToolCalls.add(tcId);
-                  await stream.writeSSE({ data: JSON.stringify({ type: "tool-call", toolCallId: tcId, toolName: tc.name, input: tc.args }) });
-                }
-              }
-            }
-
-            // Tools node: ToolMessage → emit tool-result
-            const msgType = msg?._getType?.() ?? msg?.type;
-            if (msgType === "tool" || msgType === "ToolMessage") {
-              const toolName = msg.name ?? "unknown";
-              const raw = msg.content;
-              const result =
-                typeof raw === "string"
-                  ? (() => {
-                      try {
-                        return JSON.parse(raw);
-                      } catch {
-                        return raw;
-                      }
-                    })()
-                  : raw;
-              await stream.writeSSE({ data: JSON.stringify({ type: "tool-result", toolCallId: msg.tool_call_id, toolName, result }) });
-            }
-          }
-        }
-      }
-    }
-
-    await stream.writeSSE({ data: JSON.stringify({ type: "done" }) });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await stream.writeSSE({ data: JSON.stringify({ type: "error", error: msg }) });
-  }
+  // 5. Stream via shared helper
+  await streamAgentSSE({ agent, messages: baseMessages, maxSteps, stream });
 }

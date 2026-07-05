@@ -5,17 +5,17 @@
  * All AI logic is on server — this file manages WS streaming + React state.
  *
  * Exports:
- *   - useAgentRunner  → stream chat via WS
- *   - useAgentAutoRun → trigger autonomous work session
- *   - ChatMessage     → shared type
+ *   - useAgentRunner   → stream chat via WS (initial send)
+ *   - useAgentAutoRun  → trigger autonomous work session
+ *   - connectChatSSE   → subscribe to SSE stream for a running conversation (F5 reconnect / multi-tab)
+ *   - ChatMessage      → shared type
  */
 
 import { useCallback, useRef, useState } from "react";
 import type { Agent } from "src/common/types";
 import { updateAgent, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
-import { createConversation, fetchConversations, fetchMessages } from "src/modules/chat/common/chatSlice";
+import { createConversation, fetchConversations } from "src/modules/chat/common/chatSlice";
 import { store } from "src/store/store";
-import { wsClient } from "../api/wsClient";
 
 // ─── ChatMessage — shared type ────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ export interface ChatMessage {
 interface AgentStreamCallbacks {
   onChunk: (chunk: string) => void;
   onThinking: (chunk: string) => void;
-  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel: string; input: unknown }) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
   onDone: (text: string) => void;
   onError: (err: string) => void;
@@ -44,106 +44,100 @@ interface AgentStreamCallbacks {
   password?: string;
   token?: string;
 }
-
 /**
- * Stream chat from server-side agent via WebSocket.
- * Sends chat:send and listens for chat:* events filtered by conversationId.
+ * Stream chat from server-side agent.
+ * POST /api/conversations/:id/chat returns SSE directly (like coding-agent).
+ * We read the response body as a stream — no race conditions.
  */
 async function streamAgentChat(agentId: string, message: string, conversationId: string, callbacks: AgentStreamCallbacks): Promise<void> {
   const { onChunk, onThinking, onToolCall, onToolResult, onDone, onError, abortSignal, password, token } = callbacks;
 
   if (abortSignal?.aborted) return;
 
-  // Wait until WS is connected and has a clientId
+  const BASE_URL: string = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "";
+
+  let res: Response;
   try {
-    await wsClient.waitForClientId();
-  } catch {
-    onError("WebSocket not connected");
+    res = await fetch(`${BASE_URL}/api/conversations/${conversationId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId, message, password, token }),
+      signal: abortSignal,
+    });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") return;
+    onError((err as Error).message ?? "Network error");
     return;
   }
 
-  if (abortSignal?.aborted) return;
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => "Request failed");
+    onError(text);
+    return;
+  }
 
-  return new Promise<void>((resolve) => {
-    const unsubs: Array<() => void> = [];
-    let settled = false;
+  // Read SSE events from response body stream
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
 
-    function cleanup() {
-      for (const unsub of unsubs) unsub();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE lines: "data: {...}\n\n"
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? ""; // Keep incomplete last line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const jsonStr = trimmed.slice(5).trim();
+        if (!jsonStr) continue;
+
+        try {
+          const event = JSON.parse(jsonStr);
+          switch (event.type) {
+            case "text-delta":
+              onChunk(event.text);
+              break;
+            case "thinking-delta":
+              onThinking(event.text);
+              break;
+            case "tool-call":
+              onToolCall({
+                toolCallId: event.toolCallId,
+                toolName: event.toolName,
+                toolLabel: event.toolLabel,
+                input: event.input,
+              });
+              break;
+            case "tool-result":
+              onToolResult({
+                toolCallId: event.toolCallId,
+                toolName: event.toolName,
+                result: event.result,
+              });
+              break;
+            case "done":
+              onDone(event.text ?? "");
+              return;
+            case "error":
+              onError(event.error ?? "Unknown error");
+              return;
+          }
+        } catch {
+          // ignore malformed SSE data
+        }
+      }
     }
-
-    function settle(fn: () => void) {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      fn();
-    }
-
-    // If abort is requested, clean up listeners and resolve
-    if (abortSignal) {
-      const onAbort = () => settle(resolve);
-      abortSignal.addEventListener("abort", onAbort, { once: true });
-      unsubs.push(() => abortSignal.removeEventListener("abort", onAbort));
-    }
-
-    // chat:chunk — text-delta for this conversation
-    unsubs.push(
-      wsClient.on<{ conversationId: string; text: string }>("chat:chunk", (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        onChunk(payload.text);
-      }),
-    );
-
-    // chat:thinking — reasoning content for this conversation
-    unsubs.push(
-      wsClient.on<{ conversationId: string; text: string }>("chat:thinking", (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        onThinking(payload.text);
-      }),
-    );
-
-    // chat:tool-call
-    unsubs.push(
-      wsClient.on<{ conversationId: string; toolCallId: string; toolName: string; toolLabel: string; input: unknown }>("chat:tool-call", (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        onToolCall({
-          toolCallId: payload.toolCallId,
-          toolName: payload.toolName,
-          toolLabel: payload.toolLabel,
-          input: payload.input,
-        });
-      }),
-    );
-
-    // chat:tool-result
-    unsubs.push(
-      wsClient.on<{ conversationId: string; toolCallId: string; toolName: string; result: unknown }>("chat:tool-result", (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        onToolResult({ toolCallId: payload.toolCallId, toolName: payload.toolName, result: payload.result });
-      }),
-    );
-
-    // chat:done — server has saved assistant message, FE can loadMessages
-    unsubs.push(
-      wsClient.on<{ conversationId: string; text: string }>("chat:done", (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        settle(() => onDone(payload.text));
-        resolve();
-      }),
-    );
-
-    // chat:error
-    unsubs.push(
-      wsClient.on<{ conversationId: string; error: string }>("chat:error", (payload) => {
-        if (payload.conversationId !== conversationId) return;
-        settle(() => onError(payload.error));
-        resolve();
-      }),
-    );
-
-    // Send the chat message to trigger the stream
-    wsClient.send("chat:send", { agentId, conversationId, message, password, token });
-  });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") return;
+    onError((err as Error).message ?? "Stream read error");
+  }
 }
 
 /**
@@ -162,6 +156,95 @@ async function stopAgentChat(agentId: string, conversationId: string): Promise<v
   }
 }
 
+// ─── SSE reconnect helper ─────────────────────────────────────────────────────
+
+interface ChatSSECallbacks {
+  onChunk: (chunk: string) => void;
+  onThinking: (chunk: string) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
+  onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
+  onDone: (text: string) => void;
+  onError: (err: string) => void;
+  abortSignal?: AbortSignal;
+}
+
+/**
+ * Connect to SSE stream for a running conversation.
+ * Used for F5 reconnect or multi-tab: opens EventSource → receives live events.
+ *
+ * @param conversationId - The conversation to subscribe to.
+ * @param callbacks      - Event handlers for stream events.
+ * @param options        - For public conversations, pass { fingerprint, agentId }.
+ * @returns Cleanup function that closes the EventSource.
+ */
+export function connectChatSSE(conversationId: string, callbacks: ChatSSECallbacks, options?: { fingerprint?: string; agentId?: string }): () => void {
+  const BASE_URL: string = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "";
+
+  // Build SSE URL based on context
+  let url: string;
+  if (options?.fingerprint && options?.agentId) {
+    // Public conversation — validates ownership via fingerprint on server
+    url = `${BASE_URL}/api/public/agents/${options.agentId}/conversations/${conversationId}/stream?fp=${options.fingerprint}`;
+  } else {
+    // Admin conversation
+    url = `${BASE_URL}/api/conversations/${conversationId}/stream`;
+  }
+
+  const eventSource = new EventSource(url);
+
+  eventSource.onmessage = (e) => {
+    try {
+      const event = JSON.parse(e.data);
+      switch (event.type) {
+        case "text-delta":
+          callbacks.onChunk(event.text);
+          break;
+        case "thinking-delta":
+          callbacks.onThinking(event.text);
+          break;
+        case "tool-call":
+          callbacks.onToolCall({
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            toolLabel: event.toolLabel,
+            input: event.input,
+          });
+          break;
+        case "tool-result":
+          callbacks.onToolResult({
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            result: event.result,
+          });
+          break;
+        case "done":
+          callbacks.onDone(event.text ?? "");
+          eventSource.close();
+          break;
+        case "error":
+          callbacks.onError(event.error ?? "Unknown error");
+          eventSource.close();
+          break;
+      }
+    } catch {
+      // ignore malformed SSE messages
+    }
+  };
+
+  eventSource.onerror = () => {
+    // Connection closed — normal when task finishes or server unavailable.
+    // Don't call onError to avoid confusing "stream ended" with real errors.
+    eventSource.close();
+  };
+
+  // Abort signal support — close EventSource when caller aborts
+  if (callbacks.abortSignal) {
+    callbacks.abortSignal.addEventListener("abort", () => eventSource.close(), { once: true });
+  }
+
+  return () => eventSource.close();
+}
+
 // ─── useAgentRunner ───────────────────────────────────────────────────────────
 // FE only manages streaming state + UI callbacks.
 // Server handles: history load, message save, conversation status.
@@ -172,7 +255,7 @@ interface RunOptions {
   userMessage: string;
   onChunk: (chunk: string) => void;
   onThinking?: (chunk: string) => void;
-  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel: string; input: unknown }) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
   /** Called when server is done — messages already saved by server */
   onDone: (text: string) => void;
@@ -277,11 +360,6 @@ export function useAgentAutoRun() {
           await store.dispatch(updateAgent({ id: agent.id, lastRunAt: new Date() }));
           store.dispatch(upsertAgentLocal({ id: agent.id, runStatus: "idle" }));
           runningAgents.current.delete(agent.id);
-          // Refresh if viewing this agent
-          const state = store.getState();
-          if (state.chat.activeConversationId === conversationId) {
-            void store.dispatch(fetchMessages(conversationId));
-          }
           void store.dispatch(fetchConversations(agent.id));
           console.info(`[AutoRun] ${agent.name} done → idle`);
         },

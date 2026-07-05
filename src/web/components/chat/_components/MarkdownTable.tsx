@@ -57,8 +57,8 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
         </button>
 
         {/* Scrollable table */}
-        <div className="overflow-x-auto">
-          <table>{children}</table>
+        <div className="overflow-x-auto hover-scrollbar">
+          <table className="whitespace-nowrap">{children}</table>
         </div>
       </div>
 

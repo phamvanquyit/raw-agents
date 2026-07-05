@@ -23,6 +23,7 @@ export interface Agent {
   teamId: string | null;
   createdBy: string | null;
   creatorName: string | null;
+  toolCount: number;
   createdAt: Date;
   updatedAt: Date;
 }

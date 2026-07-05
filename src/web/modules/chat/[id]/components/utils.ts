@@ -31,11 +31,23 @@ export function toDisplayMsg(m: any): ChatAgentMessage {
       timestamp: m.createdAt ?? new Date(),
     };
   }
+  if (m.role === "thinking") {
+    const meta = (m.metadata ?? {}) as Record<string, unknown>;
+    return {
+      id: m.id,
+      role: "thinking" as const,
+      content: m.content,
+      streaming: false,
+      timestamp: m.createdAt ?? new Date(),
+      meta: { thinking: m.content, thinkingDuration: (meta.thinkingDuration as number) ?? 0 },
+    };
+  }
   return {
     id: m.id,
     role: m.role as "user" | "assistant",
     content: m.content,
     streaming: false,
     timestamp: m.createdAt ?? new Date(),
+    meta: m.metadata ? (m.metadata as Record<string, unknown>) : undefined,
   };
 }

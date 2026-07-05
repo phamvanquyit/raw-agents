@@ -1,24 +1,99 @@
+import type * as MonacoNS from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { wsClient } from "src/common/api/wsClient";
 
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
-import { AgentEditor, type EditorInstance, type ToolActionEvent } from "src/components/ui/agent_editor";
+import { type EditorInstance, MonacoEditor } from "src/components/ui/MonacoEditor";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
+import { PromptAgentPanel } from "./PromptAgentPanel";
 
-import { PROMPT_AI_SYSTEM_PROMPT } from "../common/promptConstants";
-import { UPDATE_PROMPT_TOOL_NAME } from "../common/promptTools";
+// ── Monaco options for the prompt editor ──────────────────────────────────────
+const EDITOR_OPTIONS: MonacoNS.editor.IStandaloneEditorConstructionOptions = {
+  fontSize: 14,
+  lineHeight: 1.7,
+  padding: { top: 14, bottom: 14 },
+  lineNumbers: "off",
+  folding: false,
+  renderLineHighlight: "none",
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
+};
+
+const PLACEHOLDER = "Write your system prompt here...\n\nDefine the agent's personality, behavior, and instructions.";
+
+// ── Resizable Splitter ────────────────────────────────────────────────────────
+
+const SIDEBAR_DEFAULT = 380;
+const SIDEBAR_MIN = 280;
+const SIDEBAR_MAX = 560;
+
+function ResizableSplitter({
+  sidebarWidth,
+  onResize,
+  children,
+}: { sidebarWidth: number; onResize: (w: number) => void; children: [React.ReactNode, React.ReactNode] }) {
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const startW = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const onDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      dragging.current = true;
+      startX.current = e.clientX;
+      startW.current = sidebarWidth;
+      setIsDragging(true);
+    },
+    [sidebarWidth],
+  );
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      const dx = startX.current - e.clientX;
+      onResize(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW.current + dx)));
+    };
+    const onUp = () => {
+      if (dragging.current) {
+        dragging.current = false;
+        setIsDragging(false);
+      }
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, [onResize]);
+
+  return (
+    <div className="flex h-full w-full overflow-hidden" style={{ userSelect: isDragging ? "none" : undefined, cursor: isDragging ? "col-resize" : undefined }}>
+      <div className="flex-1 min-w-0 h-full overflow-hidden">{children[0]}</div>
+      <div
+        onMouseDown={onDown}
+        className={[
+          "w-px shrink-0 h-full cursor-col-resize z-10 transition-colors duration-150",
+          isDragging ? "bg-primary/50" : "bg-border hover:bg-primary/40",
+        ].join(" ")}
+      />
+      <div className="h-full overflow-hidden shrink-0" style={{ width: sidebarWidth }}>
+        {children[1]}
+      </div>
+    </div>
+  );
+}
 
 // ─── Prompt Page ──────────────────────────────────────────────────────────────
 
 export function PromptPage() {
-  const { systemPrompt, setSystemPrompt, name } = useAgentDetailContext();
+  const { id, systemPrompt, setSystemPrompt, agent } = useAgentDetailContext();
 
   const editorRef = useRef<EditorInstance | null>(null);
-  const promptRef = useRef(systemPrompt);
-  promptRef.current = systemPrompt;
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
 
   // ── Provider / model (persisted) ──
   const dispatch = useAppDispatch();
@@ -65,77 +140,64 @@ export function PromptPage() {
     [setSystemPrompt],
   );
 
-  // ── Listen for WS prompt updates from server (update_prompt tool) ──
+  // ── Sync editor when agent data updates from WS (agents:updated) ──
+  const lastAgentPromptRef = useRef(agent.systemPrompt ?? "");
   useEffect(() => {
-    const unsub = wsClient.on<{ prompt: string; summary?: string }>("assistant:prompt-updated" as any, (data) => {
-      if (data?.prompt) applyPrompt(data.prompt);
-    });
-    return unsub;
-  }, [applyPrompt]);
+    const newPrompt = agent.systemPrompt ?? "";
+    if (newPrompt !== lastAgentPromptRef.current) {
+      lastAgentPromptRef.current = newPrompt;
+      applyPrompt(newPrompt);
+    }
+  }, [agent.systemPrompt, applyPrompt]);
 
-  // ── System prompt with current context ──
-  const currentPrompt = systemPrompt.trim();
-  const agentCtx = name ? `\nAgent being edited: "${name}".` : "";
-  const aiSystemPrompt = [
-    PROMPT_AI_SYSTEM_PROMPT,
-    agentCtx,
-    currentPrompt
-      ? `\nCURRENT system prompt in the editor (for reference and improvement):\n\`\`\`\n${currentPrompt}\n\`\`\``
-      : "\nEditor is currently empty — please write a new system prompt based on user requirements.",
-  ].join("\n");
-
-  // ── Handle tool events ──
-  const handleToolAction = useCallback(
-    (event: ToolActionEvent) => {
-      if (event.type === "tool-call" && event.toolName === UPDATE_PROMPT_TOOL_NAME) {
-        const input = event.input as { prompt: string };
-        if (input?.prompt) applyPrompt(input.prompt);
-      }
-    },
-    [applyPrompt],
-  );
+  const isEmpty = !systemPrompt || systemPrompt.trim().length === 0;
 
   return (
-    <AgentEditor
-      language="markdown"
-      value={systemPrompt}
-      onChange={(v) => setSystemPrompt(v ?? "")}
-      editorPlaceholder={"Write your system prompt here...\n\nDefine the agent's personality, behavior, and instructions."}
-      onMount={(editor) => {
-        editorRef.current = editor;
-      }}
-      chatMode="floating"
-      monacoOptions={{
-        fontSize: 14,
-        lineHeight: 1.7,
-        padding: { top: 14, bottom: 14 },
-        lineNumbers: "off",
-        folding: false,
-        renderLineHighlight: "none",
-        overviewRulerLanes: 0,
-        hideCursorInOverviewRuler: true,
-      }}
-      systemPrompt={aiSystemPrompt}
-      streamUrl="/api/assistants/prompt/stream"
-      maxSteps={6}
-      aiProviderId={providerId}
-      aiModel={model}
-      onToolAction={handleToolAction}
-      onChangeAiProvider={(id) => {
-        setProviderId(id);
-        setModel("");
-        void apiClient.patch("/api/settings", {
-          [SettingKey.PromptAssistantProvider]: id,
-        });
-      }}
-      onChangeModel={(m) => {
-        setModel(m);
-        void apiClient.patch("/api/settings", {
-          [SettingKey.PromptAssistantModel]: m,
-        });
-      }}
-      assistantLabel="Prompt AI"
-      chatPlaceholder="Describe your request... (Enter to send)"
-    />
+    <ResizableSplitter sidebarWidth={sidebarWidth} onResize={setSidebarWidth}>
+      {/* Editor */}
+      <div className="relative h-full overflow-hidden">
+        <MonacoEditor
+          language="markdown"
+          value={systemPrompt}
+          onChange={(v) => setSystemPrompt(v ?? "")}
+          onMount={(editor) => {
+            editorRef.current = editor;
+          }}
+          options={EDITOR_OPTIONS}
+        />
+        {/* Placeholder overlay */}
+        {isEmpty && (
+          <div className="absolute inset-0 pointer-events-none select-none" style={{ padding: "14px 0", paddingLeft: 20 }}>
+            <span
+              className="text-muted/50"
+              style={{ fontSize: 14, fontFamily: "'Geist Mono Variable', 'Geist Mono', monospace", lineHeight: "1.7", whiteSpace: "pre-wrap" }}
+            >
+              {PLACEHOLDER}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* AI Sidebar */}
+      <PromptAgentPanel
+        providerId={providerId}
+        model={model}
+        streamUrl={`/api/agents/${id}/assistant/prompt/stream`}
+        maxSteps={6}
+        onChangeAiProvider={(pid) => {
+          setProviderId(pid);
+          setModel("");
+          void apiClient.patch("/api/settings", {
+            [SettingKey.PromptAssistantProvider]: pid,
+          });
+        }}
+        onChangeModel={(m) => {
+          setModel(m);
+          void apiClient.patch("/api/settings", {
+            [SettingKey.PromptAssistantModel]: m,
+          });
+        }}
+      />
+    </ResizableSplitter>
   );
 }

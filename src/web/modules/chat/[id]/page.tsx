@@ -1,22 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { AgentMessage } from "src/common/types";
 import { wsClient } from "../../../common/api/wsClient";
-import { useAgentRunner } from "../../../common/hooks/useAgent";
+import { connectChatSSE, useAgentRunner } from "../../../common/hooks/useAgent";
+import { AppLogo } from "../../../components/AppLogo";
 import { InputArea } from "../../../components/chat/_components/InputArea";
-import type { ChatAgentMessage } from "../../../components/chat/common/types";
+import { MessageList } from "../../../components/chat/_components/MessageList";
 import { useAutoScroll } from "../../../components/chat/hooks/useAutoScroll";
-import {
-  ChatMessages,
-  ChatSidebar,
-  ErrorScreen,
-  GridBackground,
-  HIDDEN_TOOL_NAMES,
-  LoadingScreen,
-  PasswordGate,
-  getFingerprint,
-  toDisplayMsg,
-} from "./components";
+import { useChatStreaming } from "../../../components/chat/hooks/useChatStreaming";
+import { ChatSidebar, ErrorScreen, GridBackground, HIDDEN_TOOL_NAMES, LoadingScreen, PasswordGate, getFingerprint, toDisplayMsg } from "./components";
 import type { ConvMeta, PublicAgent } from "./components";
 
 export default function PublicChatPage() {
@@ -42,11 +34,79 @@ export default function PublicChatPage() {
 
   // Chat state
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<AgentMessage[]>([]);
   const { run, running, cancel } = useAgentRunner();
-  const [streamingContent, setStreamingContent] = useState("");
 
   const { scrollRef, scrollToBottom } = useAutoScroll();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const agentId = agent?.id;
+
+  /** Refresh conversation list from server */
+  const refreshConversations = async (aId: string) => {
+    const fp = getFingerprint();
+    const res = await fetch(`/api/public/agents/${aId}/conversations?fp=${fp}`);
+    if (res.ok) {
+      const data: ConvMeta[] = await res.json();
+      setConversations(data);
+      return data;
+    }
+    return [];
+  };
+
+  // Store refreshConversations in a ref so the hook callbacks can access it without stale closures
+  const refreshConversationsRef = useRef(refreshConversations);
+  refreshConversationsRef.current = refreshConversations;
+
+  /** Fetch messages from server — returns data, hook handles setMessages */
+  const fetchMessages = useCallback(async (convId: string) => {
+    const res = await fetch(`/api/conversations/${convId}/messages`);
+    if (res.ok) return (await res.json()) as AgentMessage[];
+    return [];
+  }, []);
+
+  /** Mark a conversation as processing */
+  const markProcessing = useCallback((cId: string) => {
+    setProcessingConvIds((prev) => {
+      const next = new Set(prev);
+      next.add(cId);
+      return next;
+    });
+  }, []);
+
+  /** Unmark a conversation as processing */
+  const unmarkProcessing = useCallback((cId: string) => {
+    setProcessingConvIds((prev) => {
+      const next = new Set(prev);
+      next.delete(cId);
+      return next;
+    });
+  }, []);
+
+  // ── Streaming hook (local messages, no Redux) ───────────────────────────────
+
+  const messageFilter = useCallback(
+    (m: { role: string; toolName?: string }) => !(m.role === "tool-call" && m.toolName && HIDDEN_TOOL_NAMES.has(m.toolName)),
+    [],
+  );
+
+  const { setMessages, streamingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages } = useChatStreaming({
+    toDisplayMsg,
+    messageFilter,
+    fetchMessages,
+    onConversationDone: async (convId) => {
+      unmarkProcessing(convId);
+      if (agentId) refreshConversationsRef.current(agentId);
+    },
+    onConversationError: async (convId) => {
+      unmarkProcessing(convId);
+    },
+  });
+
+  // Keep scroll pinned when content changes — backup for MutationObserver
+  // which can miss auto-scroll when textarea resize changes clientHeight
+  useEffect(() => {
+    scrollToBottom();
+  }, [liveMessages.length, streamingContent]);
 
   // Auto-focus chat input when switching conversations
   useEffect(() => {
@@ -106,25 +166,11 @@ export default function PublicChatPage() {
     })();
   }, [id]);
 
-  const agentId = agent?.id;
-
-  /** Refresh conversation list from server */
-  const refreshConversations = async (aId: string) => {
-    const fp = getFingerprint();
-    const res = await fetch(`/api/public/agents/${aId}/conversations?fp=${fp}`);
-    if (res.ok) {
-      const data: ConvMeta[] = await res.json();
-      setConversations(data);
-      return data;
-    }
-    return [];
-  };
-
   /** Switch to a conversation — load its messages */
   const switchConversation = async (aId: string, cId: string) => {
     const fp = getFingerprint();
     setMessages([]);
-    setStreamingContent("");
+    clearStreamingState();
     setConversationId(cId);
     navigate(`/chat/${aId}?conv=${cId}`, { replace: true });
     const res = await fetch(`/api/public/agents/${aId}/conversations/${cId}?fp=${fp}`);
@@ -152,30 +198,13 @@ export default function PublicChatPage() {
     }
   };
 
-  /** Create a new conversation (or switch to existing empty one) */
-  const newConversation = async (aId: string) => {
+  /** Start a new chat — just clears state, conversation is created on first send */
+  const newConversation = (aId: string) => {
     if (running) return;
-    // If there's already an empty conversation, just switch to it
-    const emptyConv = conversations.find((c) => c.isEmpty);
-    if (emptyConv) {
-      await switchConversation(aId, emptyConv.id);
-      return;
-    }
-    const fp = getFingerprint();
-    const res = await fetch(`/api/public/agents/${aId}/conversations?fp=${fp}`, {
-      method: "POST",
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const convs = await refreshConversations(aId);
-      if (data.conversationId) {
-        setConversationId(data.conversationId);
-        setMessages([]);
-        setStreamingContent("");
-        navigate(`/chat/${aId}?conv=${data.conversationId}`, { replace: true });
-      }
-      return convs;
-    }
+    setConversationId(null);
+    setMessages([]);
+    clearStreamingState();
+    navigate(`/chat/${aId}`, { replace: true });
   };
 
   // On authenticated: load conversations list + restore from URL or most recent
@@ -187,12 +216,15 @@ export default function PublicChatPage() {
       const target = urlConvId ? convs.find((c) => c.id === urlConvId) : null;
       if (target) {
         await switchConversation(agentId, target.id);
+      } else if (urlConvId) {
+        // URL conv ID doesn't exist — clear it and start fresh
+        newConversation(agentId);
       } else if (convs.length > 0) {
-        // Load the most recent conversation
+        // No conv in URL — load the most recent conversation
         await switchConversation(agentId, convs[0].id);
       } else {
-        // No conversations yet — create first one
-        await newConversation(agentId);
+        // No conversations yet — start with blank new chat state
+        newConversation(agentId);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,7 +260,7 @@ export default function PublicChatPage() {
     return () => {
       for (const u of unsubs) u();
     };
-  }, [conversationId, agentId]);
+  }, [conversationId, agentId, setMessages]);
 
   const verifyPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,24 +288,6 @@ export default function PublicChatPage() {
       setVerifying(false);
     }
   };
-
-  /** Mark a conversation as processing */
-  const markProcessing = useCallback((cId: string) => {
-    setProcessingConvIds((prev) => {
-      const next = new Set(prev);
-      next.add(cId);
-      return next;
-    });
-  }, []);
-
-  /** Unmark a conversation as processing */
-  const unmarkProcessing = useCallback((cId: string) => {
-    setProcessingConvIds((prev) => {
-      const next = new Set(prev);
-      next.delete(cId);
-      return next;
-    });
-  }, []);
 
   // Listen to WS events globally to track processing state across ALL tabs/clients
   useEffect(() => {
@@ -318,84 +332,82 @@ export default function PublicChatPage() {
     });
   }, [conversations]);
 
+  // Auto-resume: when current conversation is running on server but not locally streaming
+  // (e.g. after F5), open SSE to receive live events. Validates ownership via fingerprint.
+  useEffect(() => {
+    if (!conversationId || !agentId) return;
+    const isRunning = processingConvIds.has(conversationId);
+    if (!isRunning || running) return;
+
+    const fp = getFingerprint();
+    const resumeConvId = conversationId;
+    void loadMessages(resumeConvId);
+
+    const callbacks = buildSSECallbacks(resumeConvId);
+    const abort = new AbortController();
+    const cleanup = connectChatSSE(
+      resumeConvId,
+      {
+        ...callbacks,
+        abortSignal: abort.signal,
+      },
+      { fingerprint: fp, agentId },
+    );
+
+    return () => {
+      abort.abort();
+      cleanup();
+    };
+  }, [conversationId, agentId, processingConvIds, running, unmarkProcessing, loadMessages, buildSSECallbacks]);
+
   const handleSend = async (text: string) => {
-    if (!agent || running || !conversationId) return;
+    if (!agent || running) return;
+
+    let convId = conversationId;
+
+    // No active conversation → create one on the server
+    if (!convId) {
+      const fp = getFingerprint();
+      const res = await fetch(`/api/public/agents/${agent.id}/conversations?fp=${fp}`, {
+        method: "POST",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      convId = data.conversationId;
+      if (!convId) return;
+      setConversationId(convId);
+      navigate(`/chat/${agent.id}?conv=${convId}`, { replace: true });
+      await refreshConversations(agent.id);
+    }
 
     const optimisticMsg: any = {
       id: `optimistic-${Date.now()}`,
       role: "user",
       content: text,
-      conversationId,
+      conversationId: convId,
       createdAt: new Date(),
     };
     setMessages((prev) => [...prev, optimisticMsg]);
-    setStreamingContent("");
+    clearStreamingState();
     scrollToBottom();
 
     const mockAgent: any = { id: agent.id, name: agent.name };
-    const convId = conversationId;
 
     // Mark this conversation as processing
     markProcessing(convId);
 
     const savedToken = localStorage.getItem(`public_auth_${agent.id}`) ?? undefined;
 
+    const callbacks = buildSSECallbacks(convId);
     run({
       agent: mockAgent,
       conversationId: convId,
       userMessage: text,
       password: enteredPassword || undefined,
       token: savedToken,
-      onChunk: (chunk) => {
-        setStreamingContent((prev) => prev + chunk);
-      },
-      onToolCall: () => {},
-      onToolResult: () => {},
-      onDone: async () => {
-        setStreamingContent("");
-        unmarkProcessing(convId);
-        try {
-          const res = await fetch(`/api/conversations/${convId}/messages`);
-          if (res.ok) {
-            const data = await res.json();
-            setMessages(data);
-          }
-        } catch {
-          /* best-effort */
-        }
-        if (agentId) refreshConversations(agentId);
-      },
-      onError: async (err) => {
-        console.error(err);
-        setStreamingContent("");
-        unmarkProcessing(convId);
-        try {
-          const res = await fetch(`/api/conversations/${convId}/messages`);
-          if (res.ok) {
-            const data = await res.json();
-            setMessages(data);
-          }
-        } catch {
-          /* best-effort */
-        }
-      },
+      ...callbacks,
     });
   };
-
-  const liveMessages: ChatAgentMessage[] = [
-    ...messages.map(toDisplayMsg).filter((m) => !(m.role === "tool-call" && m.toolName && HIDDEN_TOOL_NAMES.has(m.toolName))),
-    ...(streamingContent
-      ? [
-          {
-            id: "stream",
-            role: "assistant" as const,
-            content: streamingContent,
-            streaming: true,
-            timestamp: new Date(),
-          },
-        ]
-      : []),
-  ];
 
   // ── Loading ────────────────────────────────────────────────────────────────
 
@@ -458,13 +470,19 @@ export default function PublicChatPage() {
           </svg>
         </button>
 
-        <ChatMessages
-          scrollRef={scrollRef}
-          liveMessages={liveMessages}
-          conversationId={conversationId}
-          agentName={agent?.name}
-          running={running}
-          streamingContent={streamingContent}
+        <MessageList
+          messages={liveMessages}
+          generating={running && !streamingContent}
+          activityStatus={activityStatus}
+          assistantLabel={agent?.name ?? "Assistant"}
+          emptyStateContent={
+            <div className="flex flex-col items-center gap-2">
+              <AppLogo size={32} />
+              <span className="text-[12px] text-muted">Ask me anything to get started</span>
+            </div>
+          }
+          messagesEndRef={messagesEndRef}
+          scrollContainerRef={scrollRef}
         />
 
         {/* Input */}
@@ -472,7 +490,7 @@ export default function PublicChatPage() {
           <div className="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none" />
           <div className="px-4 pb-4 pt-2">
             <div className="max-w-3xl mx-auto">
-              <InputArea placeholder="Type a message..." generating={running} onSend={conversationId ? handleSend : () => {}} onCancel={cancel} hideConfig />
+              <InputArea placeholder="Type a message..." generating={running} onSend={handleSend} onCancel={cancel} hideConfig />
             </div>
           </div>
         </div>

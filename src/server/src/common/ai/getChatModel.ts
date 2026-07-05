@@ -51,15 +51,13 @@ export async function getChatModel(providerId: string, modelId: string): Promise
   }
 
   if (provider === "openrouter") {
-    return new ChatOpenAI({
+    const { ChatOpenRouter } = await import("@langchain/openrouter");
+    return new ChatOpenRouter({
       model: modelId,
       apiKey,
-      configuration: {
-        baseURL: baseURL || "https://openrouter.ai/api/v1",
-        defaultHeaders: {
-          "HTTP-Referer": "https://raw-agents.dev",
-          "X-Title": "RawAgents",
-        },
+      // Always request reasoning — OpenRouter ignores it for non-thinking models
+      modelKwargs: {
+        reasoning: { enabled: true, effort: "medium" },
       },
     });
   }

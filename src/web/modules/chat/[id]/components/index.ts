@@ -1,4 +1,3 @@
-export { ChatMessages } from "./ChatMessages";
 export { ChatSidebar } from "./ChatSidebar";
 export { ErrorScreen } from "./ErrorScreen";
 export { GridBackground } from "./GridBackground";

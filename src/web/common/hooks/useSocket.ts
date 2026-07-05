@@ -6,9 +6,9 @@
  */
 
 import { useEffect } from "react";
-import type { Agent, AgentConversation, AgentMessage, AgentTool } from "src/common/types";
+import type { Agent, AgentConversation, AgentTool } from "src/common/types";
 import { removeAgentLocal, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
-import { removeConversationLocal, upsertConversationLocal, upsertMessageLocal } from "src/modules/chat/common/chatSlice";
+import { removeConversationLocal, upsertConversationLocal } from "src/modules/chat/common/chatSlice";
 import { removeTeamLocal, upsertTeamLocal } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { removeToolLocal, upsertToolLocal } from "src/modules/tools/common/toolsSlice";
@@ -34,18 +34,15 @@ function handleEvent(event: WsEvent) {
     // ── Conversations ────────────────────────────────────────────────────────
     case "conversations:created":
     case "conversations:updated": {
-      store.dispatch(upsertConversationLocal(payload as AgentConversation));
+      const conv = payload as AgentConversation;
+      // Skip public conversations — they belong to public users and should not
+      // appear in the admin conversation list.
+      if (conv.trigger === "public") break;
+      store.dispatch(upsertConversationLocal(conv));
       break;
     }
     case "conversations:deleted": {
       store.dispatch(removeConversationLocal((payload as { id: string }).id));
-      break;
-    }
-
-    // ── Messages ─────────────────────────────────────────────────────────────
-    case "messages:created":
-    case "messages:updated": {
-      store.dispatch(upsertMessageLocal(payload as AgentMessage));
       break;
     }
 

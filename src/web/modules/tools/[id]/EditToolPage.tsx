@@ -14,7 +14,6 @@ import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/compone
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import type { ToolActionEvent } from "./components/CodingAgentPanel";
 
-import type { EditorUpdate } from "../common/editorTypes";
 import { deleteTool, fetchTools, updateTool } from "../common/toolsSlice";
 import { buildJsonSchemaFromCode, injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams } from "../common/utils";
 
@@ -155,24 +154,6 @@ export default function EditToolPage() {
     setModel(savedModel);
   }, [providersLoaded, providerItems, settings]);
 
-  // ── Apply AI code via executeEdits ──
-  const applyUpdate = useCallback((upd: EditorUpdate) => {
-    const editor = editorRef.current;
-    const monacoModel = editor?.getModel();
-    if (!editor || !monacoModel) {
-      setLocalCode(upd.code);
-      return;
-    }
-    if (upd.code === monacoModel.getValue()) {
-      setLocalCode(upd.code);
-      return;
-    }
-    editor.pushUndoStop();
-    editor.executeEdits("ai-update", [{ range: monacoModel.getFullModelRange(), text: upd.code }]);
-    editor.pushUndoStop();
-    setLocalCode(upd.code);
-  }, []);
-
   // ── Handle tool actions from AI ──
   const runPanelRef = useRef<RunPanelHandle>(null);
 
@@ -245,6 +226,7 @@ export default function EditToolPage() {
           id,
           parameters: buildJsonSchemaFromCode(code),
           codeContent: code,
+          draftCode: code,
           ...(meta.label ? { label: meta.label } : {}),
           ...(meta.name ? { name: meta.name } : {}),
           ...(meta.description ? { description: meta.description } : {}),
@@ -372,9 +354,17 @@ export default function EditToolPage() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
           {/* Monaco editor — diff mode when AI draft exists */}
           <div className="flex-1 min-h-0 overflow-hidden relative">
-            {codeDraft !== null ? (
+            {codeDraft !== null && codeDraft !== localCode ? (
               <>
-                <MonacoDiffEditor language="python" original={localCode} modified={codeDraft} options={{ fontSize: 13, renderSideBySide: false }} />
+                <MonacoDiffEditor
+                  language="python"
+                  original={localCode}
+                  modified={codeDraft}
+                  options={{ fontSize: 13, renderSideBySide: false, renderIndicators: false }}
+                  onMount={(editor) => {
+                    editor.getOriginalEditor().updateOptions({ lineNumbers: "off" });
+                  }}
+                />
                 {/* Accept / Reject floating bar */}
                 <div
                   className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border/60"
@@ -385,11 +375,9 @@ export default function EditToolPage() {
                     type="button"
                     onClick={() => {
                       const draft = codeDraft;
-                      applyUpdate({ code: draft });
+                      setLocalCode(draft);
                       setSharedCode(draft);
                       setSavedCode(draft);
-                      setCodeDraft(null);
-                      // Only send codeContent — draftCode is already saved in DB
                       if (id) void apiClient.put(`/api/tools/${id}`, { codeContent: draft });
                     }}
                     className="inline-flex items-center gap-1 text-[11px] font-bold text-[#A8FF53] hover:text-[#c4ff8a] cursor-pointer bg-[#A8FF53]/10 hover:bg-[#A8FF53]/20 border border-[#A8FF53]/30 rounded-sm px-3 py-1 transition-all duration-150"
@@ -400,8 +388,7 @@ export default function EditToolPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setCodeDraft(null);
-                      // Only send draftCode reset
+                      setCodeDraft(localCode);
                       if (id) void apiClient.put(`/api/tools/${id}`, { draftCode: localCode });
                     }}
                     className="inline-flex items-center gap-1 text-[11px] font-bold text-[#FF4D6D] hover:text-[#ff7a93] cursor-pointer bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/30 rounded-sm px-3 py-1 transition-all duration-150"
@@ -423,6 +410,7 @@ export default function EditToolPage() {
                 onMount={(editor) => {
                   editorRef.current = editor;
                 }}
+                onSave={() => handleSave()}
                 options={{ fontSize: 13, tabSize: 2 }}
               />
             )}

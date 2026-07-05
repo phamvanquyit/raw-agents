@@ -117,7 +117,7 @@ export const agentMessages = sqliteTable("agent_messages", {
    * null → human / task
    */
   chatAgentId: text("chat_agent_id"),
-  role: text("role", { enum: ["user", "assistant", "tool"] })
+  role: text("role", { enum: ["user", "assistant", "tool", "thinking"] })
     .notNull()
     .default("user"),
   content: text("content").notNull(),

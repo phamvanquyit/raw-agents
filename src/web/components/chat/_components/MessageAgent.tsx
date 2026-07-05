@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -35,6 +36,13 @@ const markdownComponents: Components = {
   table({ children }) {
     return <MarkdownTable>{children}</MarkdownTable>;
   },
+  a({ href, children, ...props }) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+        {children}
+      </a>
+    );
+  },
 };
 
 const DEFAULT_AGENT_COLOR = "#6b9a4a";
@@ -54,9 +62,57 @@ export function AgentAvatar({ color }: { color?: string | null }) {
   );
 }
 
+/** Live streaming thinking — expanded, auto-scrolls as content arrives */
+function ActiveThinking({ thinking }: { thinking: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [thinking]);
+
+  return (
+    <div className="px-4 pb-1">
+      <div className="flex items-center gap-1.5 py-0.5">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
+        <span className="text-[10px] text-muted/70 select-none">Thinking…</span>
+      </div>
+      <div ref={scrollRef} className="mt-1 px-3 py-2 rounded-lg border border-border bg-surface-raised/50 max-h-40 overflow-y-auto [scrollbar-width:thin]">
+        <p className="text-xs text-muted leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Completed thinking — collapsed summary, expandable */
+export function CompletedThinking({ thinking, duration }: { thinking: string; duration: number }) {
+  const label = duration < 1 ? "Thought for <1s" : `Thought for ${duration}s`;
+  return (
+    <details className="px-4 pb-2 group/thinking">
+      <summary className="cursor-pointer select-none text-[13px] text-muted hover:text-muted flex items-center gap-1 py-0.5 list-none [&::-webkit-details-marker]:hidden">
+        <svg className="w-3 h-3 transition-transform group-open/thinking:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <span>{label}</span>
+      </summary>
+      <div className="mt-1 pl-4 max-h-40 overflow-y-auto [scrollbar-width:thin]">
+        <p className="text-[13px] text-muted leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
+      </div>
+    </details>
+  );
+}
+
 export function MessageAgent({ msg }: MessageAgentProps) {
+  const thinking = msg.meta?.thinking as string | undefined;
+  const thinkingDuration = msg.meta?.thinkingDuration as number | undefined;
+  const isThinkingDone = thinkingDuration != null;
+
   return (
     <div className="ca-fade-in mt-1">
+      {/* Thinking / reasoning content */}
+      {thinking && !isThinkingDone && <ActiveThinking thinking={thinking} />}
+      {thinking && isThinkingDone && <CompletedThinking thinking={thinking} duration={thinkingDuration} />}
       {/* Markdown content */}
       <div className="px-4 pb-0.5">
         <div className="ca-markdown text-sm leading-relaxed">

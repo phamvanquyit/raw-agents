@@ -2,9 +2,9 @@
 // Route: /agents — Full agent management page with card grid view, grouped by team.
 
 import { AddCircle } from "@solar-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Agent, AgentToolAssignment } from "src/common/types";
+import type { Agent } from "src/common/types";
 import RenderIf from "src/components/ui/RenderIf";
 import { Button } from "src/components/ui/button";
 import { fetchAgents } from "src/modules/agents/common/agentsSlice";
@@ -14,27 +14,6 @@ import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import AgentGroup from "./components/AgentGroup";
 
-// ─── Fetch all tool assignments for every agent ─────────────────────────────
-
-async function fetchAllToolCounts(agents: Agent[]): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  const results = await Promise.all(
-    agents.map(async (agent) => {
-      try {
-        const res = await fetch(`/api/agents/${agent.id}/tool-assignments`);
-        const assignments: AgentToolAssignment[] = await res.json();
-        return { agentId: agent.id, count: assignments.length };
-      } catch {
-        return { agentId: agent.id, count: 0 };
-      }
-    }),
-  );
-  for (const { agentId, count } of results) {
-    map.set(agentId, count);
-  }
-  return map;
-}
-
 // ─── Agents Page ────────────────────────────────────────────────────────────
 
 export default function AgentsPage() {
@@ -43,27 +22,10 @@ export default function AgentsPage() {
   const agents = useAppSelector((s) => s.agents.items) as Agent[];
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
 
-  const [toolCountMap, setToolCountMap] = useState<Map<string, number>>(new Map());
-  const fetchedAgentIdsRef = useRef<string>("");
-
   useEffect(() => {
     dispatch(fetchAgents());
     dispatch(fetchTeams());
   }, [dispatch]);
-
-  // Fetch tool counts when agents change
-  useEffect(() => {
-    if (agents.length === 0) return;
-
-    const agentIdsKey = agents
-      .map((a) => a.id)
-      .sort()
-      .join(",");
-    if (fetchedAgentIdsRef.current === agentIdsKey) return;
-    fetchedAgentIdsRef.current = agentIdsKey;
-
-    fetchAllToolCounts(agents).then(setToolCountMap).catch(console.error);
-  }, [agents]);
 
   // Sort agents by creation date (newest first)
   const sortedAgents = useMemo(() => {
@@ -142,7 +104,7 @@ export default function AgentsPage() {
           }
         >
           {groupedAgents.map((group) => (
-            <AgentGroup key={group.key} title={group.title} agents={group.agents} toolCountMap={toolCountMap} onNavigate={handleNavigate} />
+            <AgentGroup key={group.key} title={group.title} agents={group.agents} onNavigate={handleNavigate} />
           ))}
         </RenderIf>
       </div>

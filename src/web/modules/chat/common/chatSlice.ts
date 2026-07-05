@@ -12,14 +12,12 @@ export interface FeedMessage extends AgentMessage {
 
 export interface IChatState {
   conversations: AgentConversation[];
-  messages: AgentMessage[];
   activeConversationId: string | null;
   loading: boolean;
 }
 
 const initialState: IChatState = {
   conversations: [],
-  messages: [],
   activeConversationId: null,
   loading: false,
 };
@@ -62,11 +60,6 @@ export const deleteConversation = createAsyncThunk("chat/deleteConversation", as
   return id;
 });
 
-export const fetchMessages = createAsyncThunk("chat/fetchMessages", async (conversationId: string) => {
-  const rows = await apiClient.get<AgentMessage[]>(`/api/conversations/${conversationId}/messages`);
-  return rows;
-});
-
 export const saveMessage = createAsyncThunk(
   "chat/saveMessage",
   async (
@@ -88,11 +81,8 @@ export const saveMessage = createAsyncThunk(
 
 export const updateMessageMetadata = createAsyncThunk(
   "chat/updateMessageMetadata",
-  async ({ id, patch }: { id: string; patch: Record<string, unknown> }, { getState }) => {
-    const state = getState() as { chat: IChatState };
-    const msg = state.chat.messages.find((m) => m.id === id);
-    if (!msg?.conversationId) return;
-    await apiClient.patch(`/api/conversations/${msg.conversationId}/messages/${id}/metadata`, patch);
+  async ({ conversationId, id, patch }: { conversationId: string; id: string; patch: Record<string, unknown> }) => {
+    await apiClient.patch(`/api/conversations/${conversationId}/messages/${id}/metadata`, patch);
   },
 );
 
@@ -111,10 +101,6 @@ const chatSlice = createSlice({
   reducers: {
     setActiveConversationId(state, { payload }: { payload: string | null }) {
       state.activeConversationId = payload;
-      if (payload === null) state.messages = [];
-    },
-    pushMessages(state, { payload }: { payload: AgentMessage[] }) {
-      state.messages.push(...payload);
     },
     markConversationDone(state, { payload }: { payload: string }) {
       const now = new Date();
@@ -123,9 +109,6 @@ const chatSlice = createSlice({
         conv.status = "done";
         conv.finishedAt = now as any;
       }
-    },
-    clearMessages(state) {
-      state.messages = [];
     },
     upsertConversationLocal(state, { payload }: { payload: AgentConversation }) {
       const idx = state.conversations.findIndex((c) => c.id === payload.id);
@@ -142,22 +125,11 @@ const chatSlice = createSlice({
       state.conversations = state.conversations.filter((c) => c.id !== payload);
       if (state.activeConversationId === payload) {
         state.activeConversationId = state.conversations[0]?.id ?? null;
-        state.messages = [];
-      }
-    },
-    upsertMessageLocal(state, { payload }: { payload: AgentMessage }) {
-      if (payload.conversationId !== state.activeConversationId) return;
-      const idx = state.messages.findIndex((m) => m.id === payload.id);
-      if (idx >= 0) {
-        state.messages[idx] = { ...state.messages[idx], ...payload };
-      } else {
-        state.messages.push(payload);
       }
     },
     resetConversations(state) {
       state.conversations = [];
       state.activeConversationId = null;
-      state.messages = [];
     },
   },
   extraReducers: (builder) => {
@@ -175,7 +147,10 @@ const chatSlice = createSlice({
       })
       // createConversation
       .addCase(createConversation.fulfilled, (state, action) => {
-        state.conversations.unshift(action.payload);
+        // Guard against duplicates: WS `conversations:created` may have already inserted this
+        if (!state.conversations.some((c) => c.id === action.payload.id)) {
+          state.conversations.unshift(action.payload);
+        }
       })
       // updateConversation
       .addCase(updateConversation.fulfilled, (state, action) => {
@@ -189,33 +164,12 @@ const chatSlice = createSlice({
         state.conversations = state.conversations.filter((c) => c.id !== id);
         if (state.activeConversationId === id) {
           state.activeConversationId = state.conversations[0]?.id ?? null;
-          state.messages = [];
         }
-      })
-      // fetchMessages
-      .addCase(fetchMessages.pending, (state) => {
-        state.loading = true;
-      })
-      .addCase(fetchMessages.fulfilled, (state, action) => {
-        state.messages = action.payload;
-        state.loading = false;
-      })
-      .addCase(fetchMessages.rejected, (state) => {
-        state.loading = false;
       });
   },
 });
 
-export const {
-  setActiveConversationId,
-  pushMessages,
-  markConversationDone,
-  clearMessages,
-  upsertConversationLocal,
-  removeConversationLocal,
-  upsertMessageLocal,
-  resetConversations,
-} = chatSlice.actions;
+export const { setActiveConversationId, markConversationDone, upsertConversationLocal, removeConversationLocal, resetConversations } = chatSlice.actions;
 
 export const chatReducer = chatSlice.reducer;
 export default chatReducer;

@@ -2,7 +2,7 @@ import { appSettings, getDb } from "../../common/db/client.js";
 
 export function loadSettings() {
   const rows = getDb().select().from(appSettings).all();
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  return Object.fromEntries(rows.filter((r) => r.key !== "jwt_secret").map((r) => [r.key, r.value]));
 }
 
 export function saveSettings(body: Record<string, string>) {

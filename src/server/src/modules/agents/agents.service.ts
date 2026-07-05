@@ -1,8 +1,59 @@
-import { eq } from "drizzle-orm";
-import { type NewAgent, type NewAgentNote, agentNotes, agentTeams, agentToolAssignments, agents, getDb } from "../../common/db/client.js";
+import { and, count, eq, inArray } from "drizzle-orm";
+import { type NewAgent, type NewAgentNote, agentNotes, agentTeams, agentToolAssignments, agentTools, agents, getDb, users } from "../../common/db/client.js";
+import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 
 // ─── Agents ───────────────────────────────────────────────────────────────────
+
+/**
+ * List agents with pagination, search, sorting, plus enrichment
+ * (creator name, tool assignment count).
+ */
+export function listAgentsEnriched(query: RawQuery, user?: { id: string; role: string }) {
+  const db = getDb();
+
+  // Role-based filtering: admin sees all, member sees only own agents
+  const ownerFilter = user && user.role !== "admin" ? eq(agents.createdBy, user.id) : undefined;
+
+  const result = listQuery(
+    {
+      table: agents,
+      searchColumns: ["name", "description"],
+      ...(ownerFilter ? { where: ownerFilter } : {}),
+    },
+    query,
+  );
+
+  // Enrich with creator name
+  const creatorIds = [...new Set(result.items.map((a: any) => a.createdBy).filter(Boolean))];
+  const creatorMap = new Map<string, string>();
+  if (creatorIds.length > 0) {
+    const rows = db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, creatorIds)).all();
+    for (const r of rows) creatorMap.set(r.id, r.name);
+  }
+
+  // Enrich with tool assignment count
+  const agentIds = result.items.map((a: any) => a.id);
+  const toolCountMap = new Map<string, number>();
+  if (agentIds.length > 0) {
+    const rows = db
+      .select({ agentId: agentToolAssignments.agentId, count: count() })
+      .from(agentToolAssignments)
+      .where(inArray(agentToolAssignments.agentId, agentIds))
+      .groupBy(agentToolAssignments.agentId)
+      .all();
+    for (const r of rows) toolCountMap.set(r.agentId, r.count);
+  }
+
+  return {
+    ...result,
+    items: result.items.map((a: any) => ({
+      ...a,
+      creatorName: a.createdBy ? (creatorMap.get(a.createdBy) ?? null) : null,
+      toolCount: toolCountMap.get(a.id) ?? 0,
+    })),
+  };
+}
 
 export function getAgent(id: string) {
   return getDb().select().from(agents).where(eq(agents.id, id)).get();
@@ -144,4 +195,122 @@ export function getTeammates(agentId: string) {
     .all()
     .filter((a) => a.id !== agentId);
   return [{ teamId: team.id, teamName: team.name, teamDescription: team.description, teammates }];
+}
+
+// ─── Tool Assignments ─────────────────────────────────────────────────────────
+
+export interface AssignmentWithTool {
+  id: string;
+  agentId: string;
+  toolId: string;
+  createdAt: Date;
+  tool: {
+    name: string;
+    label: string;
+    description: string;
+    isBuiltin: boolean;
+  };
+}
+
+export interface NewAssignmentInput {
+  toolId: string;
+}
+
+/** List all tool assignments for an agent, joined with tool info. */
+export function listAssignments(agentId: string): AssignmentWithTool[] {
+  const db = getDb();
+  const rows = db
+    .select({
+      id: agentToolAssignments.id,
+      agentId: agentToolAssignments.agentId,
+      toolId: agentToolAssignments.toolId,
+      createdAt: agentToolAssignments.createdAt,
+      toolName: agentTools.name,
+      toolLabel: agentTools.label,
+      toolDescription: agentTools.description,
+      toolIsBuiltin: agentTools.isBuiltin,
+    })
+    .from(agentToolAssignments)
+    .innerJoin(agentTools, eq(agentToolAssignments.toolId, agentTools.id))
+    .where(eq(agentToolAssignments.agentId, agentId))
+    .all();
+
+  return rows.map((r) => ({
+    id: r.id,
+    agentId: r.agentId,
+    toolId: r.toolId,
+    createdAt: r.createdAt,
+    tool: {
+      name: r.toolName,
+      label: r.toolLabel,
+      description: r.toolDescription,
+      isBuiltin: r.toolIsBuiltin,
+    },
+  }));
+}
+
+/** Replace all tool assignments for an agent. */
+export function setAssignments(agentId: string, items: NewAssignmentInput[]): AssignmentWithTool[] {
+  const db = getDb();
+
+  // Delete existing
+  db.delete(agentToolAssignments).where(eq(agentToolAssignments.agentId, agentId)).run();
+
+  // Insert new
+  for (const item of items) {
+    db.insert(agentToolAssignments)
+      .values({
+        id: crypto.randomUUID(),
+        agentId,
+        toolId: item.toolId,
+        createdAt: new Date(),
+      })
+      .run();
+  }
+
+  const result = listAssignments(agentId);
+  wsHub.emit("agents:tools-updated", { agentId, assignments: result });
+  return result;
+}
+
+/** Add a single tool assignment (upsert: if already assigned, update it). */
+export function addAssignment(agentId: string, input: NewAssignmentInput): AssignmentWithTool | null {
+  const db = getDb();
+
+  // Check if an assignment already exists for this (agentId, toolId)
+  const existing = db
+    .select({ id: agentToolAssignments.id })
+    .from(agentToolAssignments)
+    .where(and(eq(agentToolAssignments.agentId, agentId), eq(agentToolAssignments.toolId, input.toolId)))
+    .get();
+
+  if (existing) {
+    // Already assigned, nothing to update
+  } else {
+    const id = crypto.randomUUID();
+    db.insert(agentToolAssignments)
+      .values({
+        id,
+        agentId,
+        toolId: input.toolId,
+        createdAt: new Date(),
+      })
+      .run();
+  }
+
+  const result = listAssignments(agentId);
+  wsHub.emit("agents:tools-updated", { agentId, assignments: result });
+  return result.find((a) => a.toolId === input.toolId) ?? null;
+}
+
+/** Remove a single assignment by its ID. */
+export function removeAssignment(assignmentId: string): void {
+  const db = getDb();
+  const row = db.select({ agentId: agentToolAssignments.agentId }).from(agentToolAssignments).where(eq(agentToolAssignments.id, assignmentId)).get();
+
+  db.delete(agentToolAssignments).where(eq(agentToolAssignments.id, assignmentId)).run();
+
+  if (row) {
+    wsHub.emit("agents:tools-updated", { agentId: row.agentId });
+  }
 }

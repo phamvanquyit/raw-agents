@@ -1,5 +1,5 @@
 /**
- * memory.ts — Builtin tool: update agent memory
+ * memory.tool.ts — Builtin tool: update agent memory
  *
  * LangGraph JS version — uses @langchain/core/tools
  */
@@ -7,20 +7,7 @@
 import { tool } from "@langchain/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { agents, getDb } from "../../../common/db/client.js";
-
-export const TOOL_DEF = {
-  toolName: "update_agent_memory",
-  toolLabel: "Update Agent Memory",
-  description: "Replace the agent's long-term memory buffer with new facts, preferences, or short notes.",
-  parameters: {
-    type: "object",
-    properties: {
-      memory: { type: "string", description: "The new memory content to store" },
-    },
-    required: ["memory"],
-  },
-};
+import { agents, getDb } from "../../../../common/db/client.js";
 
 export const makeMemoryTool = (agentId: string) =>
   tool(
@@ -37,3 +24,16 @@ export const makeMemoryTool = (agentId: string) =>
       }),
     },
   );
+
+export const TOOL_DEF = {
+  toolName: "update_agent_memory",
+  toolLabel: "Update Agent Memory",
+  description: "Replace the agent's long-term memory buffer with new facts, preferences, or short notes.",
+  parameters: {
+    type: "object",
+    properties: {
+      memory: { type: "string", description: "The new memory content to store" },
+    },
+    required: ["memory"],
+  },
+};

@@ -1,5 +1,6 @@
 import { CheckCircle, DangerCircle, Restart } from "@solar-icons/react";
 import { useState } from "react";
+import { useAppSelector } from "src/store/store";
 import type { ChatAgentMessage } from "../common/types";
 import { formatToolName, prettyJson } from "../common/utils";
 
@@ -8,7 +9,7 @@ import { CallAgentBubble } from "./CallAgentBubble";
 
 // ─── Status indicator ────────────────────────────────────────────────────────
 
-function StatusIcon({ hasError, hasOutput, size = 14 }: { hasError: boolean; hasOutput: boolean; size?: number }) {
+function StatusIcon({ hasError, hasOutput, isConvRunning, size = 14 }: { hasError: boolean; hasOutput: boolean; isConvRunning: boolean; size?: number }) {
   if (hasError) {
     return (
       <div className="w-4 h-4 rounded-full bg-danger/10 flex items-center justify-center shrink-0">
@@ -16,7 +17,7 @@ function StatusIcon({ hasError, hasOutput, size = 14 }: { hasError: boolean; has
       </div>
     );
   }
-  if (!hasOutput) {
+  if (!hasOutput && isConvRunning) {
     return (
       <div className="w-4 h-4 rounded-full bg-primary/8 flex items-center justify-center shrink-0">
         <Restart size={size - 5} className="animate-spin text-primary" />
@@ -37,6 +38,10 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
   const hasInput = msg.toolInput != null;
   const hasError = Boolean(msg.toolError);
   const [open, setOpen] = useState(false);
+  // Check if the conversation is still running — if not, don't show "Running..." spinner
+  const activeConvId = useAppSelector((s) => s.chat.activeConversationId);
+  const conversations = useAppSelector((s) => s.chat.conversations);
+  const isConvRunning = conversations.find((c) => c.id === activeConvId)?.status === "running";
 
   const label = msg.toolLabel ?? formatToolName(msg.toolName ?? "Tool");
 
@@ -49,7 +54,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
         className="w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none group transition-colors hover:bg-surface-raised/40 bg-surface/40"
       >
         {/* Status */}
-        <StatusIcon hasError={hasError} hasOutput={hasOutput} size={13} />
+        <StatusIcon hasError={hasError} hasOutput={hasOutput} isConvRunning={!!isConvRunning} size={13} />
 
         {/* Tool label */}
         <span className="text-[12px] font-medium text-soft group-hover:text-main transition-colors truncate flex-1 text-left">{label}</span>
@@ -93,8 +98,8 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
         </div>
       </RenderIf>
 
-      {/* Collapsed — waiting indicator */}
-      <RenderIf condition={!open && !hasOutput && !hasError}>
+      {/* Collapsed — waiting indicator (only when conversation is actively running) */}
+      <RenderIf condition={!open && !hasOutput && !hasError && !!isConvRunning}>
         <div className="border-t border-border/40 px-3 py-1">
           <div className="flex items-center gap-1.5">
             <div className="flex gap-0.5">

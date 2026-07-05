@@ -8,8 +8,20 @@ import { createProvider, deleteProvider, getProvider, updateProvider } from "./l
 const app = new Hono();
 
 // GET /api/providers?page=1&limit=50&sorts=-createdAt
+// Exclude `models` array from list response to keep payload small
 app.get("/", (c) => {
-  return c.json(listQuery({ table: llmProviders }, c.req.query()));
+  const result = listQuery({ table: llmProviders }, c.req.query());
+  return c.json({
+    ...result,
+    items: result.items.map(({ id, label, provider, models }) => ({ id, label, provider, countModels: (models ?? []).length })),
+  });
+});
+
+// GET /api/providers/:id/models → models list for a single provider
+app.get("/:id/models", (c) => {
+  const row = getProvider(c.req.param("id"));
+  if (!row) throw new BadRequestException("Provider not found");
+  return c.json(row.models ?? []);
 });
 
 // POST /api/providers

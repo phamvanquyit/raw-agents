@@ -4,11 +4,10 @@ import AgentCard from "./AgentCard";
 export interface AgentGroupProps {
   title: string;
   agents: Agent[];
-  toolCountMap: Map<string, number>;
   onNavigate: (id: string) => void;
 }
 
-export default function AgentGroup({ title, agents, toolCountMap, onNavigate }: AgentGroupProps) {
+export default function AgentGroup({ title, agents, onNavigate }: AgentGroupProps) {
   return (
     <div className="">
       {/* Group header */}
@@ -20,7 +19,7 @@ export default function AgentGroup({ title, agents, toolCountMap, onNavigate }: 
       {/* Card Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {agents.map((agent) => (
-          <AgentCard key={agent.id} agent={agent} toolCount={toolCountMap.get(agent.id) ?? 0} onNavigate={onNavigate} />
+          <AgentCard key={agent.id} agent={agent} onNavigate={onNavigate} />
         ))}
       </div>
     </div>

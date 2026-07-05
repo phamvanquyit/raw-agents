@@ -132,3 +132,41 @@ export function getMessageFeed(agentId: string, cursor?: string) {
 
   return { items: page, hasMore };
 }
+
+// ─── Streaming Helpers ────────────────────────────────────────────────────────
+// Used by the raw-agent streaming loop. Support targeted WS delivery via clientId.
+
+/**
+ * Save a message to DB.
+ */
+export function saveMessage(data: Omit<NewAgentMessage, "id" | "createdAt">): { id: string } & NewAgentMessage {
+  const db = getDb();
+  const id = crypto.randomUUID();
+  const msg = { ...data, id, createdAt: new Date() } as NewAgentMessage;
+  db.insert(agentMessages).values(msg).run();
+  return { ...msg, id };
+}
+
+/**
+ * Merge patch into message metadata.
+ */
+export function patchMessageMetadata(msgId: string, patch: Record<string, unknown>) {
+  const db = getDb();
+  const row = db.select().from(agentMessages).where(eq(agentMessages.id, msgId)).get();
+  if (!row) return;
+  const merged = { ...(row.metadata ?? {}), ...patch } as Record<string, unknown>;
+  db.update(agentMessages).set({ metadata: merged }).where(eq(agentMessages.id, msgId)).run();
+}
+
+/**
+ * Update conversation status (done/failed) and broadcast via WS.
+ */
+export function updateConversationStatus(conversationId: string, data: { status: "done" | "failed"; finishedAt: Date; errorMessage?: string }) {
+  const db = getDb();
+  db.update(agentConversations).set(data).where(eq(agentConversations.id, conversationId)).run();
+  const updated = db.select().from(agentConversations).where(eq(agentConversations.id, conversationId)).get();
+  if (updated) {
+    // Always broadcast to ALL clients so other tabs can update their UI
+    wsHub.broadcast("conversations:updated", updated);
+  }
+}

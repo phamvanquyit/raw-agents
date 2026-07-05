@@ -15,16 +15,16 @@ import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { agentTools, agents, getDb } from "../../common/db/client.js";
-import { runTool } from "../tools/tools.service.js";
+import { agentTools, agents, getDb } from "../../../../common/db/client.js";
+import { runTool } from "../../../tools/tools.service.js";
 
 // ── Direct imports of user-agent builtin tools ────────────────────────────────
 
-import { makeCallAgentTool } from "./builtin-tools/call-agent.js";
-import { fetchWebpageTool } from "./builtin-tools/fetch-webpage.js";
-import { getCurrentTimeTool } from "./builtin-tools/get-current-time.js";
-import { makeMemoryTool } from "./builtin-tools/memory.js";
-import { makeNoteTool } from "./builtin-tools/note.js";
+import { fetchWebpageTool } from "../../../../common/ai/agent-tools/fetch-webpage.tool.js";
+import { makeCallAgentTool } from "../llm-tools/call-agent.tool.js";
+import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
+import { makeMemoryTool } from "../llm-tools/memory.tool.js";
+import { makeNoteTool } from "../llm-tools/note.tool.js";
 
 // ── Stateless builtin registry (name → instance) ─────────────────────────────
 

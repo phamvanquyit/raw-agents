@@ -167,19 +167,46 @@ function whichPython(): string {
 
 function detectPackages(code: string): string[] {
   const pkgs = new Set<string>();
+  // Parse "# pip: pkg1 pkg2" comments — explicit pip package names override import-based detection
+  // Supports both standalone "# pip: pkg" lines AND inline "import whois  # pip: python-whois"
+  const pipOverrides = new Set<string>();
   for (const line of code.split("\n")) {
     const t = line.trim();
-    const importMatch = t.match(/^import\s+(.+)/);
+
+    // Standalone: # pip: python-whois beautifulsoup4
+    const pipMatch = t.match(/^#\s*pip:\s*(.+)/i);
+    if (pipMatch) {
+      for (const p of pipMatch[1].split(/[\s,]+/).filter(Boolean)) pipOverrides.add(p);
+      continue;
+    }
+
+    // Strip inline "# pip: ..." from import lines and capture pip overrides
+    const inlinePipMatch = t.match(/#\s*pip:\s*(.+)/i);
+    if (inlinePipMatch) {
+      for (const p of inlinePipMatch[1].split(/[\s,]+/).filter(Boolean)) pipOverrides.add(p);
+    }
+
+    // Remove any inline comment before parsing imports
+    const codePart = t.replace(/#.*$/, "").trim();
+
+    const importMatch = codePart.match(/^import\s+(.+)/);
     if (importMatch) {
       for (const part of importMatch[1].split(",")) {
         const tok = part.trim().split(/\s+/)[0];
         if (tok && !tok.startsWith(".")) pkgs.add(tok.split(".")[0]);
       }
     }
-    const fromMatch = t.match(/^from\s+(\S+)\s+import/);
+    const fromMatch = codePart.match(/^from\s+(\S+)\s+import/);
     if (fromMatch && !fromMatch[1].startsWith(".")) pkgs.add(fromMatch[1].split(".")[0]);
   }
-  return [...pkgs].filter((p) => !PYTHON_STDLIB.has(p));
+
+  const fromImports = [...pkgs].filter((p) => !PYTHON_STDLIB.has(p));
+  // If pip overrides exist, use them; also include any import-detected packages not covered by overrides
+  if (pipOverrides.size > 0) {
+    for (const p of fromImports) pipOverrides.add(p);
+    return [...pipOverrides];
+  }
+  return fromImports;
 }
 
 function isPkgInstalled(sandboxDir: string, pkg: string): boolean {

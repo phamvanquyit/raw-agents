@@ -1,8 +1,7 @@
 import { AddCircle, ChatRound, TrashBinMinimalistic } from "@solar-icons/react";
 import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import type { AgentConversation } from "src/common/types";
-import { clearMessages, deleteConversation, fetchMessages, setActiveConversationId } from "src/modules/chat/common/chatSlice";
+import { deleteConversation } from "src/modules/chat/common/chatSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../../common/agentDetailContext";
 
@@ -10,11 +9,12 @@ import { useAgentDetailContext } from "../../common/agentDetailContext";
 
 interface ConversationListProps {
   onNewChat: () => void;
+  /** Called when user clicks a conversation — parent handles messages loading */
+  onSelectConversation: (convId: string) => void;
 }
 
-export function ConversationList({ onNewChat }: ConversationListProps) {
+export function ConversationList({ onNewChat, onSelectConversation }: ConversationListProps) {
   const dispatch = useAppDispatch();
-  const [, setSearchParams] = useSearchParams();
   const { agent } = useAgentDetailContext();
   const conversations = useAppSelector((s) => s.chat.conversations);
   const activeConversationId = useAppSelector((s) => s.chat.activeConversationId);
@@ -26,21 +26,11 @@ export function ConversationList({ onNewChat }: ConversationListProps) {
   );
 
   const handleSelect = useCallback(
-    async (conv: AgentConversation) => {
+    (conv: AgentConversation) => {
       if (conv.id === activeConversationId) return;
-      dispatch(clearMessages());
-      dispatch(setActiveConversationId(conv.id));
-      setSearchParams(
-        (prev) => {
-          const p = new URLSearchParams(prev);
-          p.set("conv", conv.id);
-          return p;
-        },
-        { replace: true },
-      );
-      await dispatch(fetchMessages(conv.id));
+      onSelectConversation(conv.id);
     },
-    [dispatch, activeConversationId, setSearchParams],
+    [activeConversationId, onSelectConversation],
   );
 
   const handleDelete = useCallback(
@@ -81,34 +71,45 @@ export function ConversationList({ onNewChat }: ConversationListProps) {
           const isHovered = hoveredId === conv.id;
 
           return (
-            <button
+            <div
               key={conv.id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => void handleSelect(conv)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  void handleSelect(conv);
+                }
+              }}
               onMouseEnter={() => setHoveredId(conv.id)}
               onMouseLeave={() => setHoveredId(null)}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg mb-0.5 text-left transition-all duration-150 cursor-pointer border-none group"
+              className="w-full flex items-center gap-2 px-2.5 py-2.5 rounded mb-0.5 text-left transition-all duration-150 cursor-pointer border-none group"
               style={{
                 backgroundColor: isActive ? "rgba(168, 255, 83, 0.08)" : isHovered ? "rgba(255, 255, 255, 0.04)" : "transparent",
-                borderLeft: isActive ? "2px solid var(--color-primary, #A8FF53)" : "2px solid transparent",
               }}
             >
-              <ChatRound
-                width={13}
-                height={13}
-                className="shrink-0"
-                style={{
-                  color: isActive ? "var(--color-primary, #A8FF53)" : "var(--color-muted, #B5B8C0)",
-                }}
-              />
               <span
-                className="flex-1 min-w-0 text-[12px] truncate font-medium"
+                className="flex-1 min-w-0 text-sm truncate font-medium"
                 style={{
                   color: isActive ? "var(--color-on-surface, #F3F4F6)" : "var(--color-soft, #D7D9DD)",
                 }}
               >
                 {conv.title || "Untitled"}
               </span>
+
+              {/* Running spinner */}
+              {conv.status === "running" && (
+                <span
+                  className="shrink-0 inline-block rounded-full animate-spin"
+                  style={{
+                    width: 12,
+                    height: 12,
+                    border: "2px solid rgba(168, 255, 83, 0.2)",
+                    borderTopColor: "var(--color-primary, #A8FF53)",
+                  }}
+                />
+              )}
 
               {/* Delete button */}
               {isHovered && (
@@ -122,7 +123,7 @@ export function ConversationList({ onNewChat }: ConversationListProps) {
                   <TrashBinMinimalistic width={12} height={12} />
                 </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

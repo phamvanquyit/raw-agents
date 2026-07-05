@@ -5,7 +5,7 @@
 import { AltArrowLeft, MenuDots, TrashBinTrash } from "@solar-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import type { Agent, AgentTool, AgentToolAssignment, LlmProvider } from "src/common/types";
+import type { Agent, AgentTool, AgentToolAssignment } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import {
   AlertDialog,
@@ -65,8 +65,6 @@ export default function AgentDetailPage() {
   const dispatch = useAppDispatch();
   const agents = useAppSelector((s) => s.agents.items) as Agent[];
   const allTools = useAppSelector((s) => s.tools.items) as AgentTool[];
-  const providers = useAppSelector((s) => s.llmProviders.items) as LlmProvider[];
-  const providersLoaded = useAppSelector((s) => s.llmProviders.items.length > 0 || s.llmProviders.total === 0);
 
   // ── Detail form state ──────────────────────────────────────────────────────
   const [loaded, setLoaded] = useState(false);
@@ -352,8 +350,6 @@ export default function AgentDetailPage() {
                   onAddToolAssignment={handleAddToolAssignment}
                   onAddCallableAgent={handleAddCallableAgent}
                   onRemoveCallableAgent={handleRemoveCallableAgent}
-                  providers={providers}
-                  providersLoaded={providersLoaded}
                   selectedProviderId={selectedProviderId}
                   aiModel={aiModel}
                   systemPrompt={systemPrompt}

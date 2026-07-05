@@ -6,9 +6,9 @@
 
 import { Background, BackgroundVariant, type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { Agent, AgentTool, AgentToolAssignment, LlmProvider } from "src/common/types";
+import type { Agent, AgentTool, AgentToolAssignment } from "src/common/types";
 import { SimpleDialog } from "src/components/ui/dialog";
 import { ChatPage } from "../chat/ChatPage";
 import { PromptPage } from "../prompt/PromptPage";
@@ -77,8 +77,6 @@ interface AgentFlowViewProps {
   onAddCallableAgent: (agentId: string) => void;
   onRemoveCallableAgent: (agentId: string) => void;
   // Config node props
-  providers: LlmProvider[];
-  providersLoaded: boolean;
   selectedProviderId: string | null;
   aiModel: string;
   systemPrompt: string;
@@ -106,8 +104,6 @@ function AgentFlowInner({
   onAddToolAssignment,
   onAddCallableAgent,
   onRemoveCallableAgent,
-  providers,
-  providersLoaded,
   selectedProviderId,
   aiModel,
   systemPrompt,
@@ -126,7 +122,14 @@ function AgentFlowInner({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Auto-open chat modal when URL has ?conv= (e.g. after F5 refresh)
+  useEffect(() => {
+    if (searchParams.has("conv")) {
+      setChatModalOpen(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- only on mount
 
   // ─── Build Nodes ────────────────────────────────────────────────────────────
 
@@ -177,8 +180,6 @@ function AgentFlowInner({
       data: {
         name,
         description,
-        providers,
-        providersLoaded,
         selectedProviderId,
         aiModel,
         systemPrompt,
@@ -296,8 +297,6 @@ function AgentFlowInner({
     callableAgentIds,
     assignedToolIds,
     callableSet,
-    providers,
-    providersLoaded,
     selectedProviderId,
     aiModel,
     systemPrompt,

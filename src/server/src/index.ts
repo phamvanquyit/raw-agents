@@ -1,8 +1,6 @@
 import { createApp } from "./app.js";
 import { closeDb, getDb } from "./common/db/client.js";
 import { wsHub } from "./common/ws/wsHub.js";
-import { handleWsMessage } from "./modules/agents/chat.route.js";
-import { seedBuiltinTools } from "./modules/tools/tools.service.js";
 
 export interface ServerOptions {
   port?: number;
@@ -23,9 +21,6 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
 
   // Initialize DB
   getDb(dataDir);
-
-  // Seed builtin tools into DB (ensures FK for tool assignments)
-  seedBuiltinTools();
 
   const app = createApp();
 
@@ -54,27 +49,10 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
           wsClientIds.delete(ws);
         }
       },
-      async message(ws, data) {
-        const clientId = wsClientIds.get(ws) ?? "";
-        try {
-          const msg = JSON.parse(data as string) as {
-            type: string;
-            payload: unknown;
-          };
-          if (msg.type === "chat:send") {
-            await handleWsMessage(
-              clientId,
-              msg.payload as {
-                agentId: string;
-                conversationId: string;
-                message: string;
-              },
-            );
-          }
-          // ping: no-op
-        } catch {
-          // ignore malformed
-        }
+      message(_ws, _data) {
+        // WS is now only used for connection management + broadcasts.
+        // Chat messages go through REST API (POST /api/conversations/:id/chat).
+        // No-op: keep alive / ping.
       },
     },
     port,

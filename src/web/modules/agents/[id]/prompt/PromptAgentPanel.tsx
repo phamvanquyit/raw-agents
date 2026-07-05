@@ -1,23 +1,18 @@
 /**
- * CodingAgentPanel.tsx
+ * PromptAgentPanel.tsx
  *
- * Self-contained AI coding assistant panel with its own SSE streaming logic.
- * No Redux store dependency — state is entirely local.
- * Reuses only the UI sub-components (MessageList, InputArea) for rendering.
+ * Self-contained AI assistant panel for the Prompt editor sidebar.
+ * Has its own SSE streaming logic with full thinking support.
+ * Pattern based on CodingAgentPanel — no Redux dependency.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 import type { ChatAgentMessage } from "src/components/chat/common/types";
 import { formatToolName, nextId } from "src/components/chat/common/utils";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-const PANEL_DEFAULT = 380;
-const PANEL_MIN = 280;
-const PANEL_MAX = 560;
 
 // ── SSE event types (server protocol) ─────────────────────────────────────────
 type SseEvent =
@@ -28,75 +23,38 @@ type SseEvent =
   | { type: "done" }
   | { type: "error"; error: string };
 
-// ── Tool action event (fired to parent) ───────────────────────────────────────
-export type ToolActionEvent =
-  | { type: "tool-call"; toolName: string; toolLabel: string; input: unknown }
-  | { type: "tool-result"; toolName: string; output: unknown };
-
 // ── Props ─────────────────────────────────────────────────────────────────────
-interface CodingAgentPanelProps {
+interface PromptAgentPanelProps {
   providerId: string | undefined;
   model: string;
   streamUrl: string;
-  onToolAction: (event: ToolActionEvent) => void;
+  maxSteps?: number;
   onChangeAiProvider: (pid: string) => void;
   onChangeModel: (m: string) => void;
 }
 
-export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, onChangeAiProvider, onChangeModel }: CodingAgentPanelProps) {
-  // ── Panel resize ──────────────────────────────────────────────────────────
-  const [width, setWidth] = useState(PANEL_DEFAULT);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef({ active: false, startX: 0, startW: 0 });
-
-  const handleDragMouseMove = (e: MouseEvent) => {
-    if (!dragRef.current.active) return;
-    const dx = dragRef.current.startX - e.clientX;
-    setWidth(Math.min(PANEL_MAX, Math.max(PANEL_MIN, dragRef.current.startW + dx)));
-  };
-
-  const handleDragMouseUp = () => {
-    if (dragRef.current.active) {
-      dragRef.current.active = false;
-      setIsDragging(false);
-      document.removeEventListener("mousemove", handleDragMouseMove);
-      document.removeEventListener("mouseup", handleDragMouseUp);
-    }
-  };
-
-  const startDrag = (e: React.MouseEvent) => {
-    e.preventDefault();
-    dragRef.current = { active: true, startX: e.clientX, startW: width };
-    setIsDragging(true);
-    document.addEventListener("mousemove", handleDragMouseMove);
-    document.addEventListener("mouseup", handleDragMouseUp);
-  };
-
-  // ── Chat state (fully local, no store) ────────────────────────────────────
+export function PromptAgentPanel({ providerId, model, streamUrl, maxSteps = 6, onChangeAiProvider, onChangeModel }: PromptAgentPanelProps) {
+  // ── Chat state ──────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ChatAgentMessage[]>([]);
   const [generating, setGenerating] = useState(false);
-  /** Mutable ref to accumulate current thinking text (flushed into message meta) */
+  /** Mutable ref to accumulate current thinking text */
   const thinkingRef = useRef("");
   /** Timestamp when thinking started (for calculating duration) */
   const thinkingStartRef = useRef<number>(0);
   const abortRef = useRef<AbortController | null>(null);
-  const onToolActionRef = useRef(onToolAction);
-  useEffect(() => {
-    onToolActionRef.current = onToolAction;
-  }, [onToolAction]);
 
-  // ── Auto-scroll ───────────────────────────────────────────────────────────
+  // ── Auto-scroll ─────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { scrollRef: scrollContainerRef, scrollToBottom } = useAutoScroll();
 
-  // ── Cancel ────────────────────────────────────────────────────────────────
+  // ── Cancel ──────────────────────────────────────────────────────────────────
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     setGenerating(false);
   }, []);
 
-  // ── Send + SSE streaming ──────────────────────────────────────────────────
+  // ── Send + SSE streaming ────────────────────────────────────────────────────
   const handleSend = useCallback(
     async (text: string) => {
       if (!text.trim() || generating) return;
@@ -128,7 +86,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
       thinkingRef.current = "";
       thinkingStartRef.current = 0;
 
-      // Build AI history — include tool-call messages so AI retains full context
+      // Build AI history
       const aiHistory = historySnapshot
         .filter((m) => ["user", "assistant", "tool-call"].includes(m.role))
         .filter((m) => m.role === "tool-call" || m.content.trim() !== "")
@@ -159,7 +117,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
             providerId,
             modelId: model,
             messages: [...aiHistory, { role: "user", content: text }],
-            maxSteps: 12,
+            maxSteps,
           }),
           signal: controller.signal,
         });
@@ -206,7 +164,6 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
                 if (toolsStarted) {
                   toolsStarted = false;
                   assistantText = event.text;
-                  // Reset thinking for the new assistant bubble
                   thinkingRef.current = "";
                   thinkingStartRef.current = 0;
                   const newId = nextId("a");
@@ -232,7 +189,6 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
                   thinkingStartRef.current = Date.now();
                 }
                 thinkingRef.current += event.text;
-                // Attach thinking to the current assistant message's meta
                 const thinking = thinkingRef.current;
                 const targetId = currentAssistantId;
                 setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, meta: { ...m.meta, thinking } } : m)));
@@ -242,16 +198,13 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
               case "tool-call": {
                 toolsStarted = true;
 
-                // Freeze current text bubble or remove empty one
                 if (assistantText.trim()) {
                   const freezeId = currentAssistantId;
                   setMessages((prev) => prev.map((m) => (m.id === freezeId ? { ...m, streaming: false } : m)));
                   assistantText = "";
-                  // Advance ID so the next tool-call won't target the frozen bubble
                   currentAssistantId = nextId("a");
                 } else {
                   const emptyId = currentAssistantId;
-                  // Keep the bubble if it has thinking content, just freeze it
                   setMessages((prev) => {
                     const target = prev.find((m) => m.id === emptyId);
                     if (target?.meta?.thinking) {
@@ -278,7 +231,6 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
                   timestamp: new Date(),
                 };
                 setMessages((prev) => [...prev, toolMsg]);
-                onToolActionRef.current?.({ type: "tool-call", toolName: event.toolName, toolLabel: tLabel, input: event.input });
                 break;
               }
 
@@ -297,7 +249,6 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
                   if (matchIdx === -1) return prev;
                   return prev.map((m, i) => (i === matchIdx ? { ...m, toolOutput: resultStr } : m));
                 });
-                onToolActionRef.current?.({ type: "tool-result", toolName: event.toolName, output: rawOutput });
                 break;
               }
 
@@ -359,46 +310,34 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
         abortRef.current = null;
       }
     },
-    [generating, providerId, model, messages, streamUrl],
+    [generating, providerId, model, messages, streamUrl, maxSteps],
   );
 
   return (
-    <div className="flex h-full min-h-0 shrink-0">
-      {/* Drag handle */}
-      <div
-        onMouseDown={startDrag}
-        className={[
-          "w-[3px] shrink-0 h-full cursor-col-resize z-10 transition-colors duration-150",
-          isDragging ? "bg-primary/50" : "bg-transparent hover:bg-primary/25",
-        ].join(" ")}
+    <div className="flex flex-col h-full min-h-0 bg-surface overflow-hidden">
+      <MessageList
+        messages={messages}
+        generating={generating}
+        assistantLabel="Prompt AI"
+        emptyStateContent={<p className="text-xs text-muted leading-relaxed max-w-50 m-0">Describe your request to refine the prompt.</p>}
+        messagesEndRef={messagesEndRef}
+        scrollContainerRef={scrollContainerRef}
+        className="selectable"
       />
 
-      {/* Chat panel */}
-      <div className="flex flex-col h-full min-h-0 border-border bg-surface overflow-hidden" style={{ width }}>
-        <MessageList
-          messages={messages}
-          generating={generating}
-          assistantLabel="AI Assistant"
-          emptyStateContent={<p className="text-xs text-muted leading-relaxed max-w-50 m-0">Describe your request to get coding assistance.</p>}
-          messagesEndRef={messagesEndRef}
-          scrollContainerRef={scrollContainerRef}
-          className="selectable"
-        />
-
-        <InputArea
-          generating={generating}
-          placeholder="Describe request... (Enter to send)"
-          onSend={(text) => {
-            scrollToBottom();
-            void handleSend(text);
-          }}
-          onCancel={handleCancel}
-          providerId={providerId}
-          model={model}
-          onProviderChange={onChangeAiProvider}
-          onModelChange={onChangeModel}
-        />
-      </div>
+      <InputArea
+        generating={generating}
+        placeholder="Describe request... (Enter to send)"
+        onSend={(text) => {
+          scrollToBottom();
+          void handleSend(text);
+        }}
+        onCancel={handleCancel}
+        providerId={providerId}
+        model={model}
+        onProviderChange={onChangeAiProvider}
+        onModelChange={onChangeModel}
+      />
     </div>
   );
 }
