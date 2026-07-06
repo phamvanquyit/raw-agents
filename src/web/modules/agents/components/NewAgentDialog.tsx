@@ -1,4 +1,4 @@
-import { AddCircle, UsersGroupTwoRounded } from "@solar-icons/react";
+import { AddCircle } from "@solar-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { AgentTeam } from "src/common/types";
 import { Button } from "src/components/ui/button";
@@ -10,13 +10,9 @@ import { Select } from "src/components/ui/select";
 import { Textarea } from "src/components/ui/textarea";
 import { createAgent, fetchAgents } from "src/modules/agents/common/agentsSlice";
 
-import { createTeam, fetchTeams } from "src/modules/teams/common/teamsSlice";
+import { fetchTeams } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-const NEW_TEAM_VALUE = "__new__";
 
 // ─── New Agent Popover ──────────────────────────────────────────────────────
 
@@ -35,14 +31,8 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Inline new team
-  const [showNewTeam, setShowNewTeam] = useState(false);
-  const [newTeamName, setNewTeamName] = useState("");
-  const [creatingTeam, setCreatingTeam] = useState(false);
-
   const dispatch = useAppDispatch();
   const nameRef = useRef<HTMLInputElement>(null);
-  const newTeamRef = useRef<HTMLInputElement>(null);
 
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
 
@@ -55,8 +45,6 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
       setAiModel("");
       setTeamId(defaultTeamId ?? "");
       setError("");
-      setShowNewTeam(false);
-      setNewTeamName("");
 
       dispatch(fetchTeams());
       setTimeout(() => nameRef.current?.focus(), 150);
@@ -70,31 +58,8 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
   };
 
   const handleTeamChange = (value: string) => {
-    if (value === NEW_TEAM_VALUE) {
-      setShowNewTeam(true);
-      setTeamId("");
-      setTimeout(() => newTeamRef.current?.focus(), 100);
-    } else {
-      setTeamId(value);
-      setShowNewTeam(false);
-      setNewTeamName("");
-    }
+    setTeamId(value);
     if (error) setError("");
-  };
-
-  const handleCreateTeam = async () => {
-    if (!newTeamName.trim()) return;
-    setCreatingTeam(true);
-    try {
-      const result = await dispatch(createTeam({ name: newTeamName.trim() })).unwrap();
-      setTeamId(result.id);
-      setShowNewTeam(false);
-      setNewTeamName("");
-    } catch {
-      setError("Failed to create team");
-    } finally {
-      setCreatingTeam(false);
-    }
   };
 
   const handleCreate = async () => {
@@ -136,12 +101,8 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
     }
   };
 
-  // Build team options
-  const teamOptions = [
-    { value: "", label: "No team" },
-    ...teams.map((t: AgentTeam) => ({ value: t.id, label: t.name })),
-    { value: NEW_TEAM_VALUE, label: "+ Create new team" },
-  ];
+  // Build team options — no inline create, teams are managed on /teams page
+  const teamOptions = [{ value: "", label: "No team" }, ...teams.map((t: AgentTeam) => ({ value: t.id, label: t.name }))];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -184,32 +145,6 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
           <Field label="Team">
             <Select value={teamId} onChange={handleTeamChange} options={teamOptions} placeholder="Select team…" />
           </Field>
-
-          {/* Inline new team creation */}
-          {showNewTeam && (
-            <div className="flex items-center gap-2 p-2.5 rounded-lg border border-dashed border-border bg-surface-raised">
-              <UsersGroupTwoRounded width={14} height={14} className="text-muted shrink-0" />
-              <Input
-                ref={newTeamRef}
-                inputSize="sm"
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleCreateTeam();
-                  }
-                }}
-                placeholder="Team name…"
-                autoComplete="off"
-                className="flex-1"
-              />
-              <Button variant="primary" size="sm" loading={creatingTeam} onClick={handleCreateTeam} disabled={!newTeamName.trim()}>
-                Add
-              </Button>
-            </div>
-          )}
 
           {/* Model (Provider + Model combined) */}
           <Field label="Model" required>

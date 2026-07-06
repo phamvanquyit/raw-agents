@@ -19,6 +19,7 @@ const SetupPage = lazy(() => import("./modules/auth/SetupPage"));
 const EditToolPage = lazy(() => import("./modules/tools/[id]/EditToolPage"));
 const AgentDetailPage = lazy(() => import("./modules/agents/[id]/page"));
 const DashboardPage = lazy(() => import("./modules/dashboard/DashboardPage"));
+const TeamsPage = lazy(() => import("./modules/teams/TeamsPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
 const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
@@ -112,6 +113,7 @@ function AppContent() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
+            <Route path="/teams" element={<TeamsPage />} />
             <Route
               path="/settings/*"
               element={
