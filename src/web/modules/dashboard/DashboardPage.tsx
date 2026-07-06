@@ -1,15 +1,10 @@
 // ─── Dashboard Page ─────────────────────────────────────────────────────────
 // Route: / — Welcome + stats overview.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Agent, AgentTool } from "src/common/types";
+import { apiClient } from "src/common/api";
 import { AppLogo } from "src/components/AppLogo";
-import { fetchAgents } from "src/modules/agents/common/agentsSlice";
-import { fetchTeams } from "src/modules/teams/common/teamsSlice";
-import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
-import { fetchTools } from "src/modules/tools/common/toolsSlice";
-import { useAppDispatch, useAppSelector } from "src/store/store";
 
 // ─── Decorative grid dots ───────────────────────────────────────────────────
 
@@ -39,18 +34,12 @@ function StatCard({ label, value, color, onClick }: { label: string; value: numb
 // ─── Dashboard Page ─────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-
-  const agents = useAppSelector((s) => s.agents.items) as Agent[];
-  const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
-  const tools = useAppSelector((s) => s.tools.items) as AgentTool[];
+  const [stats, setStats] = useState({ agents: 0, teams: 0, tools: 0 });
 
   useEffect(() => {
-    dispatch(fetchAgents());
-    dispatch(fetchTeams());
-    dispatch(fetchTools());
-  }, [dispatch]);
+    apiClient.get<{ agents: number; teams: number; tools: number }>("/api/stats").then(setStats);
+  }, []);
 
   return (
     <div className="py-8 px-10 max-w-6xl mx-auto">
@@ -65,9 +54,9 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 max-md:grid-cols-1 gap-4 mb-8">
-        <StatCard label="Agents" value={agents.length} color="rgba(168,255,83,0.15)" onClick={() => navigate("/agents")} />
-        <StatCard label="Teams" value={teams.length} color="rgba(156,154,242,0.15)" onClick={() => navigate("/agents")} />
-        <StatCard label="Tools" value={tools.length} color="rgba(215,217,221,0.15)" onClick={() => navigate("/tools")} />
+        <StatCard label="Agents" value={stats.agents} color="rgba(168,255,83,0.15)" onClick={() => navigate("/agents")} />
+        <StatCard label="Teams" value={stats.teams} color="rgba(156,154,242,0.15)" onClick={() => navigate("/agents")} />
+        <StatCard label="Tools" value={stats.tools} color="rgba(215,217,221,0.15)" onClick={() => navigate("/tools")} />
       </div>
       {/* Decorative grid */}
       <div className="border border-border/50 rounded-xl p-6 bg-surface/50 flex items-center gap-6">

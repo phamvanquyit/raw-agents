@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { loadSettings, saveSettings } from "./settings.service.js";
+import { loadSettingsByKeys, saveSettings } from "./settings.service.js";
 import rawTimezones from "./timezones.json" with { type: "json" };
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -39,8 +39,16 @@ const TIMEZONE_LIST: TimezoneItem[] = (rawTimezones as Array<{ label: string; va
 
 const app = new Hono();
 
-// GET /api/settings
-app.get("/", (c) => c.json(loadSettings()));
+// GET /api/settings/values?keys=key1,key2
+app.get("/values", (c) => {
+  const raw = c.req.query("keys") ?? "";
+  const keys = raw
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  if (keys.length === 0) return c.json({});
+  return c.json(loadSettingsByKeys(keys));
+});
 
 // PATCH /api/settings
 app.patch("/", async (c) => {

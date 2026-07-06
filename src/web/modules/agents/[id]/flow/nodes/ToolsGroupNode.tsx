@@ -10,7 +10,6 @@ export type ToolsGroupToolItem = {
   id: string;
   label: string;
   name: string;
-  isBuiltin: boolean;
   isConnected: boolean;
 };
 
@@ -51,9 +50,9 @@ export function ToolsGroupNode({ data }: NodeProps<ToolsGroupNodeType>) {
             <div key={tool.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md group hover:bg-white/4 transition-colors">
               <div
                 className="w-[18px] h-[18px] rounded-[4px] flex items-center justify-center shrink-0"
-                style={{ background: tool.isBuiltin ? "rgba(168,255,83,0.15)" : "rgba(156,154,242,0.15)" }}
+                style={{ background: tool.id.startsWith("builtin:") ? "rgba(168,255,83,0.15)" : "rgba(156,154,242,0.15)" }}
               >
-                <Bolt width={10} height={10} style={{ color: tool.isBuiltin ? "#a8ff53" : "#9c9af2" }} />
+                <Bolt width={10} height={10} style={{ color: tool.id.startsWith("builtin:") ? "#a8ff53" : "#9c9af2" }} />
               </div>
               <span className="text-2xs font-medium text-main flex-1 whitespace-nowrap">{tool.label || tool.name}</span>
               <button

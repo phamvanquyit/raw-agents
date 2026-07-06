@@ -7,6 +7,7 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { clearAuthToken } from "src/common/api";
 import { AppLogo } from "src/components/AppLogo";
+import { useAppSelector } from "src/store/store";
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -187,6 +188,8 @@ function SidebarSettingsLink({ expanded }: { expanded: boolean }) {
 export function AppSidebar() {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
+  const currentUser = useAppSelector((s) => s.auth.user);
+  const isAdmin = currentUser?.role === "admin";
 
   const handleLogout = () => {
     clearAuthToken();
@@ -224,7 +227,7 @@ export function AppSidebar() {
 
       {/* ── Bottom actions ─────────────────────────────────────────── */}
       <div className={["flex flex-col gap-1 py-3", expanded ? "px-3" : "items-center px-0"].join(" ")}>
-        <SidebarSettingsLink expanded={expanded} />
+        {isAdmin && <SidebarSettingsLink expanded={expanded} />}
 
         <SidebarActionButton label="Logout" icon={<Logout2 width={20} height={20} />} expanded={expanded} onClick={handleLogout} danger />
 

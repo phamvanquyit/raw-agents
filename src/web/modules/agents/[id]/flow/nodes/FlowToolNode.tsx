@@ -9,16 +9,16 @@ export type FlowToolNodeData = {
   label: string;
   name: string;
   description: string;
-  isBuiltin: boolean;
   isConnected: boolean; // whether this tool is assigned to the current agent
   width?: number; // uniform width for all tool nodes (measured via Canvas API)
 };
 
 export type FlowToolNodeType = Node<FlowToolNodeData, "flowTool">;
 
-export function FlowToolNode({ data }: NodeProps<FlowToolNodeType>) {
-  const color = data.isBuiltin ? "#a8ff53" : "#9c9af2";
-  const bgColor = data.isBuiltin ? "rgba(168, 255, 83, 0.12)" : "rgba(156, 154, 242, 0.12)";
+export function FlowToolNode({ id, data }: NodeProps<FlowToolNodeType>) {
+  const isBuiltin = id.startsWith("tool-builtin:");
+  const color = isBuiltin ? "#a8ff53" : "#9c9af2";
+  const bgColor = isBuiltin ? "rgba(168, 255, 83, 0.12)" : "rgba(156, 154, 242, 0.12)";
 
   return (
     <div

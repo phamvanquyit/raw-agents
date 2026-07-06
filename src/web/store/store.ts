@@ -1,21 +1,21 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { useDispatch, useSelector } from "react-redux";
 
+import { authReducer } from "src/common/authSlice";
 import { agentsReducer } from "src/modules/agents/common/agentsSlice";
 import { chatReducer } from "src/modules/chat/common/chatSlice";
 import { llmProvidersReducer } from "src/modules/llm-providers/common/llmProvidersSlice";
-import { settingsReducer } from "src/modules/settings/common/settingsSlice";
 import { teamsReducer } from "src/modules/teams/common/teamsSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
 
 export const store = configureStore({
   reducer: {
+    auth: authReducer,
     llmProviders: llmProvidersReducer,
     agents: agentsReducer,
     tools: toolsReducer,
     teams: teamsReducer,
     chat: chatReducer,
-    settings: settingsReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
 });

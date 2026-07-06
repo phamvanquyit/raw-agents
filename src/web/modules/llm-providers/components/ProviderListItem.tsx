@@ -1,6 +1,7 @@
 import { AltArrowDown, AltArrowUp, Eye, EyeClosed, Refresh } from "@solar-icons/react";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiClient } from "src/common/api";
 import type { LlmProvider } from "src/common/types";
 import { DeleteConfirmButton } from "src/components/ui/alert-dialog";
 import { Button } from "src/components/ui/button";
@@ -17,9 +18,10 @@ interface ProviderListItemProps {
   item: LlmProvider;
 }
 
-function maskKey(key: string) {
+function maskKey(key?: string) {
+  if (!key) return "";
   if (key.length > 8) return `${key.slice(0, 4)}••••${key.slice(-4)}`;
-  return key ? "••••••••" : "";
+  return "••••••••";
 }
 
 export function ProviderListItem({ item }: ProviderListItemProps) {
@@ -30,14 +32,30 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<LlmProvider | null>(null);
   const [draft, setDraft] = useState({
     label: item.label,
-    apiKey: item.apiKey,
-    customBaseUrl: item.customBaseUrl,
+    apiKey: "",
+    customBaseUrl: "",
   });
 
   const meta = PROVIDER_META[item.provider] ?? PROVIDER_META.custom;
-  const models: string[] = Array.isArray(item.models) ? item.models : [];
+  const models: string[] = Array.isArray(detail?.models) ? detail.models : [];
+  const modelCount = models.length || (item as any).countModels || 0;
+
+  // Fetch full detail on first expand (list API only returns summary)
+  useEffect(() => {
+    if (expanded && !detail) {
+      apiClient.get<LlmProvider>(`/api/providers/${item.id}`).then((res) => {
+        setDetail(res);
+        setDraft({
+          label: res.label,
+          apiKey: res.apiKey ?? "",
+          customBaseUrl: res.customBaseUrl ?? "",
+        });
+      });
+    }
+  }, [expanded, detail, item.id]);
 
   const handleSave = async () => {
     if (!draft.label.trim() || !draft.apiKey.trim()) return;
@@ -54,9 +72,9 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
 
   const handleDiscard = () => {
     setDraft({
-      label: item.label,
-      apiKey: item.apiKey,
-      customBaseUrl: item.customBaseUrl,
+      label: detail?.label ?? item.label,
+      apiKey: detail?.apiKey ?? "",
+      customBaseUrl: detail?.customBaseUrl ?? "",
     });
     setShowKey(false);
     setExpanded(false);
@@ -94,9 +112,9 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
           <div className="text-sm font-semibold text-main truncate">{item.label}</div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] text-muted font-mono truncate">{maskKey(item.apiKey)}</span>
-            {models.length > 0 && (
+            {modelCount > 0 && (
               <span className="text-[9px] text-muted bg-surface-raised rounded-full px-1.5 py-0.5 font-medium shrink-0">
-                {models.length} model{models.length !== 1 ? "s" : ""}
+                {modelCount} model{modelCount !== 1 ? "s" : ""}
               </span>
             )}
           </div>

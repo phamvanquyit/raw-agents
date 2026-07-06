@@ -141,8 +141,9 @@ function AgentFlowInner({
     const sortedTools = [...allTools]
       .filter((t) => t.isActive !== false && t.name !== "call_agent")
       .sort((a, b) => {
-        // Builtin first, then alphabetical by name
-        if (a.isBuiltin !== b.isBuiltin) return a.isBuiltin ? -1 : 1;
+        const aBuiltin = a.id.startsWith("builtin:");
+        const bBuiltin = b.id.startsWith("builtin:");
+        if (aBuiltin !== bBuiltin) return aBuiltin ? -1 : 1;
         return a.name.localeCompare(b.name);
       });
 
@@ -248,7 +249,6 @@ function AgentFlowInner({
           label: tool.label,
           name: tool.name,
           description: tool.description?.slice(0, 60) + (tool.description?.length > 60 ? "…" : "") || "",
-          isBuiltin: tool.isBuiltin,
           isConnected: assignedToolIds.has(tool.id),
           width: groupInnerWidth,
         },

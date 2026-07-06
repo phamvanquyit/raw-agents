@@ -11,6 +11,7 @@ import { wsClient } from "src/common/api/wsClient";
 import { SettingKey } from "src/common/enum";
 import type { AgentTool } from "src/common/types";
 import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/ui/MonacoEditor";
+import { getSettingValues } from "src/modules/settings/common/settingsApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import type { ToolActionEvent } from "./components/CodingAgentPanel";
 
@@ -138,7 +139,6 @@ export default function EditToolPage() {
   // ── Provider / model (persisted) ──
   const providerItems = useAppSelector((s) => s.llmProviders.items);
   const providersLoaded = useAppSelector((s) => s.llmProviders.items.length > 0 || s.llmProviders.total === 0);
-  const settings = useAppSelector((s) => s.settings.data);
   const [providerId, setProviderId] = useState<string | undefined>(undefined);
   const [model, setModel] = useState("");
   const initializedRef = useRef(false);
@@ -147,12 +147,14 @@ export default function EditToolPage() {
     if (!providersLoaded || providerItems.length === 0) return;
     if (initializedRef.current) return;
     initializedRef.current = true;
-    const savedProvider = settings[SettingKey.ToolAssistantProvider] ?? "";
-    const savedModel = settings[SettingKey.ToolAssistantModel] ?? "";
-    const match = providerItems.find((p) => p.id === savedProvider) ?? providerItems[0];
-    setProviderId(match.id);
-    setModel(savedModel);
-  }, [providersLoaded, providerItems, settings]);
+    getSettingValues([SettingKey.ToolAssistantProvider, SettingKey.ToolAssistantModel]).then((s) => {
+      const savedProvider = s[SettingKey.ToolAssistantProvider] ?? "";
+      const savedModel = s[SettingKey.ToolAssistantModel] ?? "";
+      const match = providerItems.find((p) => p.id === savedProvider) ?? providerItems[0];
+      setProviderId(match.id);
+      setModel(savedModel);
+    });
+  }, [providersLoaded, providerItems]);
 
   // ── Handle tool actions from AI ──
   const runPanelRef = useRef<RunPanelHandle>(null);

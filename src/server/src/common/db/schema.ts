@@ -162,8 +162,6 @@ export const agentTools = sqliteTable("agent_tools", {
   codeContent: text("code_content").notNull(),
   /** AI draft code — written by generate_code tool. null = no pending draft. */
   draftCode: text("draft_code"),
-  /** true = builtin tool (code-only, resolved by BUILTIN_REGISTRY). false = custom Python tool. */
-  isBuiltin: integer("is_builtin", { mode: "boolean" }).notNull().default(false),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });

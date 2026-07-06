@@ -37,9 +37,15 @@ export default function ToolsPage() {
     );
   }, [tools, search]);
 
-  // Separate custom and builtin
-  const customTools = useMemo(() => filteredTools.filter((t) => !t.isBuiltin).sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "")), [filteredTools]);
-  const builtinTools = useMemo(() => filteredTools.filter((t) => t.isBuiltin).sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "")), [filteredTools]);
+  // Separate custom and builtin by id prefix
+  const customTools = useMemo(
+    () => filteredTools.filter((t) => !t.id.startsWith("builtin:")).sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "")),
+    [filteredTools],
+  );
+  const builtinTools = useMemo(
+    () => filteredTools.filter((t) => t.id.startsWith("builtin:")).sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "")),
+    [filteredTools],
+  );
 
   const visibleTools = activeTab === "custom" ? customTools : builtinTools;
 

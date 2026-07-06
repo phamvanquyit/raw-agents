@@ -70,7 +70,7 @@ const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.to
   icon: null,
   parameters: (b.parameters ?? { type: "object", properties: {}, required: [] }) as object,
   codeContent: "",
-  isBuiltin: true,
+
   isActive: true,
   createdAt: new Date(0),
 }));
@@ -82,12 +82,10 @@ export function getBuiltinTool(id: string) {
 
 export function listTools(query: RawQuery = {}) {
   const result = listQuery({ table: agentTools }, query);
-  // Only keep custom (non-builtin) tools from DB
-  const dbItems = result.items.filter((t: any) => !t.isBuiltin);
   // Join constant-based builtins + custom tools from DB
   // Exclude builtin:call_agent — it's internal-only
   const visibleBuiltins = BUILTIN_TOOLS.filter((t) => t.id !== "builtin:call_agent");
-  const items = [...visibleBuiltins, ...dbItems].map(({ codeContent, draftCode, ...rest }: any) => rest);
+  const items = [...visibleBuiltins, ...result.items].map(({ codeContent, draftCode, ...rest }: any) => rest);
   return {
     ...result,
     items,
@@ -117,9 +115,6 @@ export function createTool(body: Pick<NewAgentTool, "name" | "label" | "descript
 export function updateTool(id: string, body: Partial<NewAgentTool>) {
   if (id.startsWith("builtin:")) throw new Error("Cannot modify builtin tools");
   const db = getDb();
-  // Prevent modifying builtin tools
-  const existing = db.select({ isBuiltin: agentTools.isBuiltin }).from(agentTools).where(eq(agentTools.id, id)).get();
-  if (existing?.isBuiltin) throw new Error("Cannot modify builtin tools");
   db.update(agentTools).set(body).where(eq(agentTools.id, id)).run();
   const updated = db.select().from(agentTools).where(eq(agentTools.id, id)).get();
   wsHub.emit("tools:updated", updated);
@@ -129,9 +124,6 @@ export function updateTool(id: string, body: Partial<NewAgentTool>) {
 export function deleteTool(id: string) {
   if (id.startsWith("builtin:")) throw new Error("Cannot delete builtin tools");
   const db = getDb();
-  // Prevent deleting builtin tools
-  const existing = db.select({ isBuiltin: agentTools.isBuiltin }).from(agentTools).where(eq(agentTools.id, id)).get();
-  if (existing?.isBuiltin) throw new Error("Cannot delete builtin tools");
   // Find affected agents BEFORE cascade delete
   const affected = db.select({ agentId: agentToolAssignments.agentId }).from(agentToolAssignments).where(eq(agentToolAssignments.toolId, id)).all();
   db.delete(agentTools).where(eq(agentTools.id, id)).run();

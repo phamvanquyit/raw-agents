@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import type { LlmProvider } from "src/common/types";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
-import { fetchSettings } from "src/modules/settings/common/settingsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
 import { SETTINGS_TABS, type SettingsTab } from "./common/constants";
@@ -99,7 +98,6 @@ export default function SettingsPage() {
   const activeTab = useActiveTab();
 
   useEffect(() => {
-    dispatch(fetchSettings());
     dispatch(fetchLlmProviders());
   }, [dispatch]);
 

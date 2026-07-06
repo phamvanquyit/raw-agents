@@ -1,8 +1,12 @@
+import { inArray } from "drizzle-orm";
 import { appSettings, getDb } from "../../common/db/client.js";
 
-export function loadSettings() {
-  const rows = getDb().select().from(appSettings).all();
-  return Object.fromEntries(rows.filter((r) => r.key !== "jwt_secret").map((r) => [r.key, r.value]));
+/** Load only the requested setting keys. Never returns jwt_secret. */
+export function loadSettingsByKeys(keys: string[]): Record<string, string> {
+  const safeKeys = keys.filter((k) => k !== "jwt_secret");
+  if (safeKeys.length === 0) return {};
+  const rows = getDb().select().from(appSettings).where(inArray(appSettings.key, safeKeys)).all();
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
 export function saveSettings(body: Record<string, string>) {

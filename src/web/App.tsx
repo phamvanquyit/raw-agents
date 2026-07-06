@@ -1,13 +1,13 @@
 import { Suspense, lazy, useEffect } from "react";
-import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import RenderIf from "src/components/ui/RenderIf";
 import { getAuthToken } from "./common/api";
+import { fetchCurrentUser } from "./common/authSlice";
 import { useSocket } from "./common/hooks/useSocket";
 import { AppLayout } from "./components/AppLayout";
 import { ToastProvider } from "./components/ui/toast";
 
-import { fetchSettings } from "./modules/settings/common/settingsSlice";
-import { useAppDispatch } from "./store/store";
+import { useAppDispatch, useAppSelector } from "./store/store";
 import "./index.css";
 
 const ToolsPage = lazy(() => import("./modules/tools/ToolsPage"));
@@ -26,36 +26,48 @@ const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
 // ── Auth guard ──────────────────────────────────────────────────────────────
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const location = useLocation();
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
     const token = getAuthToken();
-    if (!token && location.pathname !== "/login") {
+    if (!token) {
       navigate("/login", { replace: true });
+    } else {
+      dispatch(fetchCurrentUser());
     }
-  }, [navigate, location.pathname]);
+    // Only run once on mount — no need to re-fetch on every route change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const token = getAuthToken();
   return <RenderIf condition={!!token}>{children}</RenderIf>;
 }
 
+// ── Admin guard — redirects non-admin users to dashboard ────────────────────
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const user = useAppSelector((s) => s.auth.user);
+  const loaded = useAppSelector((s) => s.auth.loaded);
+
+  // Still loading user info — render nothing to avoid flash
+  if (!loaded) return null;
+
+  // Not admin → redirect to dashboard
+  if (user?.role !== "admin") {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 // ── Main content ─────────────────────────────────────────────────────────────
 
 function AppContent() {
-  const dispatch = useAppDispatch();
   const location = useLocation();
 
   const isPublicRoute = PUBLIC_ROUTE_PREFIXES.some((prefix) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`));
   const isLoginRoute = location.pathname === "/login";
   const isSetupRoute = location.pathname === "/setup";
   const isAuthRoute = isLoginRoute || isSetupRoute;
-
-  useEffect(() => {
-    // Only fetch settings if authenticated
-    if (!isAuthRoute && getAuthToken()) {
-      dispatch(fetchSettings());
-    }
-  }, [dispatch, isAuthRoute]);
 
   useSocket();
 
@@ -100,7 +112,14 @@ function AppContent() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
-            <Route path="/settings/*" element={<SettingsPage />} />
+            <Route
+              path="/settings/*"
+              element={
+                <AdminGuard>
+                  <SettingsPage />
+                </AdminGuard>
+              }
+            />
           </Route>
         </Routes>
       </Suspense>

@@ -9,7 +9,7 @@ export function ToolTableRow({
   tool: AgentTool;
   onClick?: () => void;
 }) {
-  const isBuiltin = tool.isBuiltin;
+  const isBuiltin = tool.id.startsWith("builtin:");
   const isActive = tool.isActive;
   const FallbackIcon = isBuiltin ? Lock : Programming;
 

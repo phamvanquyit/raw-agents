@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiClient, setAuthToken } from "src/common/api";
+import { apiClient, clearAuthToken, getAuthToken, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import RenderIf from "src/components/ui/RenderIf";
@@ -17,19 +17,36 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
 
-  // Check if initial setup is needed
+  // Check if initial setup is needed, or if already logged in
   useEffect(() => {
-    apiClient
-      .get<{ needsSetup: boolean }>("/api/auth/setup-status")
-      .then((res) => {
-        if (res.needsSetup) {
+    const check = async () => {
+      try {
+        // Check setup status first
+        const status = await apiClient.get<{ needsSetup: boolean }>("/api/auth/setup-status");
+        if (status.needsSetup) {
           navigate("/setup", { replace: true });
+          return;
         }
-      })
-      .catch(() => {
+
+        // If user already has a valid token, redirect to dashboard
+        const token = getAuthToken();
+        if (token) {
+          try {
+            await apiClient.get("/api/auth/me");
+            navigate("/", { replace: true });
+            return;
+          } catch {
+            // Token invalid — clear it and show login form
+            clearAuthToken();
+          }
+        }
+      } catch {
         // If API fails, show login form anyway
-      })
-      .finally(() => setChecking(false));
+      } finally {
+        setChecking(false);
+      }
+    };
+    check();
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {

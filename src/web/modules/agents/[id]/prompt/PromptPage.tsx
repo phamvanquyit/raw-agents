@@ -5,6 +5,7 @@ import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
 import { type EditorInstance, MonacoEditor } from "src/components/ui/MonacoEditor";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { getSettingValues } from "src/modules/settings/common/settingsApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
 import { PromptAgentPanel } from "./PromptAgentPanel";
@@ -99,7 +100,6 @@ export function PromptPage() {
   const dispatch = useAppDispatch();
   const providerItems = useAppSelector((s) => s.llmProviders.items);
   const providersLoaded = useAppSelector((s) => s.llmProviders.items.length > 0 || s.llmProviders.total === 0);
-  const settings = useAppSelector((s) => s.settings.data);
   const [providerId, setProviderId] = useState<string | undefined>(undefined);
   const [model, setModel] = useState("");
   const initializedRef = useRef(false);
@@ -112,12 +112,14 @@ export function PromptPage() {
     if (!providersLoaded || providerItems.length === 0) return;
     if (initializedRef.current) return;
     initializedRef.current = true;
-    const savedProvider = settings[SettingKey.PromptAssistantProvider] ?? "";
-    const match = providerItems.find((p) => p.id === savedProvider) ?? providerItems[0];
-    setProviderId(match.id);
-    const savedModel = settings[SettingKey.PromptAssistantModel] ?? "";
-    if (savedModel) setModel(savedModel);
-  }, [providersLoaded, providerItems, settings]);
+    getSettingValues([SettingKey.PromptAssistantProvider, SettingKey.PromptAssistantModel]).then((s) => {
+      const savedProvider = s[SettingKey.PromptAssistantProvider] ?? "";
+      const match = providerItems.find((p) => p.id === savedProvider) ?? providerItems[0];
+      setProviderId(match.id);
+      const savedModel = s[SettingKey.PromptAssistantModel] ?? "";
+      if (savedModel) setModel(savedModel);
+    });
+  }, [providersLoaded, providerItems]);
 
   // ── Apply prompt via executeEdits (preserves undo history) ──
   const applyPrompt = useCallback(

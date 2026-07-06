@@ -207,7 +207,6 @@ export interface AssignmentWithTool {
     name: string;
     label: string;
     description: string;
-    isBuiltin: boolean;
   };
 }
 
@@ -227,7 +226,6 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
       toolName: agentTools.name,
       toolLabel: agentTools.label,
       toolDescription: agentTools.description,
-      toolIsBuiltin: agentTools.isBuiltin,
     })
     .from(agentToolAssignments)
     .innerJoin(agentTools, eq(agentToolAssignments.toolId, agentTools.id))
@@ -243,7 +241,6 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
       name: r.toolName,
       label: r.toolLabel,
       description: r.toolDescription,
-      isBuiltin: r.toolIsBuiltin,
     },
   }));
 }

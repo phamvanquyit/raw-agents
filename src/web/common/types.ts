@@ -106,7 +106,6 @@ export interface AgentTool {
   parameters: object;
   codeContent: string;
   draftCode?: string | null;
-  isBuiltin: boolean;
   isActive: boolean;
   createdAt: Date;
 }
@@ -125,7 +124,6 @@ export interface AgentToolAssignment {
     name: string;
     label: string;
     description: string;
-    isBuiltin: boolean;
   };
 }
 

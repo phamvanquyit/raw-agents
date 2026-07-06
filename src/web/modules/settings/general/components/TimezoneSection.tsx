@@ -4,25 +4,23 @@ import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
 import { Select, type SelectOption } from "src/components/ui/select";
 import { toast } from "src/components/ui/toast";
-import { saveSettings } from "src/modules/settings/common/settingsSlice";
-import { useAppDispatch, useAppSelector } from "src/store/store";
+import { getSettingValues, saveSettingValues } from "src/modules/settings/common/settingsApi";
 
 // ─── Timezone Section ─────────────────────────────────────────────────────────
 // Reusable timezone configuration used in the General settings tab.
 // Uses Game-styled custom components only.
 
 export function TimezoneSection() {
-  const dispatch = useAppDispatch();
-
-  // ── Store ────────────────────────────────────────────────────────────────────
-  const storedTz = useAppSelector((s) => s.settings.data[SettingKey.Timezone] ?? "");
-
   // ── Local state ──────────────────────────────────────────────────────────────
+  const [currentTz, setCurrentTz] = useState("UTC");
   const [tzList, setTzList] = useState<{ tz: string; offset: string }[]>([]);
   const [loadingTz, setLoadingTz] = useState(true);
 
-  // ── Load timezone list ───────────────────────────────────────────────────────
+  // ── Load timezone list & current setting ─────────────────────────────────────
   useEffect(() => {
+    getSettingValues([SettingKey.Timezone]).then((s) => {
+      if (s[SettingKey.Timezone]) setCurrentTz(s[SettingKey.Timezone]);
+    });
     apiClient
       .get<{ tz: string; offset: string }[]>("/api/settings/timezones")
       .then(setTzList)
@@ -36,20 +34,16 @@ export function TimezoneSection() {
     label: `${tz} (${offset})`,
   }));
 
-  const currentTz = storedTz || "UTC";
-
   // ── Handlers ─────────────────────────────────────────────────────────────────
-  const handleTzChange = useCallback(
-    async (value: string) => {
-      try {
-        await dispatch(saveSettings({ [SettingKey.Timezone]: value })).unwrap();
-        toast.success("Timezone saved");
-      } catch {
-        toast.error("Failed to save timezone");
-      }
-    },
-    [dispatch],
-  );
+  const handleTzChange = useCallback(async (value: string) => {
+    try {
+      setCurrentTz(value);
+      await saveSettingValues({ [SettingKey.Timezone]: value });
+      toast.success("Timezone saved");
+    } catch {
+      toast.error("Failed to save timezone");
+    }
+  }, []);
 
   return (
     <div>

@@ -24,6 +24,13 @@ app.get("/:id/models", (c) => {
   return c.json(row.models ?? []);
 });
 
+// GET /api/providers/:id → full provider detail (includes apiKey, models, etc.)
+app.get("/:id", (c) => {
+  const row = getProvider(c.req.param("id"));
+  if (!row) throw new BadRequestException("Provider not found");
+  return c.json(row);
+});
+
 // POST /api/providers
 // → Fetch models trước, nếu OK thì lưu provider + models vào DB
 app.post("/", async (c) => {
