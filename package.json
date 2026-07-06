@@ -7,9 +7,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Zobite/raw-agents"
+    "url": "https://github.com/phamvanquyit/raw-agents"
   },
-  "homepage": "https://github.com/Zobite/raw-agents",
+  "homepage": "https://github.com/phamvanquyit/raw-agents",
   "engines": {
     "bun": ">=1.2.0"
   },

@@ -4,12 +4,12 @@
 # Multi-stage build using Bun runtime.
 #
 # Build:
-#   docker build -t zobite/raw-agents:latest .
+#   docker build -t phamvanquyit/raw-agents:latest .
 #
 # Run:
 #   docker run -d -p 15888:15888 \
 #     -v raw-agents-data:/data \
-#     zobite/raw-agents:latest
+#     phamvanquyit/raw-agents:latest
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Install dependencies ──────────────────────────────────────────

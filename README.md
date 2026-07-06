@@ -26,7 +26,7 @@ docker run -d \
   --name raw-agents \
   -p 15888:15888 \
   -v raw-agents-data:/data \
-  zobite/raw-agents:latest
+  phamvanquyit/raw-agents:latest
 ```
 
 Open the web UI at [http://localhost:15888](http://localhost:15888).
@@ -38,7 +38,7 @@ Create a `docker-compose.yml`:
 ```yaml
 services:
   raw-agents:
-    image: zobite/raw-agents:latest
+    image: phamvanquyit/raw-agents:latest
     container_name: raw-agents
     ports:
       - "15888:15888"
@@ -87,7 +87,7 @@ curl -fsSL https://bun.sh/install | bash
 
 ```bash
 # Clone the repo
-git clone https://github.com/Zobite/raw-agents.git
+git clone https://github.com/phamvanquyit/raw-agents.git
 cd raw-agents
 
 # Install dependencies
