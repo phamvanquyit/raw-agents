@@ -97,7 +97,7 @@ function getSubtitle(msg: ChatAgentMessage): string | null {
 
 // ─── System tools (hidden from user) ─────────────────────────────────────────
 
-const SYSTEM_TOOLS = new Set(["manage_agent_note", "update_agent_memory"]);
+const SYSTEM_TOOLS = new Set(["manage_memory"]);
 
 function isSystemTool(msg: ChatAgentMessage): boolean {
   return !!msg.toolName && SYSTEM_TOOLS.has(msg.toolName);

@@ -19,7 +19,7 @@ export interface Agent {
   runStatus: "idle" | "running" | "done" | "failed";
   aiProvider: string | null;
   aiModel: string | null;
-  memoryContent: string | null;
+
   teamId: string | null;
   createdBy: string | null;
   creatorName: string | null;

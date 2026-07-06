@@ -16,8 +16,7 @@ export const agents = sqliteTable("agents", {
   // Per-agent AI config — aiProvider stores the UUID from llmProviders table
   aiProvider: text("ai_provider"),
   aiModel: text("ai_model"),
-  /** Free-form memory content (markdown). Agent reads from prompt, updates all at once. */
-  memoryContent: text("memory_content"),
+
   /** JSON array of agent UUIDs this agent can delegate to via call_agent */
   callableAgentIds: text("callable_agent_ids", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
   /** Which team this agent belongs to (denormalized for simpler queries) */
@@ -33,9 +32,27 @@ export const agents = sqliteTable("agents", {
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
 
-// ─── Agent Notes ──────────────────────────────────────────────────────────────
-// Documents dài hạn (markdown). Chỉ inject titles vào system prompt.
-// Agent dùng tool note(read, id) để lấy full content khi cần.
+// ─── Per-User Facts ───────────────────────────────────────────────────────────
+// Short facts (key-value style) per agent+user. Always injected into system prompt.
+
+export const agentUserFacts = sqliteTable("agent_user_facts", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  agentId: text("agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull().default("user"),
+  content: text("content").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type AgentUserFact = typeof agentUserFacts.$inferSelect;
+export type NewAgentUserFact = typeof agentUserFacts.$inferInsert;
+
+// ─── Agent Notes (Documents) ─────────────────────────────────────────────────
+// Long documents (markdown). Only titles injected into system prompt.
+// Agent uses manage_memory(read_doc, id) to load full content on-demand.
 
 export const agentNotes = sqliteTable("agent_notes", {
   id: text("id")
@@ -44,6 +61,7 @@ export const agentNotes = sqliteTable("agent_notes", {
   agentId: text("agent_id")
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull().default("user"),
   title: text("title").notNull(),
   content: text("content").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),

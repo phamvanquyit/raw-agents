@@ -10,7 +10,7 @@
  * Tool resolution:
  *   1. agent_tool_assignments (junction table, JOIN agent_tools)
  *   2. agent.callableAgentIds → injected into system prompt
- *   3. Always-on: update_agent_memory + manage_agent_note
+ *   3. Always-on: manage_memory (per-user facts + documents)
  */
 
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
@@ -168,7 +168,7 @@ function parseAgentResult(resultMessages: BaseMessage[]): AgentResult {
 export async function generateAgent(
   agentId: string,
   messages: MessageParam[],
-  options: { maxSteps?: number; abortSignal?: AbortSignal; allowCallAgent?: boolean } = {},
+  options: { maxSteps?: number; abortSignal?: AbortSignal; allowCallAgent?: boolean; ownerId?: string; isGuest?: boolean } = {},
 ): Promise<AgentResult> {
   const db = getDb();
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
@@ -179,15 +179,18 @@ export async function generateAgent(
 
   // Get tool assignments from junction table
   const assignments = listAssignments(agentId);
-  const enabledToolNames = [...buildEnabledToolNames(assignments, options), "update_agent_memory", "manage_agent_note"];
+  const enabledToolNames = [...buildEnabledToolNames(assignments, options), "manage_memory"];
+
+  const ownerId = options.ownerId ?? "user";
+  const isGuest = options.isGuest ?? false;
 
   // Callable agents from agent's callableAgentIds column
   const callableAgentIds: string[] = (agent.callableAgentIds as string[]) ?? [];
 
   const [model, systemPrompt, tools] = await Promise.all([
     getChatModel(agent.aiProvider, agent.aiModel),
-    Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined)),
-    Promise.resolve(resolveAgentTools(agentId, enabledToolNames)),
+    Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
+    Promise.resolve(resolveAgentTools(agentId, enabledToolNames, ownerId, isGuest)),
   ]);
 
   const reactAgent = createAgent({
@@ -223,7 +226,7 @@ export async function generateAgent(
 export async function* streamAgent(
   agentId: string,
   messages: MessageParam[],
-  options: { maxSteps?: number; abortSignal?: AbortSignal } = {},
+  options: { maxSteps?: number; abortSignal?: AbortSignal; ownerId?: string; isGuest?: boolean } = {},
 ): AsyncGenerator<AgentStreamEvent> {
   const db = getDb();
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
@@ -243,7 +246,10 @@ export async function* streamAgent(
 
   // Get tool assignments from junction table
   const assignments = listAssignments(agentId);
-  const enabledToolNames = [...buildEnabledToolNames(assignments), "update_agent_memory", "manage_agent_note"];
+  const enabledToolNames = [...buildEnabledToolNames(assignments), "manage_memory"];
+
+  const ownerId = options.ownerId ?? "user";
+  const isGuest = options.isGuest ?? false;
 
   try {
     // Callable agents from agent's callableAgentIds column
@@ -251,8 +257,8 @@ export async function* streamAgent(
 
     const [model, systemPrompt, tools] = await Promise.all([
       getChatModel(agent.aiProvider, agent.aiModel),
-      Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined)),
-      Promise.resolve(resolveAgentTools(agentId, enabledToolNames)),
+      Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
+      Promise.resolve(resolveAgentTools(agentId, enabledToolNames, ownerId, isGuest)),
     ]);
 
     const reactAgent = createAgent({

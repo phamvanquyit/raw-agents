@@ -2,14 +2,15 @@
  * resolveAgentContext.ts — Single source of truth
  *
  * Tập trung toàn bộ logic chuẩn bị context cho agent:
- * - Build system prompt (time + role + memory + note titles)
- * - Resolve tools (builtin + custom + update_memory + note — always-on)
+ * - Build system prompt (time + role + memory instructions)
+ * - Tools are resolved server-side
  *
  * Dùng chung bởi useAgentTools (chat) và useAgentRunner (task runner).
  *
- * Token strategy:
- * - Memory  → đọc trực tiếp từ agent.memoryContent (0 DB query)
- * - Notes   → chỉ load titles (1 DB query nhẹ), full content load on-demand qua tool
+ * Memory is now per-user and handled entirely server-side:
+ * - Facts: stored in agent_user_facts table
+ * - Documents: stored in agent_notes table with owner_id
+ * - System prompt with memory is built server-side via resolveSystemPrompt()
  */
 
 import { apiClient } from "src/common/api";
@@ -20,7 +21,6 @@ import type { ToolSet } from "src/common/types/tool";
 
 export function buildAgentSystemPrompt(
   agent: Agent,
-  noteTitles: { id: string; title: string }[],
   /** IANA timezone from DB config (e.g. "Asia/Ho_Chi_Minh"). Fallback: UTC. */
   timezone?: string,
 ): string {
@@ -54,33 +54,24 @@ ${agent.systemPrompt}
 </role>`);
   }
 
-  // ── Memory & Notes instructions ──
+  // ── Memory instructions ──
+  // NOTE: Full memory context (facts, docs) is injected server-side.
+  // This client-side prompt only provides basic instructions as fallback.
   parts.push(`<memory_instructions>
-You have 2 long-term storage tools:
+You have a long-term memory tool: \`manage_memory\`.
 
-- \`update_agent_memory\` — store short facts (name, preferences, key info).
-  Read the current \`<memory>\` section, edit it, then write back the **full** updated content.
-- \`manage_agent_note\` — store long documents (plans, lists, guides…).
-  Use \`manage_agent_note(create | read | update | delete)\`.
-  Note titles are listed in \`<notes>\` below — call \`manage_agent_note(read, id)\` to retrieve full content.
+**Facts** (short items — always visible in \`<memory>\`):
+- \`manage_memory({ action: "add_facts", facts: ["fact1", "fact2"] })\` — remember new facts.
+- \`manage_memory({ action: "remove_facts", fact_ids: ["id1"] })\` — forget outdated facts.
+
+**Documents** (long content — titles listed in \`<documents>\`):
+- \`manage_memory({ action: "save_doc", title: "...", content: "..." })\` — create a document.
+- \`manage_memory({ action: "save_doc", id: "...", content: "..." })\` — update existing document.
+- \`manage_memory({ action: "read_doc", id: "..." })\` — read full document content.
+- \`manage_memory({ action: "delete_doc", id: "..." })\` — delete a document.
+
+Use \`manage_memory({ action: "list" })\` to see all facts and document titles.
 </memory_instructions>`);
-
-  // ── Memory content ──
-  if (agent.memoryContent?.trim()) {
-    parts.push(`<memory>
-${agent.memoryContent.trim()}
-</memory>`);
-  }
-
-  // ── Notes (titles only — full content load on-demand) ──
-  if (noteTitles.length > 0) {
-    const list = noteTitles.map((n) => `- [id:${n.id}] ${n.title}`).join("\n");
-    parts.push(`<notes>
-Call \`manage_agent_note(read, id)\` to retrieve full content.
-
-${list}
-</notes>`);
-  }
 
   return parts.join("\n\n");
 }
@@ -94,19 +85,14 @@ export interface AgentContext {
 
 /**
  * Resolve toàn bộ context để chạy agent.
- * - Memory: đọc từ agent.memoryContent (0 overhead)
- * - Notes titles: 1 DB query nhẹ
+ * - Memory: handled server-side (per-user facts + docs)
  * - Tools: handled server-side
  */
 export async function resolveAgentContext(agent: Agent): Promise<AgentContext> {
-  // Load note titles + settings in parallel
-  const [noteTitles, settings] = await Promise.all([
-    apiClient.get<{ id: string; title: string }[]>(`/api/agents/${agent.id}/notes?titlesOnly=1`),
-    apiClient.get<Record<string, string>>("/api/settings").catch(() => ({}) as Record<string, string>),
-  ]);
+  const settings = await apiClient.get<Record<string, string>>("/api/settings").catch(() => ({}) as Record<string, string>);
 
   const timezone = settings.timezone || undefined;
-  const systemPrompt = buildAgentSystemPrompt(agent, noteTitles, timezone);
+  const systemPrompt = buildAgentSystemPrompt(agent, timezone);
 
   // NOTE: Tool execution has been moved to the server side (src/server/src/ai/tools/resolveTools.ts).
   // The frontend no longer resolves or executes tools locally.

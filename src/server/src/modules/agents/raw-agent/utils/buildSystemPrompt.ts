@@ -1,32 +1,36 @@
 /**
  * buildSystemPrompt.ts (server-side)
  *
- * Build system prompt from agent data + DB (notes, teammates).
+ * Build system prompt from agent data + DB (per-user facts, docs, teammates).
  * Runs entirely on server — no HTTP round-trips.
+ *
+ * Memory is per-user:
+ *   - Facts: always injected (short items)
+ *   - Documents: only titles injected, full content loaded on-demand via manage_memory tool
+ *   - Guest users: only facts, no documents
  *
  * Callable agents:
  *   Populated only from explicit UI selection ("call_agent:<id>" entries).
  *   If no agents are explicitly selected → no delegation context.
  */
 
-import { eq } from "drizzle-orm";
-import { agentNotes, agents, getDb } from "../../../../common/db/client.js";
+import { and, eq } from "drizzle-orm";
+import { agentNotes, agentUserFacts, agents, getDb } from "../../../../common/db/client.js";
 
 export function buildSystemPrompt(
   agent: {
     id: string;
     name: string;
     systemPrompt: string | null | undefined;
-    memoryContent: string | null | undefined;
   },
-  noteTitles: { id: string; title: string }[],
-  /**
-   * agentsToDelegate: list of agents the AI can call via `call_agent` tool.
-   * - Populated from explicit UI selection ("call_agent:<id>" entries)
-   * - Empty/undefined → no delegation context injected
-   */
-  agentsToDelegate?: { id: string; name: string; description: string | null; teamName?: string }[],
+  facts: { id: string; content: string }[],
+  docTitles: { id: string; title: string }[],
+  options: {
+    isGuest?: boolean;
+    agentsToDelegate?: { id: string; name: string; description: string | null; teamName?: string }[];
+  } = {},
 ): string {
+  const { isGuest = false, agentsToDelegate } = options;
   const parts: string[] = [];
 
   // ── Role & Behavior ──
@@ -36,32 +40,51 @@ ${agent.systemPrompt}
 </role>`);
   }
 
-  // ── Memory & Notes instructions (always present) ──
-  parts.push(`<memory_instructions>
-You have 2 long-term storage tools:
+  // ── Memory instructions ──
+  if (isGuest) {
+    parts.push(`<memory_instructions>
+You have a long-term memory tool: \`manage_memory\`.
 
-- \`update_agent_memory\` — store short facts (name, preferences, key info).
-  Read the current \`<memory>\` section, edit it, then write back the **full** updated content.
-- \`manage_agent_note\` — store long documents (plans, lists, guides…).
-  Use \`manage_agent_note(create | read | update | delete)\`.
-  Note titles are listed in \`<notes>\` below — call \`manage_agent_note(read, id)\` to retrieve full content.
+- Use \`manage_memory({ action: "add_facts", facts: [...] })\` to remember important information.
+- Use \`manage_memory({ action: "remove_facts", fact_ids: [...] })\` to forget outdated facts.
+- Use \`manage_memory({ action: "list" })\` to see all saved facts.
+
+Your current facts are listed in the \`<memory>\` section below.
 </memory_instructions>`);
+  } else {
+    parts.push(`<memory_instructions>
+You have a long-term memory tool: \`manage_memory\`.
 
-  // ── Memory content ──
-  if (agent.memoryContent?.trim()) {
+**Facts** (short items — always visible in \`<memory>\`):
+- \`manage_memory({ action: "add_facts", facts: ["fact1", "fact2"] })\` — remember new facts.
+- \`manage_memory({ action: "remove_facts", fact_ids: ["id1"] })\` — forget outdated facts.
+
+**Documents** (long content — titles listed in \`<documents>\`):
+- \`manage_memory({ action: "save_doc", title: "...", content: "..." })\` — create a document.
+- \`manage_memory({ action: "save_doc", id: "...", content: "..." })\` — update existing document.
+- \`manage_memory({ action: "read_doc", id: "..." })\` — read full document content.
+- \`manage_memory({ action: "delete_doc", id: "..." })\` — delete a document.
+
+Use \`manage_memory({ action: "list" })\` to see all facts and document titles.
+</memory_instructions>`);
+  }
+
+  // ── Facts (always injected) ──
+  if (facts.length > 0) {
+    const list = facts.map((f) => `- [${f.id}] ${f.content}`).join("\n");
     parts.push(`<memory>
-${agent.memoryContent.trim()}
+${list}
 </memory>`);
   }
 
-  // ── Notes (titles only — full content load on-demand) ──
-  if (noteTitles.length > 0) {
-    const list = noteTitles.map((n) => `- [id:${n.id}] ${n.title}`).join("\n");
-    parts.push(`<notes>
-Call \`manage_agent_note(read, id)\` to retrieve full content.
+  // ── Documents (titles only — authenticated users only) ──
+  if (!isGuest && docTitles.length > 0) {
+    const list = docTitles.map((d) => `- [id:${d.id}] ${d.title}`).join("\n");
+    parts.push(`<documents>
+Use \`manage_memory({ action: "read_doc", id: "..." })\` to read full content.
 
 ${list}
-</notes>`);
+</documents>`);
   }
 
   // ── Callable Agents ──
@@ -99,18 +122,32 @@ Always respond using **Markdown** formatting.
 /**
  * Resolve full system prompt for an agent directly from DB.
  *
- * @param callableAgentIds - Agent IDs this agent can delegate to.
- *   - If provided → use those.
- *   - If not provided → read from agent.callableAgentIds column.
+ * @param agentId          — the agent
+ * @param callableAgentIds — Agent IDs this agent can delegate to
+ * @param ownerId          — user ID or fingerprint for per-user memory
+ * @param isGuest          — if true, skip documents
  */
-export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]): string {
+export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[], ownerId = "user", isGuest = false): string {
   const db = getDb();
 
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
-  // Notes titles
-  const noteTitles = db.select({ id: agentNotes.id, title: agentNotes.title }).from(agentNotes).where(eq(agentNotes.agentId, agentId)).all();
+  // Per-user facts
+  const facts = db
+    .select({ id: agentUserFacts.id, content: agentUserFacts.content })
+    .from(agentUserFacts)
+    .where(and(eq(agentUserFacts.agentId, agentId), eq(agentUserFacts.ownerId, ownerId)))
+    .all();
+
+  // Per-user document titles (skip for guests)
+  const docTitles = isGuest
+    ? []
+    : db
+        .select({ id: agentNotes.id, title: agentNotes.title })
+        .from(agentNotes)
+        .where(and(eq(agentNotes.agentId, agentId), eq(agentNotes.ownerId, ownerId)))
+        .all();
 
   // Callable agents: use param if provided, otherwise read from agent record
   const effectiveCallableIds = callableAgentIds ?? (agent.callableAgentIds as string[] | null) ?? [];
@@ -122,5 +159,5 @@ export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]
     agentsToDelegate = all.filter((a) => effectiveCallableIds.includes(a.id));
   }
 
-  return buildSystemPrompt(agent, noteTitles, agentsToDelegate);
+  return buildSystemPrompt(agent, facts, docTitles, { isGuest, agentsToDelegate });
 }

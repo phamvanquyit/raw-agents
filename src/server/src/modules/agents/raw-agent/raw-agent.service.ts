@@ -81,7 +81,11 @@ export async function streamChatSSE(body: ChatStreamInput, stream: SSEStreamingA
   try {
     const messages = [...history, { role: "user" as const, content: message }];
 
-    for await (const event of streamAgent(agentId, messages, { abortSignal: abort.signal })) {
+    for await (const event of streamAgent(agentId, messages, {
+      abortSignal: abort.signal,
+      ownerId: conv?.ownerId ?? "user",
+      isGuest: conv?.trigger === "public",
+    })) {
       switch (event.type) {
         case "text-delta":
           // Thinking phase just ended → flush it before text starts

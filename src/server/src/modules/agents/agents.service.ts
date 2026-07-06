@@ -132,7 +132,6 @@ export function cloneAgent(sourceId: string, createdBy?: string) {
     publicPassword: null,
     aiProvider: src.aiProvider,
     aiModel: src.aiModel,
-    memoryContent: src.memoryContent,
     callableAgentIds: src.callableAgentIds ?? [],
     teamId: src.teamId,
     createdBy: createdBy ?? src.createdBy,

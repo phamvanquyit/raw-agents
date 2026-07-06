@@ -9,15 +9,13 @@ interface ToolDefinition {
 import { TOOL_DEF as FETCH_WEBPAGE_DEF } from "../../common/ai/agent-tools/fetch-webpage.tool.js";
 import { TOOL_DEF as CALL_AGENT_DEF } from "../agents/raw-agent/llm-tools/call-agent.tool.js";
 import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
-import { TOOL_DEF as MEMORY_DEF } from "../agents/raw-agent/llm-tools/memory.tool.js";
-import { TOOL_DEF as NOTE_DEF } from "../agents/raw-agent/llm-tools/note.tool.js";
+import { TOOL_DEF as MANAGE_MEMORY_DEF } from "../agents/raw-agent/llm-tools/manage-memory.tool.js";
 
 const ALL_TOOL_DEFS: ToolDefinition[] = [
   GET_TIME_DEF,
   FETCH_WEBPAGE_DEF,
   CALL_AGENT_DEF,
-  MEMORY_DEF,
-  NOTE_DEF,
+  MANAGE_MEMORY_DEF,
   {
     toolName: "generate_code",
     toolLabel: "Generate Code",
@@ -61,7 +59,7 @@ import { executeTool, validateToolCode } from "./common/python-runner.js";
 const DATA_DIR = process.env.DATA_DIR ?? `${process.env.HOME}/.raw-agents`;
 
 /** Core tools that are always-on and shouldn't appear in user-facing tool lists */
-const ALWAYS_ON_TOOL_NAMES = new Set(["update_agent_memory", "manage_agent_note", "generate_code", "run_current_script", "update_prompt"]);
+const ALWAYS_ON_TOOL_NAMES = new Set(["manage_memory", "generate_code", "run_current_script", "update_prompt"]);
 
 /** Virtual AgentTool objects built from the tool registry */
 const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.toolName)).map((b) => ({

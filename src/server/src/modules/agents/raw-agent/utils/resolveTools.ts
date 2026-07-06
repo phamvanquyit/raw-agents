@@ -4,7 +4,7 @@
  * Builds the full tool list for a user-created agent:
  *   - Builtin tools (directly imported)
  *   - Custom tools (from DB agent_tools table, Python sandbox)
- *   - Always-on: update_memory + note
+ *   - Always-on: manage_memory
  *   - call_agent (if enabled via assignment)
  *
  * Each agent type imports its own tools directly.
@@ -23,8 +23,7 @@ import { runTool } from "../../../tools/tools.service.js";
 import { fetchWebpageTool } from "../../../../common/ai/agent-tools/fetch-webpage.tool.js";
 import { makeCallAgentTool } from "../llm-tools/call-agent.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
-import { makeMemoryTool } from "../llm-tools/memory.tool.js";
-import { makeNoteTool } from "../llm-tools/note.tool.js";
+import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
 
 // ── Stateless builtin registry (name → instance) ─────────────────────────────
 
@@ -56,8 +55,7 @@ export function getToolLabel(toolName: string): string {
     get_current_time: "Get Current Time",
     fetch_webpage: "Fetch",
     call_agent: "Call Agent",
-    update_agent_memory: "Update Agent Memory",
-    manage_agent_note: "Manage Agent Note",
+    manage_memory: "Manage Memory",
   };
   if (KNOWN_LABELS[toolName]) return KNOWN_LABELS[toolName];
   try {
@@ -151,15 +149,20 @@ function buildCustomTool(record: {
 
 // ─── Known builtin names (for filtering custom vs builtin) ────────────────────
 
-const ALL_BUILTIN_NAMES = new Set(["get_current_time", "fetch_webpage", "call_agent", "update_agent_memory", "manage_agent_note"]);
+const ALL_BUILTIN_NAMES = new Set(["get_current_time", "fetch_webpage", "call_agent", "manage_memory"]);
 
 // ─── Main resolver ────────────────────────────────────────────────────────────
 
 /**
  * Resolve full tool list for a user agent.
- * Always injects update_agent_memory + manage_agent_note.
+ * Always injects manage_memory (with per-user context).
+ *
+ * @param agentId       — the agent
+ * @param enabledTools  — tool names from assignments
+ * @param ownerId       — user ID or fingerprint
+ * @param isGuest       — if true, document features disabled in manage_memory
  */
-export function resolveAgentTools(agentId: string, enabledTools: string[]): StructuredToolInterface[] {
+export function resolveAgentTools(agentId: string, enabledTools: string[], ownerId: string, isGuest = false): StructuredToolInterface[] {
   const db = getDb();
   const tools: StructuredToolInterface[] = [];
 
@@ -185,9 +188,8 @@ export function resolveAgentTools(agentId: string, enabledTools: string[]): Stru
     }
   }
 
-  // Always-on
-  tools.push(makeMemoryTool(agentId));
-  tools.push(makeNoteTool(agentId));
+  // Always-on: manage_memory (per-user)
+  tools.push(makeManageMemoryTool(agentId, ownerId, isGuest));
 
   return tools;
 }
