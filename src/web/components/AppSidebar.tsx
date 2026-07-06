@@ -2,11 +2,24 @@
 // Dark neon sidebar — icon-only collapsed mode with expand toggle.
 // Neon lime active indicator bar, glassmorphism hover, tooltips.
 
-import { AltArrowLeft, AltArrowRight, FaceScanSquare, HomeAngle, Logout2, Programming, Settings, UsersGroupTwoRounded } from "@solar-icons/react";
+import {
+  AltArrowLeft,
+  AltArrowRight,
+  FaceScanSquare,
+  HomeAngle,
+  Logout2,
+  Programming,
+  Settings,
+  User as UserIcon,
+  UsersGroupTwoRounded,
+} from "@solar-icons/react";
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { clearAuthToken } from "src/common/api";
+import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
+import { UserAvatar } from "src/components/UserAvatar";
+import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
 import { useAppSelector } from "src/store/store";
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
@@ -19,8 +32,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", icon: <HomeAngle weight="BoldDuotone" width={20} height={20} /> },
-  { to: "/agents", label: "Agents", icon: <FaceScanSquare weight="BoldDuotone" width={20} height={20} /> },
   { to: "/teams", label: "Teams", icon: <UsersGroupTwoRounded weight="BoldDuotone" width={20} height={20} /> },
+  { to: "/settings", label: "Settings", icon: <Settings weight="BoldDuotone" width={20} height={20} /> },
+  { to: "/agents", label: "Agents", icon: <FaceScanSquare weight="BoldDuotone" width={20} height={20} /> },
   { to: "/tools", label: "Tools", icon: <Programming weight="BoldDuotone" width={20} height={20} /> },
 ];
 
@@ -97,88 +111,73 @@ function SidebarNavLink({
   );
 }
 
-/* ── Bottom Action Button ────────────────────────────────────────────────── */
-
-function SidebarActionButton({
-  label,
-  icon,
+function SidebarProfileLink({
   expanded,
-  onClick,
-  danger,
+  user,
+  onLogout,
 }: {
-  label: string;
-  icon: React.ReactNode;
   expanded: boolean;
-  onClick?: () => void;
-  danger?: boolean;
+  user: User | null;
+  onLogout: () => void;
 }) {
-  const [hovered, setHovered] = useState(false);
+  const [open, setOpen] = useState(false);
+  if (!user) return null;
 
   return (
-    <button
-      type="button"
-      className={[
-        "group relative flex items-center no-underline rounded-lg transition-all duration-200 ease-out cursor-pointer border border-transparent bg-transparent",
-        expanded ? "gap-2.5 px-3 py-2" : "justify-center w-10 h-10",
-        danger
-          ? "text-muted hover:text-danger hover:bg-danger/8 hover:border-danger/15"
-          : "text-muted hover:text-main hover:bg-[rgba(255,255,255,0.04)] hover:border-[rgba(255,255,255,0.06)]",
-      ].join(" ")}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <span className="flex items-center justify-center shrink-0">{icon}</span>
-      {expanded && <span className="text-sm font-medium truncate">{label}</span>}
-      <SidebarTooltip label={label} show={hovered} expanded={expanded} />
-    </button>
-  );
-}
-
-/* ── Settings NavLink (bottom) ───────────────────────────────────────────── */
-
-function SidebarSettingsLink({ expanded }: { expanded: boolean }) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <NavLink
-      to="/settings"
-      className={({ isActive }) =>
-        [
-          "group relative flex items-center no-underline rounded-lg transition-all duration-200 ease-out cursor-pointer border border-transparent",
-          expanded ? "gap-2.5 px-3 py-2" : "justify-center w-10 h-10",
-          isActive
-            ? "bg-primary/8 border-primary/15 text-primary"
-            : "text-muted hover:text-main hover:bg-[rgba(255,255,255,0.04)] hover:border-[rgba(255,255,255,0.06)]",
-        ].join(" ")
-      }
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {({ isActive }) => (
-        <>
-          {isActive && (
-            <span
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-primary"
-              style={{
-                height: "18px",
-                animation: "sidebar-neon-pulse 3s ease-in-out infinite",
-              }}
-            />
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={[
+            "group relative flex items-center no-underline rounded-lg transition-all duration-200 ease-out cursor-pointer border border-transparent outline-none bg-transparent",
+            expanded ? "gap-2.5 px-2 py-1.5 w-full" : "justify-center w-10 h-10",
+            open
+              ? "bg-primary/8 border-primary/15 text-primary"
+              : "text-muted hover:text-main hover:bg-[rgba(255,255,255,0.04)] hover:border-[rgba(255,255,255,0.06)]",
+          ].join(" ")}
+        >
+          <UserAvatar avatar={user.avatar} name={user.name || user.username} size={expanded ? 28 : 32} className="shrink-0 border border-border" />
+          {expanded && (
+            <div className="flex flex-col min-w-0 text-left">
+              <span className="text-sm font-medium truncate leading-tight text-main">{user.name || user.username}</span>
+              <span className="text-[10px] text-muted truncate leading-tight">Account Settings</span>
+            </div>
           )}
-          <span
-            className={[
-              "flex items-center justify-center shrink-0 transition-colors duration-150",
-              isActive ? "text-primary" : "text-muted group-hover:text-main",
-            ].join(" ")}
+          <SidebarTooltip label="Account" show={!open} expanded={expanded} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side={expanded ? "top" : "right"} align={expanded ? "start" : "end"} className="w-52 p-1.5 ml-2">
+        <div className="px-2.5 py-2 mb-1 border-b border-border/40">
+          <p className="text-xs font-bold text-main truncate leading-tight">{user.name || user.username}</p>
+          <p className="text-[10px] text-muted truncate leading-tight mt-0.5">@{user.username}</p>
+        </div>
+
+        <div className="flex flex-col gap-0.5">
+          <NavLink
+            to="/profile"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-muted hover:text-main hover:bg-white/5 transition-colors"
           >
-            <Settings width={20} height={20} />
-          </span>
-          {expanded && <span className="text-sm font-medium truncate">Settings</span>}
-          <SidebarTooltip label="Settings" show={hovered} expanded={expanded} />
-        </>
-      )}
-    </NavLink>
+            <UserIcon size={16} />
+            Profile Settings
+          </NavLink>
+
+          <div className="h-px bg-border/40 my-1" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-danger hover:bg-danger/10 transition-colors w-full text-left"
+          >
+            <Logout2 size={16} />
+            Logout
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -215,7 +214,14 @@ export function AppSidebar() {
 
       {/* ── Navigation ─────────────────────────────────────────────── */}
       <nav className={["flex flex-col gap-1 mt-1", expanded ? "px-3" : "items-center px-0"].join(" ")}>
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS.slice(0, 3).map((item) => {
+          if (item.to === "/settings" && !isAdmin) return null;
+          return <SidebarNavLink key={item.to} item={item} expanded={expanded} end={item.to === "/"} />;
+        })}
+
+        <div className="h-3" />
+
+        {NAV_ITEMS.slice(3).map((item) => (
           <SidebarNavLink key={item.to} item={item} expanded={expanded} end={item.to === "/"} />
         ))}
       </nav>
@@ -228,9 +234,7 @@ export function AppSidebar() {
 
       {/* ── Bottom actions ─────────────────────────────────────────── */}
       <div className={["flex flex-col gap-1 py-3", expanded ? "px-3" : "items-center px-0"].join(" ")}>
-        {isAdmin && <SidebarSettingsLink expanded={expanded} />}
-
-        <SidebarActionButton label="Logout" icon={<Logout2 width={20} height={20} />} expanded={expanded} onClick={handleLogout} danger />
+        <SidebarProfileLink expanded={expanded} user={currentUser} onLogout={handleLogout} />
 
         {/* ── Expand / Collapse toggle ────────────────────────────── */}
         <button

@@ -25,7 +25,7 @@ export function listUsers(query: Record<string, string>) {
   const result = listQuery(
     {
       table: users,
-      searchColumns: ["username", "email", "name"],
+      searchColumns: ["username", "name"],
     },
     query,
   );
@@ -49,16 +49,15 @@ export function getUser(id: string): SafeUser | undefined {
 
 export async function createUser(body: {
   username: string;
-  email: string;
   name: string;
   password: string;
   role?: "admin" | "member";
 }): Promise<SafeUser> {
-  const { username, email, name, password, role = "member" } = body;
+  const { username, name, password, role = "member" } = body;
 
   // Validate required fields
-  if (!username || !email || !password || !name) {
-    throw new BadRequestException("Username, email, name, and password are required");
+  if (!username || !password || !name) {
+    throw new BadRequestException("Username, name, and password are required");
   }
 
   if (password.length < 8) {
@@ -76,12 +75,6 @@ export async function createUser(body: {
     throw new BadRequestException("Username already exists");
   }
 
-  // Check unique email
-  const existingEmail = getDb().select().from(users).where(eq(users.email, email)).get();
-  if (existingEmail) {
-    throw new BadRequestException("Email already exists");
-  }
-
   const passwordHash = await Bun.password.hash(password);
   const now = new Date();
   const id = crypto.randomUUID();
@@ -89,7 +82,6 @@ export async function createUser(body: {
   const newUser: NewUser = {
     id,
     username,
-    email,
     name,
     passwordHash,
     role,
@@ -107,7 +99,7 @@ export async function createUser(body: {
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-export function updateUser(id: string, body: { username?: string; email?: string; name?: string; role?: "admin" | "member" }): SafeUser {
+export function updateUser(id: string, body: { username?: string; name?: string; role?: "admin" | "member" }): SafeUser {
   const db = getDb();
   const existing = db.select().from(users).where(eq(users.id, id)).get();
   if (!existing) {
@@ -126,22 +118,9 @@ export function updateUser(id: string, body: { username?: string; email?: string
     }
   }
 
-  // Check unique email (exclude self)
-  if (body.email && body.email !== existing.email) {
-    const dup = db
-      .select()
-      .from(users)
-      .where(and(eq(users.email, body.email), ne(users.id, id)))
-      .get();
-    if (dup) {
-      throw new BadRequestException("Email already exists");
-    }
-  }
-
   // Build update set
   const updateSet: Record<string, unknown> = { updatedAt: new Date() };
   if (body.username) updateSet.username = body.username;
-  if (body.email) updateSet.email = body.email;
   if (body.name !== undefined) updateSet.name = body.name;
   if (body.role) updateSet.role = body.role;
 

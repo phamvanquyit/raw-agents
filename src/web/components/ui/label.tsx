@@ -24,10 +24,11 @@ interface FieldProps {
   label: string;
   required?: boolean;
   optional?: boolean;
+  error?: string;
   children: ReactNode;
 }
 
-function Field({ label, required, optional, children }: FieldProps) {
+function Field({ label, required, optional, error, children }: FieldProps) {
   const fieldId = useId();
 
   return (
@@ -38,6 +39,7 @@ function Field({ label, required, optional, children }: FieldProps) {
         {optional && <span className="text-muted ml-1 font-normal">(optional)</span>}
       </Label>
       {isValidElement(children) ? cloneElement(children as ReactElement<{ id?: string }>, { id: fieldId }) : children}
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }

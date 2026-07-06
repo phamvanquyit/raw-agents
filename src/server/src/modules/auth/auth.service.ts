@@ -2,7 +2,7 @@
  * Auth service — login, password verification, token generation, initial setup.
  */
 
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { type User, appSettings, getDb, users } from "../../common/db/client.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { type JwtPayload, signToken } from "../../common/middleware/auth.middleware.js";
@@ -28,12 +28,11 @@ export function checkSetupStatus(): { needsSetup: boolean } {
 
 export async function setupFirstAdmin(body: {
   username: string;
-  email: string;
   name: string;
   password: string;
   timezone: string;
 }): Promise<{ token: string; user: SafeUser }> {
-  const { username, email, name, password, timezone } = body;
+  const { username, name, password, timezone } = body;
 
   // Only allow setup when no users exist
   const { needsSetup } = checkSetupStatus();
@@ -42,8 +41,8 @@ export async function setupFirstAdmin(body: {
   }
 
   // Validate required fields
-  if (!username || !email || !password || !name) {
-    throw new BadRequestException("Username, email, name, and password are required");
+  if (!username || !password || !name) {
+    throw new BadRequestException("Username, name, and password are required");
   }
 
   if (password.length < 8) {
@@ -65,7 +64,6 @@ export async function setupFirstAdmin(body: {
     .values({
       id,
       username,
-      email,
       name,
       passwordHash,
       role: "admin",
@@ -107,12 +105,8 @@ export async function login(body: {
     throw new BadRequestException("Username and password are required");
   }
 
-  // Find by username or email
-  const user = getDb()
-    .select()
-    .from(users)
-    .where(or(eq(users.username, username), eq(users.email, username)))
-    .get();
+  // Find by username
+  const user = getDb().select().from(users).where(eq(users.username, username)).get();
 
   if (!user) {
     throw new BadRequestException("Invalid username or password");
@@ -171,4 +165,25 @@ export async function changePassword(userId: string, body: { oldPassword: string
 
   const newHash = await Bun.password.hash(newPassword);
   getDb().update(users).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(users.id, userId)).run();
+}
+
+// ─── Update Profile ───────────────────────────────────────────────────────────
+
+export async function updateProfile(userId: string, body: { name?: string; avatar?: string }): Promise<SafeUser> {
+  const { name, avatar } = body;
+  const db = getDb();
+
+  db.update(users)
+    .set({
+      ...(name !== undefined ? { name } : {}),
+      ...(avatar !== undefined ? { avatar } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .run();
+
+  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user) throw new BadRequestException("User not found");
+
+  return toSafeUser(user);
 }

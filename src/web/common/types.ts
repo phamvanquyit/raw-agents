@@ -215,8 +215,8 @@ export interface CustomObject {
 export interface User {
   id: string;
   username: string;
-  email: string;
   name: string;
+  avatar: string | null;
   role: "admin" | "member";
   isActive: boolean;
   createdAt: Date;

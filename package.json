@@ -34,7 +34,8 @@
     "typecheck:web": "cd src/web && bunx tsc --noEmit"
   },
   "dependencies": {
-    "@langchain/openrouter": "^0.4.3"
+    "@langchain/openrouter": "^0.4.3",
+    "@tanstack/react-form": "^1.33.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

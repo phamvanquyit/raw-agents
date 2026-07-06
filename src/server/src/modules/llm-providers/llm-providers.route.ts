@@ -7,13 +7,25 @@ import { createProvider, deleteProvider, getProvider, updateProvider } from "./l
 
 const app = new Hono();
 
+function maskApiKey(key?: string) {
+  if (!key) return "";
+  if (key.length > 8) return `${key.slice(0, 4)}••••${key.slice(-4)}`;
+  return "••••••••";
+}
+
 // GET /api/providers?page=1&limit=50&sorts=-createdAt
-// Exclude `models` array from list response to keep payload small
+// Exclude `models` array and full apiKey from list response to keep payload small
 app.get("/", (c) => {
   const result = listQuery({ table: llmProviders }, c.req.query());
   return c.json({
     ...result,
-    items: result.items.map(({ id, label, provider, models }) => ({ id, label, provider, countModels: (models ?? []).length })),
+    items: result.items.map(({ id, label, provider, models, apiKey }) => ({
+      id,
+      label,
+      provider,
+      countModels: (models ?? []).length,
+      maskedApiKey: maskApiKey(apiKey),
+    })),
   });
 });
 

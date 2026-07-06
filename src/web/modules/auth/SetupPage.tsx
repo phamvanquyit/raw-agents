@@ -27,7 +27,6 @@ export default function SetupPage() {
 
   // Form state
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -81,7 +80,7 @@ export default function SetupPage() {
     setError("");
 
     // Validate
-    if (!username || !email || !name || !password) {
+    if (!username || !name || !password) {
       setError("Please fill in all fields");
       return;
     }
@@ -105,7 +104,6 @@ export default function SetupPage() {
     try {
       const result = await apiClient.post<{ token: string; user: User }>("/api/auth/setup", {
         username,
-        email,
         name,
         password,
         timezone,
@@ -180,17 +178,6 @@ export default function SetupPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Choose a username"
                   autoComplete="username"
-                  disabled={loading}
-                />
-              </Field>
-
-              <Field label="Email" required>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@example.com"
-                  autoComplete="email"
                   disabled={loading}
                 />
               </Field>

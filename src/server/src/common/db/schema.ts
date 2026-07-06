@@ -226,8 +226,8 @@ export const users = sqliteTable("users", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   username: text("username").notNull().unique(),
-  email: text("email").notNull().unique(),
   name: text("name").notNull().default(""),
+  avatar: text("avatar"),
   passwordHash: text("password_hash").notNull(),
   role: text("role", { enum: ["admin", "member"] })
     .notNull()
