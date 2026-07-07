@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { SignJWT, jwtVerify } from "jose";
 import { agentConversations, agentMessages, agentToolAssignments, agentTools, agents, getDb, llmProviders } from "../../common/db/client.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { getBuiltinTool } from "../tools/tools.service.js";
 
 // ── Public access token helpers ───────────────────────────────────────────────
 
@@ -47,11 +48,19 @@ export function getPublicAgent(agentId: string) {
 
   // Resolve assigned tools
   const toolRows = db
-    .select({ name: agentTools.name, label: agentTools.label, icon: agentTools.icon })
+    .select({ toolId: agentToolAssignments.toolId, name: agentTools.name, label: agentTools.label, icon: agentTools.icon })
     .from(agentToolAssignments)
-    .innerJoin(agentTools, eq(agentToolAssignments.toolId, agentTools.id))
+    .leftJoin(agentTools, eq(agentToolAssignments.toolId, agentTools.id))
     .where(eq(agentToolAssignments.agentId, agentId))
     .all();
+
+  const tools = toolRows.map((t) => {
+    if (t.toolId.startsWith("builtin:")) {
+      const builtin = getBuiltinTool(t.toolId);
+      return { name: builtin?.name ?? t.toolId, label: builtin?.label ?? t.toolId, icon: null };
+    }
+    return { name: t.name ?? "", label: t.label ?? "", icon: t.icon ?? null };
+  });
 
   return {
     data: {
@@ -61,7 +70,7 @@ export function getPublicAgent(agentId: string) {
       requiresPassword: !!agent.publicPassword && agent.publicPassword.length > 0,
       model: agent.aiModel ?? undefined,
       providerLabel: providerLabel ?? undefined,
-      tools: toolRows.map((t) => ({ name: t.name, label: t.label, icon: t.icon })),
+      tools,
     },
   };
 }

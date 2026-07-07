@@ -16,7 +16,7 @@ import { useAppDispatch, useAppSelector } from "src/store/store";
 import type { ToolActionEvent } from "./components/CodingAgentPanel";
 
 import { deleteTool, fetchTools, updateTool } from "../common/toolsSlice";
-import { buildJsonSchemaFromCode, injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams } from "../common/utils";
+import { injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams } from "../common/utils";
 
 import { CodingAgentPanel } from "./components/CodingAgentPanel";
 import { EditToolHeader } from "./components/EditToolHeader";
@@ -223,15 +223,12 @@ export default function EditToolPage() {
     if (!codeOverride && !isDirty) return;
     setSaving(true);
     try {
+      // Server auto-derives parameters, label, name, description from codeContent
       await dispatch(
         updateTool({
           id,
-          parameters: buildJsonSchemaFromCode(code),
           codeContent: code,
           draftCode: code,
-          ...(meta.label ? { label: meta.label } : {}),
-          ...(meta.name ? { name: meta.name } : {}),
-          ...(meta.description ? { description: meta.description } : {}),
         }),
       ).unwrap();
       setSavedCode(code);

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { buildJsonSchemaFromCode, parseMetaFromCode } from "./common/code-annotations.js";
 
 interface ToolDefinition {
   toolName: string;
@@ -114,6 +115,17 @@ export function createTool(body: Pick<NewAgentTool, "name" | "label" | "descript
 
 export function updateTool(id: string, body: Partial<NewAgentTool>) {
   if (id.startsWith("builtin:")) throw new Error("Cannot modify builtin tools");
+
+  // Auto-derive metadata from code annotations when codeContent is updated
+  if (body.codeContent) {
+    const meta = parseMetaFromCode(body.codeContent);
+    const schema = buildJsonSchemaFromCode(body.codeContent);
+    if (meta.label && !body.label) body.label = meta.label;
+    if (meta.name && !body.name) body.name = meta.name;
+    if (meta.description && !body.description) body.description = meta.description;
+    if (!body.parameters || Object.keys(schema.properties).length > 0) body.parameters = schema;
+  }
+
   const db = getDb();
   db.update(agentTools).set(body).where(eq(agentTools.id, id)).run();
   const updated = db.select().from(agentTools).where(eq(agentTools.id, id)).get();
@@ -126,6 +138,8 @@ export function deleteTool(id: string) {
   const db = getDb();
   // Find affected agents BEFORE cascade delete
   const affected = db.select({ agentId: agentToolAssignments.agentId }).from(agentToolAssignments).where(eq(agentToolAssignments.toolId, id)).all();
+  // Manually clean up assignments (no FK cascade since builtin tools share this table)
+  db.delete(agentToolAssignments).where(eq(agentToolAssignments.toolId, id)).run();
   db.delete(agentTools).where(eq(agentTools.id, id)).run();
   wsHub.emit("tools:deleted", { id });
   // Notify affected agents that their tool assignments changed

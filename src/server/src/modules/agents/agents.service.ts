@@ -2,6 +2,7 @@ import { and, count, eq, inArray } from "drizzle-orm";
 import { type NewAgent, type NewAgentNote, agentNotes, agentTeams, agentToolAssignments, agentTools, agents, getDb, users } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { getBuiltinTool } from "../tools/tools.service.js";
 
 // ─── Agents ───────────────────────────────────────────────────────────────────
 
@@ -228,21 +229,38 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
       toolDescription: agentTools.description,
     })
     .from(agentToolAssignments)
-    .innerJoin(agentTools, eq(agentToolAssignments.toolId, agentTools.id))
+    .leftJoin(agentTools, eq(agentToolAssignments.toolId, agentTools.id))
     .where(eq(agentToolAssignments.agentId, agentId))
     .all();
 
-  return rows.map((r) => ({
-    id: r.id,
-    agentId: r.agentId,
-    toolId: r.toolId,
-    createdAt: r.createdAt,
-    tool: {
-      name: r.toolName,
-      label: r.toolLabel,
-      description: r.toolDescription,
-    },
-  }));
+  return rows.map((r) => {
+    // For builtin tools, resolve info from in-memory registry
+    if (r.toolId.startsWith("builtin:")) {
+      const builtin = getBuiltinTool(r.toolId);
+      return {
+        id: r.id,
+        agentId: r.agentId,
+        toolId: r.toolId,
+        createdAt: r.createdAt,
+        tool: {
+          name: builtin?.name ?? r.toolId,
+          label: builtin?.label ?? r.toolId,
+          description: builtin?.description ?? "",
+        },
+      };
+    }
+    return {
+      id: r.id,
+      agentId: r.agentId,
+      toolId: r.toolId,
+      createdAt: r.createdAt,
+      tool: {
+        name: r.toolName ?? "",
+        label: r.toolLabel ?? "",
+        description: r.toolDescription ?? "",
+      },
+    };
+  });
 }
 
 /** Replace all tool assignments for an agent. */

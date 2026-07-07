@@ -42,6 +42,9 @@ FORMAT:
 Always place @param annotations right after @name/@description.
 The system reads these comments to auto-generate the JSON Schema for the tool.
 
+⚠️ IMPORTANT: Always leave a BLANK LINE between the last @param line and the first line of code (imports, variables, etc.).
+   This blank line separates metadata from executable code and is REQUIRED for correct parsing.
+
 FORMAT:
   # @param {type} name (required|optional) - Description
 
@@ -76,6 +79,7 @@ EXAMPLE — full @param block:
 <code_examples>
 EXAMPLE 1 — Simple HTTP request:
   # @param {string} url (required) - URL to fetch
+
   import requests
   url = input.get("url", "")
   response = requests.get(url, timeout=10)
@@ -84,6 +88,7 @@ EXAMPLE 1 — Simple HTTP request:
 EXAMPLE 2 — Data processing with third-party lib:
   # @param {string} csv_url (required) - URL of the CSV file
   # @param {string} column (optional) - Column name to summarize
+
   import requests, csv, io
   col = input.get("column", "")
   resp = requests.get(input.get("csv_url", ""))
@@ -94,6 +99,7 @@ EXAMPLE 2 — Data processing with third-party lib:
 
 EXAMPLE 3 — Using json module (stdlib, no install needed):
   # @param {string} text (required) - Raw JSON string to parse
+
   import json
   data = json.loads(input.get("text", "{}"))
   keys = list(data.keys())
@@ -101,6 +107,7 @@ EXAMPLE 3 — Using json module (stdlib, no install needed):
 
 EXAMPLE 4 — Returning plain string (also valid):
   # @param {string} name (required) - User name
+
   name = input.get("name", "World")
   return f"Hello, {name}!"
 
@@ -110,6 +117,7 @@ EXAMPLE 5 — Array of objects (object[] with nested fields):
   # @param {number}   products[].price (optional) - Product price in USD
   # @param {string[]} products[].tags  (optional) - Product category tags
   # @param {number}   discount (optional) - Discount percentage to apply
+
   products = input.get("products", [])
   discount = input.get("discount", 0)
   result = []
@@ -182,6 +190,7 @@ STEP 3b — IF SUCCESS (success: true):
   ❌ Returning None or nothing — always return a value so the tool has useful output
   ❌ Using input["key"] without .get() — safer to use input.get("key", default)
   ❌ Forgetting @param comments — required for schema generation
+  ❌ Not leaving a blank line between @param block and code — causes param parsing to fail
   ❌ Using "items.name" dot-notation for array-of-object — WRONG; use "items[].name"
   ❌ Using {array} type without [] — always write {string[]}, {number[]}, or {object[]} for arrays
   ❌ Assuming pip name = import name — e.g. \"import whois\" needs \"pip install python-whois\", not \"pip install whois\". Add # pip: python-whois as an inline comment on the import line: import whois  # pip: python-whois

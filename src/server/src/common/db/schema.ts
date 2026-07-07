@@ -180,9 +180,7 @@ export const agentToolAssignments = sqliteTable("agent_tool_assignments", {
   agentId: text("agent_id")
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
-  toolId: text("tool_id")
-    .notNull()
-    .references(() => agentTools.id, { onDelete: "cascade" }),
+  toolId: text("tool_id").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
