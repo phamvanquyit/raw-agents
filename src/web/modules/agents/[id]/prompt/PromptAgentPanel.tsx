@@ -6,7 +6,7 @@
  * Pattern based on CodingAgentPanel — no Redux dependency.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
@@ -42,6 +42,14 @@ export function PromptAgentPanel({ providerId, model, streamUrl, maxSteps = 6, o
   /** Timestamp when thinking started (for calculating duration) */
   const thinkingStartRef = useRef<number>(0);
   const abortRef = useRef<AbortController | null>(null);
+
+  // ── Cleanup on unmount — abort any running stream ──────────────────────
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
 
   // ── Auto-scroll ─────────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);

@@ -33,3 +33,8 @@ docker/data
 *.sw?
 /.agents
 /scripts
+.claude/settings.json
+.claude/hooks/stop-hook.sh
+CLAUDE.md
+.claude/DESIGN.md
+.claude/skills/write-test/SKILL.md

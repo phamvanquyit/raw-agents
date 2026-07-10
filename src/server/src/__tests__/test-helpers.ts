@@ -1,0 +1,224 @@
+/**
+ * Test helpers — shared utilities for API integration tests.
+ *
+ * Provides an in-memory SQLite DB + Hono app for each test suite,
+ * plus helper functions for authentication.
+ */
+
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import type { Hono } from "hono";
+import * as schema from "../common/db/schema.js";
+
+// ─── In-Memory DB Setup ──────────────────────────────────────────────────────
+
+/**
+ * Create a fresh in-memory SQLite database with all tables.
+ * Returns the drizzle instance and the raw Database for cleanup.
+ */
+function createTestDb() {
+  const raw = new Database(":memory:");
+  raw.exec("PRAGMA journal_mode = WAL;");
+  raw.exec("PRAGMA foreign_keys = ON;");
+
+  // Create all tables from schema
+  raw.exec(`
+    CREATE TABLE IF NOT EXISTS agents (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      system_prompt TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      is_public INTEGER NOT NULL DEFAULT 0,
+      public_password TEXT,
+      ai_provider TEXT,
+      ai_model TEXT,
+      callable_agent_ids TEXT NOT NULL DEFAULT '[]',
+      team_id TEXT REFERENCES agent_teams(id) ON DELETE SET NULL,
+      created_by TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_user_facts (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      owner_id TEXT NOT NULL DEFAULT 'user',
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_notes (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      owner_id TEXT NOT NULL DEFAULT 'user',
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_teams (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_conversations (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+      owner_id TEXT NOT NULL DEFAULT 'user',
+      title TEXT NOT NULL,
+      trigger TEXT NOT NULL DEFAULT 'manual',
+      status TEXT NOT NULL DEFAULT 'running',
+      error_message TEXT,
+      started_at INTEGER,
+      finished_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_messages (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      conversation_id TEXT REFERENCES agent_conversations(id) ON DELETE CASCADE,
+      chat_agent_id TEXT,
+      role TEXT NOT NULL DEFAULT 'user',
+      content TEXT NOT NULL,
+      metadata TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_tools (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL,
+      description TEXT NOT NULL,
+      icon TEXT,
+      parameters TEXT NOT NULL DEFAULT '{"type":"object","properties":{},"required":[]}',
+      code_content TEXT NOT NULL,
+      draft_code TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_tool_assignments (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      tool_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS configurations (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS llm_providers (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      label TEXT NOT NULL,
+      api_key TEXT NOT NULL DEFAULT '',
+      custom_base_url TEXT NOT NULL DEFAULT '',
+      models TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL DEFAULT '',
+      avatar TEXT,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS __migrations (
+      name TEXT PRIMARY KEY,
+      ran_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+  `);
+
+  const db = drizzle(raw, { schema });
+  return { db, raw };
+}
+
+// ─── App + Auth Helpers ──────────────────────────────────────────────────────
+
+import { createApp } from "../app.js";
+import { _resetDb, _setTestDb } from "../common/db/client.js";
+
+/**
+ * Create a full Hono app backed by a fresh in-memory DB.
+ * Returns the app, db, and a cleanup function.
+ */
+export function createTestApp() {
+  const { db, raw } = createTestDb();
+
+  // Inject the test DB into the singleton so all services use it
+  _setTestDb(db, raw);
+
+  const app = createApp();
+
+  return {
+    app,
+    db,
+    raw,
+    cleanup: () => {
+      raw.close();
+      _resetDb();
+    },
+  };
+}
+
+/**
+ * Setup an admin user via the /api/auth/setup endpoint.
+ * Returns the JWT token for subsequent authenticated requests.
+ */
+export async function setupAdmin(app: Hono, opts?: { username?: string; name?: string; password?: string; timezone?: string }) {
+  const body = {
+    username: opts?.username ?? "admin",
+    name: opts?.name ?? "Admin User",
+    password: opts?.password ?? "password123",
+    timezone: opts?.timezone ?? "Asia/Ho_Chi_Minh",
+  };
+
+  const res = await app.request("/api/auth/setup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const data = (await res.json()) as { token: string; user: Record<string, unknown> };
+  return { token: data.token, user: data.user, ...body };
+}
+
+/**
+ * Create Authorization header from a JWT token.
+ */
+export function authHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+/**
+ * Helper to make authenticated JSON requests.
+ */
+export async function authRequest(app: Hono, token: string, method: string, path: string, body?: unknown) {
+  const options: RequestInit = {
+    method,
+    headers: authHeaders(token),
+  };
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+  return app.request(path, options);
+}

@@ -31,7 +31,9 @@
     "biome:check": "bunx biome check --write ./src/web",
     "typecheck": "cd src/web && bunx tsc --noEmit",
     "typecheck:server": "cd src/server && bunx tsc --noEmit",
-    "typecheck:web": "cd src/web && bunx tsc --noEmit"
+    "typecheck:web": "cd src/web && bunx tsc --noEmit",
+    "test": "bun test src/server/src/__tests__/",
+    "test:watch": "bun test --watch src/server/src/__tests__/"
   },
   "dependencies": {
     "@langchain/openrouter": "^0.4.3",

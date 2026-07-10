@@ -206,24 +206,15 @@ export default function EditToolPage() {
   }, [id, isActive, toggling, dispatch, hasValidationErrors]);
 
   // ── Save ──
+  const [saveError, setSaveError] = useState<string | null>(null);
   const handleSave = async (codeOverride?: string) => {
     if (!id) return;
     const code = codeOverride ?? localCode;
-    const meta = parseMetaFromCode(code);
-    const errors: string[] = [];
-    if (!meta.label) errors.push("@name");
-    if (!meta.description) errors.push("@description");
-    const codeLines = code.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
-    if (codeLines.length === 0) errors.push("code body");
-    if (!/\breturn\b/.test(code)) errors.push("return statement");
-    if (errors.length > 0) {
-      setShowValidationError(true);
-      return;
-    }
     if (!codeOverride && !isDirty) return;
     setSaving(true);
+    setSaveError(null);
     try {
-      // Server auto-derives parameters, label, name, description from codeContent
+      // Server validates codeContent and auto-derives parameters, label, name, description
       await dispatch(
         updateTool({
           id,
@@ -232,6 +223,7 @@ export default function EditToolPage() {
         }),
       ).unwrap();
       setSavedCode(code);
+      const meta = parseMetaFromCode(code);
       setTool((prev) =>
         prev
           ? {
@@ -241,6 +233,10 @@ export default function EditToolPage() {
             }
           : prev,
       );
+    } catch (err: any) {
+      const msg = typeof err === "string" ? err : (err?.message ?? "Failed to save");
+      setSaveError(msg);
+      setShowValidationError(true);
     } finally {
       setSaving(false);
     }
@@ -345,7 +341,15 @@ export default function EditToolPage() {
       />
 
       {/* Validation error banner */}
-      {showValidationError && hasValidationErrors && <ValidationBanner errors={codeValidationErrors} onDismiss={() => setShowValidationError(false)} />}
+      {showValidationError && (saveError || hasValidationErrors) && (
+        <ValidationBanner
+          errors={saveError ? [saveError] : codeValidationErrors}
+          onDismiss={() => {
+            setShowValidationError(false);
+            setSaveError(null);
+          }}
+        />
+      )}
 
       {/* Body: [Editor + RunPanel] | CodingAgentPanel */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -444,7 +448,7 @@ export default function EditToolPage() {
 
               {/* RunPanel */}
               <div className="shrink-0 border-t border-border overflow-hidden" style={{ height: bottomHeight }}>
-                <RunPanel ref={runPanelRef} code={sharedCode} toolId={id} />
+                <RunPanel ref={runPanelRef} code={sharedCode} />
               </div>
             </>
           ) : (

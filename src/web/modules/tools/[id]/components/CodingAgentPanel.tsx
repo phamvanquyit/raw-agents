@@ -85,6 +85,14 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
     onToolActionRef.current = onToolAction;
   }, [onToolAction]);
 
+  // ── Cleanup on unmount — abort any running stream ──────────────────────
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { scrollRef: scrollContainerRef, scrollToBottom } = useAutoScroll();

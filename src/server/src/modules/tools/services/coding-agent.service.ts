@@ -150,7 +150,7 @@ function buildLangChainMessages(messages: CodingStreamRequest["messages"]): Base
  * @param body    - Request body with model info, messages, etc.
  * @param stream  - Hono SSE stream to write events to
  */
-export async function streamCodingAgent(toolId: string, body: CodingStreamRequest, stream: SSEStreamingApi): Promise<void> {
+export async function streamCodingAgent(toolId: string, body: CodingStreamRequest, stream: SSEStreamingApi, abortSignal?: AbortSignal): Promise<void> {
   const { providerId, modelId, messages, maxSteps = 12 } = body;
 
   // 1. Resolve model
@@ -172,5 +172,5 @@ export async function streamCodingAgent(toolId: string, body: CodingStreamReques
   const baseMessages = buildLangChainMessages(messages);
 
   // 5. Stream via shared helper
-  await streamAgentSSE({ agent, messages: baseMessages, maxSteps, stream });
+  await streamAgentSSE({ agent, messages: baseMessages, maxSteps, stream, abortSignal });
 }

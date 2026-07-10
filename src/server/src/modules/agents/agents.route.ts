@@ -5,11 +5,8 @@ import {
   addAssignment,
   cloneAgent,
   createAgent,
-  createAgentNote,
   deleteAgent,
   getAgent,
-  getTeammates,
-  listAgentNotes,
   listAgentsEnriched,
   listAssignments,
   removeAssignment,
@@ -63,26 +60,6 @@ app.delete("/:id", (c) => {
   deleteAgent(c.req.param("id"));
   return c.json({ ok: true });
 });
-
-// ─── Notes ───────────────────────────────────────────────────────────────────
-
-// GET /api/agents/:id/notes?titlesOnly=1
-app.get("/:id/notes", (c) => {
-  const agentId = c.req.param("id");
-  const titlesOnly = c.req.query("titlesOnly") === "1";
-  const rows = listAgentNotes(agentId);
-  if (titlesOnly) return c.json(rows.map((r) => ({ id: r.id, title: r.title })));
-  return c.json(rows);
-});
-
-// POST /api/agents/:id/notes
-app.post("/:id/notes", async (c) => {
-  const body = await c.req.json<{ title: string; content?: string }>();
-  return c.json(createAgentNote(c.req.param("id"), body), 201);
-});
-
-// GET /api/agents/:id/teammates
-app.get("/:id/teammates", (c) => c.json(getTeammates(c.req.param("id"))));
 
 // ─── Tool Assignments ────────────────────────────────────────────────────────
 
@@ -149,7 +126,14 @@ app.post("/:id/assistant/prompt/stream", async (c) => {
   const body = await c.req.json<PromptStreamRequest>();
 
   return streamSSE(c, async (stream) => {
-    await streamPromptAgent(agentId, body, stream);
+    const abort = new AbortController();
+
+    // When client disconnects (stop button, page close, navigation), abort the agent
+    stream.onAbort(() => {
+      abort.abort();
+    });
+
+    await streamPromptAgent(agentId, body, stream, abort.signal);
   });
 });
 

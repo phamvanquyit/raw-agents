@@ -1,7 +1,7 @@
 /**
  * buildSystemPrompt.ts (server-side)
  *
- * Build system prompt from agent data + DB (per-user facts, docs, teammates).
+ * Build system prompt from agent data + DB (per-user facts, docs).
  * Runs entirely on server — no HTTP round-trips.
  *
  * Memory is per-user:

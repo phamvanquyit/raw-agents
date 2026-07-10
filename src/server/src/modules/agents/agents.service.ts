@@ -1,5 +1,5 @@
 import { and, count, eq, inArray } from "drizzle-orm";
-import { type NewAgent, type NewAgentNote, agentNotes, agentTeams, agentToolAssignments, agentTools, agents, getDb, users } from "../../common/db/client.js";
+import { type NewAgent, agentToolAssignments, agentTools, agents, getDb, users } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 import { getBuiltinTool } from "../tools/tools.service.js";
@@ -157,44 +157,6 @@ export function cloneAgent(sourceId: string, createdBy?: string) {
   const result = db.select().from(agents).where(eq(agents.id, newId)).get();
   wsHub.emit("agents:created", result);
   return result;
-}
-
-// ─── Agent Notes ──────────────────────────────────────────────────────────────
-
-export function listAgentNotes(agentId: string) {
-  return getDb().select().from(agentNotes).where(eq(agentNotes.agentId, agentId)).all();
-}
-
-export function createAgentNote(agentId: string, body: { title: string; content?: string }) {
-  const now = new Date();
-  const note: NewAgentNote = {
-    id: crypto.randomUUID(),
-    agentId,
-    title: body.title,
-    content: body.content ?? "",
-    createdAt: now,
-    updatedAt: now,
-  };
-  getDb().insert(agentNotes).values(note).run();
-  return note;
-}
-
-// ─── Teammates ────────────────────────────────────────────────────────────────
-
-export function getTeammates(agentId: string) {
-  const db = getDb();
-  const self = db.select({ teamId: agents.teamId }).from(agents).where(eq(agents.id, agentId)).get();
-  if (!self?.teamId) return [];
-  const teamId = self.teamId;
-  const team = db.select().from(agentTeams).where(eq(agentTeams.id, teamId)).get();
-  if (!team) return [];
-  const teammates = db
-    .select({ id: agents.id, name: agents.name, description: agents.description })
-    .from(agents)
-    .where(eq(agents.teamId, teamId))
-    .all()
-    .filter((a) => a.id !== agentId);
-  return [{ teamId: team.id, teamName: team.name, teamDescription: team.description, teammates }];
 }
 
 // ─── Tool Assignments ─────────────────────────────────────────────────────────

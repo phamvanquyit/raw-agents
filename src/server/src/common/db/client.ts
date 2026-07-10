@@ -35,9 +35,16 @@ export function closeDb(): void {
   _db = null;
 }
 
-export function getRawDb(): Database {
-  if (!_raw) throw new Error("DB not initialized — call getDb() first");
-  return _raw;
+/** @internal — used by test-helpers to inject an in-memory DB */
+export function _setTestDb(db: ReturnType<typeof drizzle<typeof schema>>, raw: Database): void {
+  _db = db;
+  _raw = raw;
+}
+
+/** @internal — used by test-helpers to reset the singleton */
+export function _resetDb(): void {
+  _raw = null;
+  _db = null;
 }
 
 // ─── Migration runner ─────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
-import { CloseCircle, Play } from "@solar-icons/react";
+import { CloseCircle } from "@solar-icons/react";
 import { type Ref, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { apiClient } from "src/common/api";
+
 import { MonacoEditor } from "src/components/ui/MonacoEditor";
 import type { Param } from "../../common/constants";
 import { parseParamsFromCode } from "../../common/utils";
@@ -47,7 +47,6 @@ function buildDefaultJson(params: Param[]): string {
 
 interface RunPanelProps {
   code: string;
-  toolId?: string;
 }
 
 export interface RunPanelHandle {
@@ -60,7 +59,7 @@ export interface RunPanelHandle {
   setRunning: (running: boolean) => void;
 }
 
-export const RunPanel = forwardRef(function RunPanel({ code, toolId = "default" }: RunPanelProps, ref: Ref<RunPanelHandle>) {
+export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, ref: Ref<RunPanelHandle>) {
   const [result, setResult] = useState<RunResult | null>(null);
   const [runPhase, setRunPhase] = useState<"idle" | "installing" | "running">("idle");
   const [hasJsonError, setHasJsonError] = useState(false);
@@ -115,44 +114,6 @@ export const RunPanel = forwardRef(function RunPanel({ code, toolId = "default" 
 
   const phaseLabel = runPhase === "installing" ? "Installing deps…" : runPhase === "running" ? "Running…" : "";
 
-  async function handleRun() {
-    if (hasJsonError) return;
-    setResult({ status: "running", output: "" });
-    setRunPhase("installing");
-
-    try {
-      const inputJson = jsonTextRef.current;
-      setRunPhase("running");
-
-      const parsed = (await apiClient.post(`/api/tools/${toolId}/run`, { inputJson, code })) as {
-        ok: boolean;
-        result?: unknown;
-        error?: string;
-        console?: string;
-      };
-
-      const consoleOut = parsed.console?.trim() ?? "";
-
-      if (parsed.ok) {
-        setResult({
-          status: "ok",
-          output: tryPretty(parsed.result),
-          console: consoleOut || undefined,
-        });
-      } else {
-        setResult({
-          status: "error",
-          output: parsed.error ?? "Unknown error",
-          console: consoleOut || undefined,
-        });
-      }
-    } catch (err) {
-      setResult({ status: "error", output: String(err) });
-    } finally {
-      setRunPhase("idle");
-    }
-  }
-
   const editorLineCount = Math.min(12, Math.max(5, (jsonText.match(/\n/g)?.length ?? 0) + 1));
 
   return (
@@ -162,19 +123,6 @@ export const RunPanel = forwardRef(function RunPanel({ code, toolId = "default" 
         {/* Header + Run button */}
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">Input</span>
-          <button
-            type="button"
-            disabled={isRunning || !code.trim() || hasJsonError}
-            onClick={handleRun}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-secondary bg-primary hover:bg-primary-hover transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
-          >
-            {isRunning ? (
-              <span className="w-3 h-3 border-[1.5px] border-secondary/30 border-t-secondary rounded-full animate-spin" />
-            ) : (
-              <Play size={11} className="fill-current" />
-            )}
-            {isRunning ? "Running" : "Run"}
-          </button>
         </div>
 
         {/* Param badges */}

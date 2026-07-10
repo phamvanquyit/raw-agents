@@ -1,0 +1,179 @@
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { Hono } from "hono";
+import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
+
+describe("Agents API", () => {
+  let app: Hono;
+  let cleanup: () => void;
+  let token: string;
+
+  beforeAll(async () => {
+    const t = createTestApp();
+    app = t.app;
+    cleanup = t.cleanup;
+    const admin = await setupAdmin(app);
+    token = admin.token;
+  });
+
+  afterAll(() => cleanup());
+
+  // ── CRUD ──────────────────────────────────────────────────────────────
+
+  let agentId = "";
+
+  test("POST /api/agents — create agent", async () => {
+    const res = await authRequest(app, token, "POST", "/api/agents", {
+      name: "Test Agent",
+      description: "A test agent",
+      systemPrompt: "You are a helpful assistant.",
+    });
+
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.name).toBe("Test Agent");
+    expect(data.description).toBe("A test agent");
+    expect(data.id).toBeTruthy();
+    agentId = data.id as string;
+  });
+
+  test("GET /api/agents — list agents", async () => {
+    const res = await authRequest(app, token, "GET", "/api/agents?page=1&limit=50");
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as { items: Record<string, unknown>[]; total: number };
+    expect(data.items.length).toBeGreaterThanOrEqual(1);
+    expect(data.total).toBeGreaterThanOrEqual(1);
+
+    // Should have enrichment fields
+    const agent = data.items.find((a) => a.id === agentId);
+    expect(agent).toBeTruthy();
+    expect(agent).toHaveProperty("toolCount");
+  });
+
+  test("GET /api/agents — search by name", async () => {
+    const res = await authRequest(app, token, "GET", "/api/agents?search=Test");
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as { items: Record<string, unknown>[] };
+    expect(data.items.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("GET /api/agents/:id — get single agent", async () => {
+    const res = await authRequest(app, token, "GET", `/api/agents/${agentId}`);
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.id).toBe(agentId);
+    expect(data.name).toBe("Test Agent");
+  });
+
+  test("GET /api/agents/:id — not found", async () => {
+    const res = await authRequest(app, token, "GET", "/api/agents/nonexistent-id");
+    expect(res.status).toBe(400);
+  });
+
+  test("PUT /api/agents/:id — update agent", async () => {
+    const res = await authRequest(app, token, "PUT", `/api/agents/${agentId}`, {
+      name: "Updated Agent",
+      description: "Updated description",
+    });
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.name).toBe("Updated Agent");
+    expect(data.description).toBe("Updated description");
+  });
+
+  // ── Clone ─────────────────────────────────────────────────────────────
+
+  let clonedId = "";
+
+  test("POST /api/agents/:id/clone — clone agent", async () => {
+    const res = await authRequest(app, token, "POST", `/api/agents/${agentId}/clone`);
+    expect(res.status).toBe(201);
+
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.name).toBe("Updated Agent (Copy)");
+    expect(data.id).not.toBe(agentId);
+    clonedId = data.id as string;
+  });
+
+  test("POST /api/agents/:id/clone — clone increments copy number", async () => {
+    const res = await authRequest(app, token, "POST", `/api/agents/${agentId}/clone`);
+    expect(res.status).toBe(201);
+
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.name).toBe("Updated Agent (Copy 2)");
+  });
+
+  test("POST /api/agents/:id/clone — clone non-existent", async () => {
+    const res = await authRequest(app, token, "POST", "/api/agents/nonexistent/clone");
+    expect(res.status).toBe(400);
+  });
+
+  // ── Tool Assignments ──────────────────────────────────────────────────
+
+  test("GET /api/agents/:id/tool-assignments — empty initially", async () => {
+    const res = await authRequest(app, token, "GET", `/api/agents/${agentId}/tool-assignments`);
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as unknown[];
+    expect(data.length).toBe(0);
+  });
+
+  test("POST /api/agents/:id/tool-assignments — add builtin tool", async () => {
+    const res = await authRequest(app, token, "POST", `/api/agents/${agentId}/tool-assignments`, {
+      toolId: "builtin:fetch_webpage",
+    });
+
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.toolId).toBe("builtin:fetch_webpage");
+  });
+
+  test("GET /api/agents/:id/tool-assignments — has assigned tool", async () => {
+    const res = await authRequest(app, token, "GET", `/api/agents/${agentId}/tool-assignments`);
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as Record<string, unknown>[];
+    expect(data.length).toBe(1);
+    expect(data[0].toolId).toBe("builtin:fetch_webpage");
+    expect(data[0]).toHaveProperty("tool");
+  });
+
+  test("DELETE /api/agents/:id/tool-assignments/:aid — remove assignment", async () => {
+    // Get the assignment id first
+    const listRes = await authRequest(app, token, "GET", `/api/agents/${agentId}/tool-assignments`);
+    const assignments = (await listRes.json()) as { id: string }[];
+    const assignmentId = assignments[0].id;
+
+    const res = await authRequest(app, token, "DELETE", `/api/agents/${agentId}/tool-assignments/${assignmentId}`);
+    expect(res.status).toBe(200);
+
+    // Verify removed
+    const verifyRes = await authRequest(app, token, "GET", `/api/agents/${agentId}/tool-assignments`);
+    const data = (await verifyRes.json()) as unknown[];
+    expect(data.length).toBe(0);
+  });
+
+  test("PUT /api/agents/:id/tool-assignments — replace all", async () => {
+    const res = await authRequest(app, token, "PUT", `/api/agents/${agentId}/tool-assignments`, {
+      items: [{ toolId: "builtin:get_current_time" }, { toolId: "builtin:fetch_webpage" }],
+    });
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as unknown[];
+    expect(data.length).toBe(2);
+  });
+
+  // ── Delete ────────────────────────────────────────────────────────────
+
+  test("DELETE /api/agents/:id — delete agent", async () => {
+    const res = await authRequest(app, token, "DELETE", `/api/agents/${clonedId}`);
+    expect(res.status).toBe(200);
+
+    // Verify deleted
+    const getRes = await authRequest(app, token, "GET", `/api/agents/${clonedId}`);
+    expect(getRes.status).toBe(400); // "Agent not found"
+  });
+});

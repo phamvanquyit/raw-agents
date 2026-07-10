@@ -22,6 +22,8 @@ export interface StreamAgentSSEOptions {
   maxSteps?: number;
   /** Hono SSE stream to write events to. */
   stream: SSEStreamingApi;
+  /** Optional AbortSignal — when fired, the agent run is cancelled. */
+  abortSignal?: AbortSignal;
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────────
@@ -37,19 +39,22 @@ export interface StreamAgentSSEOptions {
  *   - `{ type: "done" }                       ` — stream finished
  *   - `{ type: "error",       error }         ` — unrecoverable error
  */
-export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream }: StreamAgentSSEOptions): Promise<void> {
+export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, abortSignal }: StreamAgentSSEOptions): Promise<void> {
   try {
     const agentStream = await agent.stream(
       { messages },
       {
         recursionLimit: maxSteps * 2 + 1,
         streamMode: ["messages", "updates"] as any,
+        signal: abortSignal,
       },
     );
 
     const emittedToolCalls = new Set<string>();
 
     for await (const chunk of agentStream) {
+      // Check abort between chunks
+      if (abortSignal?.aborted) break;
       const [mode, data] = chunk as unknown as [string, any];
 
       if (mode === "messages") {

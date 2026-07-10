@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { buildJsonSchemaFromCode, parseMetaFromCode } from "./common/code-annotations.js";
 
 interface ToolDefinition {
@@ -55,7 +56,7 @@ const ALL_TOOL_DEFS: ToolDefinition[] = [
 import { type NewAgentTool, agentToolAssignments, agentTools, getDb } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { wsHub } from "../../common/ws/wsHub.js";
-import { executeTool, validateToolCode } from "./common/python-runner.js";
+import { executeTool } from "./common/python-runner.js";
 
 const DATA_DIR = process.env.DATA_DIR ?? `${process.env.HOME}/.raw-agents`;
 
@@ -118,8 +119,21 @@ export function updateTool(id: string, body: Partial<NewAgentTool>) {
 
   // Auto-derive metadata from code annotations when codeContent is updated
   if (body.codeContent) {
-    const meta = parseMetaFromCode(body.codeContent);
-    const schema = buildJsonSchemaFromCode(body.codeContent);
+    const code = body.codeContent;
+    const meta = parseMetaFromCode(code);
+
+    // Validate required annotations and structure
+    const errors: string[] = [];
+    if (!meta.label) errors.push("@name");
+    if (!meta.description) errors.push("@description");
+    const codeLines = code.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
+    if (codeLines.length === 0) errors.push("code body");
+    if (!/\breturn\b/.test(code)) errors.push("return statement");
+    if (errors.length > 0) {
+      throw new BadRequestException(`Missing required: ${errors.join(", ")}`);
+    }
+
+    const schema = buildJsonSchemaFromCode(code);
     if (meta.label && !body.label) body.label = meta.label;
     if (meta.name && !body.name) body.name = meta.name;
     if (meta.description && !body.description) body.description = meta.description;
@@ -146,15 +160,6 @@ export function deleteTool(id: string) {
   for (const { agentId } of affected) {
     wsHub.emit("agents:tools-updated", { agentId, toolId: id });
   }
-}
-
-export async function validateCode(code: string) {
-  return validateToolCode(code);
-}
-
-export async function runCode(code: string, inputJson = "{}") {
-  const resultStr = await executeTool("__anon__", code, inputJson, DATA_DIR);
-  return JSON.parse(resultStr);
 }
 
 export async function runTool(id: string, inputJson = "{}", code?: string) {
