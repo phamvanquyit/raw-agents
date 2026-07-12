@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/bun-sqlite";
+import { getDataDir } from "../utils/data-dir.js";
 import * as schema from "./schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,7 +15,7 @@ let _raw: Database | null = null;
 export function getDb(dataDir?: string): ReturnType<typeof drizzle<typeof schema>> {
   if (_db) return _db;
 
-  const dir = dataDir ?? process.env.DATA_DIR ?? join(process.env.HOME ?? "~", ".raw-agents");
+  const dir = dataDir ?? getDataDir();
   mkdirSync(dir, { recursive: true });
 
   const dbPath = join(dir, "data.db");
