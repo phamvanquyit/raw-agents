@@ -21,6 +21,8 @@ const AgentDetailPage = lazy(() => import("./modules/agents/[id]/page"));
 const DashboardPage = lazy(() => import("./modules/dashboard/DashboardPage"));
 const TeamsPage = lazy(() => import("./modules/teams/TeamsPage"));
 const ProfilePage = lazy(() => import("./modules/profile/ProfilePage"));
+const McpServersPage = lazy(() => import("./modules/mcp-servers/McpServersPage"));
+const McpServersEditPage = lazy(() => import("./modules/mcp-servers/McpServersEditPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
 const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
@@ -114,6 +116,8 @@ function AppContent() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
+            <Route path="/mcp-servers" element={<McpServersPage />} />
+            <Route path="/mcp-servers/edit" element={<McpServersEditPage />} />
             <Route path="/teams" element={<TeamsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route

@@ -95,11 +95,11 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
         id="agents"
         position={Position.Right}
         style={{ top: 76 }}
-        className="!w-2 !h-2 !bg-[rgba(156,154,242,0.3)] !border-2 !border-[rgba(156,154,242,0.5)] transition-all duration-150 hover:!bg-[#9c9af2] hover:!border-[#9c9af2] hover:!w-3 hover:!h-3"
+        className="!w-2 !h-2 !bg-[rgba(56,217,200,0.3)] !border-2 !border-[rgba(56,217,200,0.5)] transition-all duration-150 hover:!bg-[#38D9C8] hover:!border-[#38D9C8] hover:!w-3 hover:!h-3"
       />
       {/* Label for Call Agents handle */}
       <div style={{ position: "absolute", top: 76, right: 14, transform: "translateY(-50%)", pointerEvents: "none" }} className="flex items-center gap-1">
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-[#9c9af2]/50 bg-[rgba(156,154,242,0.05)] px-1.5 py-0.5 rounded-full">
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-[#38D9C8]/50 bg-[rgba(56,217,200,0.05)] px-1.5 py-0.5 rounded-full">
           Agents
         </span>
       </div>

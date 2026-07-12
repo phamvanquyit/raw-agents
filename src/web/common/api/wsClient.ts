@@ -32,6 +32,9 @@ export type WsEventType =
   | "tools:created"
   | "tools:updated"
   | "tools:deleted"
+  | "mcp-servers:created"
+  | "mcp-servers:updated"
+  | "mcp-servers:deleted"
   | "ping"
   | "client:id"
   // ── Chat stream events ──

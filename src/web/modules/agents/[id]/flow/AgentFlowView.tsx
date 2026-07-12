@@ -1,14 +1,14 @@
 // ─── Agent Flow View ──────────────────────────────────────────────────────────
 // React Flow canvas with current agent at center. To the right:
-//   • Tools group (dashed box) — individual tool nodes, drag-connect to assign
-//   • Call Agent group (dashed box, below tools) — individual agent nodes, drag-connect
-// Each group has a dashed-border backdrop for visual grouping.
+//   • Builtin Tools / Custom Tools — drag-connect
+//   • MCP — server cards; popover toggles assign tools; edge if ≥1 connected
+//   • Call Agent group — other agents, drag-connect to assign
 
 import { Background, BackgroundVariant, type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { Agent, AgentTool, AgentToolAssignment } from "src/common/types";
+import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
 import { SimpleDialog } from "src/components/ui/dialog";
 import { ChatPage } from "../chat/ChatPage";
 import { PromptPage } from "../prompt/PromptPage";
@@ -18,12 +18,14 @@ import { CallableAgentNode, type CallableAgentNodeType } from "./nodes/CallableA
 import { ChatNode, type ChatNodeType } from "./nodes/ChatNode";
 import { DashedGroupNode, type DashedGroupNodeType } from "./nodes/DashedGroupNode";
 import { FlowToolNode, type FlowToolNodeType } from "./nodes/FlowToolNode";
+import { McpServerNode, type McpServerNodeType } from "./nodes/McpServerNode";
 import { PublishNode, type PublishNodeType } from "./nodes/PublishNode";
 
 // ─── Node & Edge Types ──────────────────────────────────────────────────────
 
 const nodeTypes = {
   flowTool: FlowToolNode,
+  mcpServer: McpServerNode,
   callableAgent: CallableAgentNode,
   dashedGroup: DashedGroupNode,
   agentConfig: AgentConfigNode,
@@ -44,14 +46,16 @@ const ITEMS_COL_X = CENTER_X + 600; // x position for items inside groups
 const ITEM_GAP_Y = 50; // vertical spacing between nodes
 
 const GROUP_PADDING_X = 16; // horizontal padding inside group box
-const GROUP_PADDING_TOP = 32; // space for group label
+const GROUP_PADDING_TOP = 44; // space under group label (Tools / MCP / Call Agent)
 const GROUP_PADDING_BOTTOM = 12;
-const GROUP_GAP = 40; // gap between tools and agents groups
+const GROUP_GAP = 40; // gap between tool / MCP / agent groups
+const MCP_PARENT_GAP_Y = 56; // vertical spacing between MCP server cards
 
 // ─── Edge Colors ─────────────────────────────────────────────────────────────
 
 const TOOL_EDGE_COLOR = "#a8ff53";
-const AGENT_EDGE_COLOR = "#9c9af2";
+const MCP_EDGE_COLOR = "#FF8A3D";
+const AGENT_EDGE_COLOR = "#38D9C8";
 const PUBLISH_EDGE_COLOR = "#9c9af2";
 
 // ─── Canvas Text Measurement ─────────────────────────────────────────────────
@@ -70,10 +74,12 @@ interface AgentFlowViewProps {
   agent: Agent;
   agents: Agent[];
   allTools: AgentTool[];
+  mcpServers: McpServer[];
   toolAssignments: AgentToolAssignment[];
   callableAgentIds: string[];
   onRemoveToolAssignment: (toolId: string) => void;
   onAddToolAssignment: (toolId: string) => void;
+  onToggleMcpTools: (toolIds: string[], enable: boolean) => void;
   onAddCallableAgent: (agentId: string) => void;
   onRemoveCallableAgent: (agentId: string) => void;
   // Config node props
@@ -98,10 +104,12 @@ function AgentFlowInner({
   agent,
   agents,
   allTools,
+  mcpServers,
   toolAssignments,
   callableAgentIds,
   onRemoveToolAssignment,
   onAddToolAssignment,
+  onToggleMcpTools,
   onAddCallableAgent,
   onRemoveCallableAgent,
   selectedProviderId,
@@ -124,6 +132,21 @@ function AgentFlowInner({
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const handleToggleMcpTool = useCallback(
+    (toolId: string, connected: boolean) => {
+      if (connected) onAddToolAssignment(toolId);
+      else onRemoveToolAssignment(toolId);
+    },
+    [onAddToolAssignment, onRemoveToolAssignment],
+  );
+
+  const handleToggleAllMcpTools = useCallback(
+    (toolIds: string[], enable: boolean) => {
+      onToggleMcpTools(toolIds, enable);
+    },
+    [onToggleMcpTools],
+  );
+
   // Auto-open chat modal when URL has ?conv= (e.g. after F5 refresh)
   useEffect(() => {
     if (searchParams.has("conv")) {
@@ -138,38 +161,63 @@ function AgentFlowInner({
 
     // ── Prepare data ────────────────────────────────────────────────────────
 
-    const sortedTools = [...allTools]
-      .filter((t) => t.isActive !== false && t.name !== "call_agent")
-      .sort((a, b) => {
-        const aBuiltin = a.id.startsWith("builtin:");
-        const bBuiltin = b.id.startsWith("builtin:");
-        if (aBuiltin !== bBuiltin) return aBuiltin ? -1 : 1;
-        return a.name.localeCompare(b.name);
+    const activeTools = allTools.filter((t) => t.isActive !== false && t.name !== "call_agent");
+
+    const builtinTools = activeTools.filter((t) => t.id.startsWith("builtin:")).sort((a, b) => (a.label || a.name).localeCompare(b.label || b.name));
+    const customTools = activeTools.filter((t) => !t.id.startsWith("builtin:")).sort((a, b) => (a.label || a.name).localeCompare(b.label || b.name));
+
+    const mcpGroups: { serverId: string; name: string; tools: { id: string; label: string }[] }[] = [];
+    for (const server of mcpServers) {
+      if (server.isActive === false) continue;
+      const catalog = [...(server.tools ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+      if (catalog.length === 0) continue;
+      mcpGroups.push({
+        serverId: server.id,
+        name: server.name,
+        tools: catalog.map((t) => ({
+          id: `mcp:${server.id}:${t.name}`,
+          label: t.name,
+        })),
       });
+    }
 
     const otherAgents = agents.filter((a) => a.id !== agent.id).sort((a, b) => a.name.localeCompare(b.name));
 
     // ── Measure widths ──────────────────────────────────────────────────────
 
-    const ITEM_FIXED_WIDTH = 56; // px-3 (24) + icon (24) + gap (8)
-    const toolMaxText = measureMaxTextWidth(sortedTools.map((t) => t.label || t.name));
-    const toolNodeWidth = Math.ceil(toolMaxText + ITEM_FIXED_WIDTH);
-
-    const agentMaxText = measureMaxTextWidth(otherAgents.map((a) => a.name));
-    const agentNodeWidth = Math.ceil(agentMaxText + ITEM_FIXED_WIDTH);
-
-    const groupInnerWidth = Math.max(toolNodeWidth, agentNodeWidth);
-
-    // ── Calculate group dimensions ──────────────────────────────────────────
-
-    const toolsGroupHeight = GROUP_PADDING_TOP + sortedTools.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM;
-    const agentsGroupHeight = GROUP_PADDING_TOP + otherAgents.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM;
+    const ITEM_FIXED_WIDTH = 56;
+    const toolLabels = [...builtinTools, ...customTools].map((t) => t.label || t.name);
+    const mcpParentLabels = mcpGroups.map((g) => g.name);
+    const agentLabels = otherAgents.map((a) => a.name);
+    const parentMaxText = measureMaxTextWidth([...toolLabels, ...mcpParentLabels, ...agentLabels]);
+    const groupInnerWidth = Math.ceil(parentMaxText + ITEM_FIXED_WIDTH + 24);
     const groupWidth = groupInnerWidth + 2 * GROUP_PADDING_X;
 
-    // Position tools group — vertically centered with current agent
-    const totalHeight = toolsGroupHeight + GROUP_GAP + agentsGroupHeight;
-    const toolsGroupY = CENTER_Y - totalHeight / 2 + 20;
-    const agentsGroupY = toolsGroupY + toolsGroupHeight + GROUP_GAP;
+    // ── Calculate group heights & positions ─────────────────────────────────
+
+    const builtinGroupHeight = builtinTools.length > 0 ? GROUP_PADDING_TOP + builtinTools.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM : 0;
+    const customGroupHeight = customTools.length > 0 ? GROUP_PADDING_TOP + customTools.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM : 0;
+    const mcpStackHeight = mcpGroups.length > 0 ? mcpGroups.length * MCP_PARENT_GAP_Y : 0;
+    const mcpSectionHeight = mcpStackHeight > 0 ? GROUP_PADDING_TOP + mcpStackHeight + GROUP_PADDING_BOTTOM : 0;
+    const agentsGroupHeight = otherAgents.length > 0 ? GROUP_PADDING_TOP + otherAgents.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM : 0;
+
+    const sections: number[] = [];
+    if (builtinGroupHeight > 0) sections.push(builtinGroupHeight);
+    if (customGroupHeight > 0) sections.push(customGroupHeight);
+    if (mcpSectionHeight > 0) sections.push(mcpSectionHeight);
+    if (agentsGroupHeight > 0) sections.push(agentsGroupHeight);
+
+    const totalHeight = sections.reduce((sum, h) => sum + h, 0) + Math.max(0, sections.length - 1) * GROUP_GAP;
+
+    let cursorY = CENTER_Y - totalHeight / 2 + 20;
+    const builtinGroupY = cursorY;
+    if (builtinGroupHeight > 0) cursorY += builtinGroupHeight + GROUP_GAP;
+    const customGroupY = cursorY;
+    if (customGroupHeight > 0) cursorY += customGroupHeight + GROUP_GAP;
+
+    const mcpSectionY = cursorY;
+    if (mcpSectionHeight > 0) cursorY += mcpSectionHeight + GROUP_GAP;
+    const agentsGroupY = cursorY;
 
     // ── 0. Config Node (central node) ──────────────────────────────────────
 
@@ -225,38 +273,108 @@ function AgentFlowInner({
       result.push(publishNode);
     }
 
-    // ── 2. Tools Group Backdrop (dashed box) ────────────────────────────────
+    // ── 1. Builtin Tools Group ──────────────────────────────────────────────
 
-    const toolsBackdrop: DashedGroupNodeType = {
-      id: "tools-backdrop",
-      type: "dashedGroup",
-      position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: toolsGroupY },
-      zIndex: -1,
-      selectable: false,
-      draggable: false,
-      data: { label: "Tools", color: "#a8ff53", width: groupWidth, height: toolsGroupHeight },
-    };
-    result.push(toolsBackdrop);
-
-    // ── 3. Individual Tool Nodes ────────────────────────────────────────────
-
-    sortedTools.forEach((tool, i) => {
-      const node: FlowToolNodeType = {
-        id: `tool-${tool.id}`,
-        type: "flowTool",
-        position: { x: ITEMS_COL_X, y: toolsGroupY + GROUP_PADDING_TOP + i * ITEM_GAP_Y },
-        data: {
-          label: tool.label,
-          name: tool.name,
-          description: tool.description?.slice(0, 60) + (tool.description?.length > 60 ? "…" : "") || "",
-          isConnected: assignedToolIds.has(tool.id),
-          width: groupInnerWidth,
-        },
+    if (builtinTools.length > 0) {
+      const builtinBackdrop: DashedGroupNodeType = {
+        id: "builtin-tools-backdrop",
+        type: "dashedGroup",
+        position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: builtinGroupY },
+        zIndex: -1,
+        selectable: false,
+        draggable: false,
+        data: { label: "Builtin Tools", color: "#a8ff53", width: groupWidth, height: builtinGroupHeight },
       };
-      result.push(node);
-    });
+      result.push(builtinBackdrop);
 
-    // ── 4. Agents Group Backdrop (dashed box) ───────────────────────────────
+      builtinTools.forEach((tool, i) => {
+        const node: FlowToolNodeType = {
+          id: `tool-${tool.id}`,
+          type: "flowTool",
+          position: { x: ITEMS_COL_X, y: builtinGroupY + GROUP_PADDING_TOP + i * ITEM_GAP_Y },
+          data: {
+            label: tool.label || tool.name,
+            name: tool.name,
+            description: tool.description?.slice(0, 60) + (tool.description?.length > 60 ? "…" : "") || "",
+            isConnected: assignedToolIds.has(tool.id),
+            width: groupInnerWidth,
+          },
+        };
+        result.push(node);
+      });
+    }
+
+    // ── 1b. Custom Tools Group ──────────────────────────────────────────────
+
+    if (customTools.length > 0) {
+      const customBackdrop: DashedGroupNodeType = {
+        id: "custom-tools-backdrop",
+        type: "dashedGroup",
+        position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: customGroupY },
+        zIndex: -1,
+        selectable: false,
+        draggable: false,
+        data: { label: "Custom Tools", color: "#9c9af2", width: groupWidth, height: customGroupHeight },
+      };
+      result.push(customBackdrop);
+
+      customTools.forEach((tool, i) => {
+        const node: FlowToolNodeType = {
+          id: `tool-${tool.id}`,
+          type: "flowTool",
+          position: { x: ITEMS_COL_X, y: customGroupY + GROUP_PADDING_TOP + i * ITEM_GAP_Y },
+          data: {
+            label: tool.label || tool.name,
+            name: tool.name,
+            description: tool.description?.slice(0, 60) + (tool.description?.length > 60 ? "…" : "") || "",
+            isConnected: assignedToolIds.has(tool.id),
+            width: groupInnerWidth,
+          },
+        };
+        result.push(node);
+      });
+    }
+
+    // ── 2. MCP Section — server cards with popover toggles ──────────────────
+
+    if (mcpGroups.length > 0) {
+      const mcpBackdrop: DashedGroupNodeType = {
+        id: "mcp-backdrop",
+        type: "dashedGroup",
+        position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: mcpSectionY },
+        zIndex: -1,
+        selectable: false,
+        draggable: false,
+        data: { label: "MCP", color: "#FF8A3D", width: groupWidth, height: mcpSectionHeight },
+      };
+      result.push(mcpBackdrop);
+
+      mcpGroups.forEach((group, gi) => {
+        const parentY = mcpSectionY + GROUP_PADDING_TOP + gi * MCP_PARENT_GAP_Y;
+
+        const parent: McpServerNodeType = {
+          id: `mcp-server-${group.serverId}`,
+          type: "mcpServer",
+          position: { x: ITEMS_COL_X, y: parentY },
+          draggable: false,
+          connectable: false,
+          data: {
+            name: group.name,
+            width: groupInnerWidth,
+            tools: group.tools.map((tool) => ({
+              id: tool.id,
+              label: tool.label,
+              connected: assignedToolIds.has(tool.id),
+            })),
+            onToggleTool: handleToggleMcpTool,
+            onToggleAll: handleToggleAllMcpTools,
+          },
+        };
+        result.push(parent);
+      });
+    }
+
+    // ── 3. Agents Group ─────────────────────────────────────────────────────
 
     if (otherAgents.length > 0) {
       const agentsBackdrop: DashedGroupNodeType = {
@@ -266,11 +384,9 @@ function AgentFlowInner({
         zIndex: -1,
         selectable: false,
         draggable: false,
-        data: { label: "Call Agent", color: "#9c9af2", width: groupWidth, height: agentsGroupHeight },
+        data: { label: "Call Agent", color: "#38D9C8", width: groupWidth, height: agentsGroupHeight },
       };
       result.push(agentsBackdrop);
-
-      // ── 5. Individual Agent Nodes ───────────────────────────────────────
 
       otherAgents.forEach((ag, i) => {
         const node: CallableAgentNodeType = {
@@ -293,10 +409,13 @@ function AgentFlowInner({
     agent,
     agents,
     allTools,
+    mcpServers,
     toolAssignments,
     callableAgentIds,
     assignedToolIds,
     callableSet,
+    handleToggleMcpTool,
+    handleToggleAllMcpTools,
     selectedProviderId,
     aiModel,
     systemPrompt,
@@ -311,13 +430,39 @@ function AgentFlowInner({
     onSavePassword,
   ]);
 
+  // Tools that belong to an MCP server (edges go from server node, not tool node)
+  const mcpToolIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of mcpServers) {
+      for (const t of s.tools ?? []) {
+        ids.add(`mcp:${s.id}:${t.name}`);
+      }
+    }
+    return ids;
+  }, [mcpServers]);
+
+  const mcpServerConnectedIds = useMemo(() => {
+    const byServer = new Map<string, string[]>();
+    for (const toolId of assignedToolIds) {
+      if (!toolId.startsWith("mcp:")) continue;
+      const rest = toolId.slice(4);
+      const idx = rest.indexOf(":");
+      if (idx <= 0) continue;
+      const serverId = rest.slice(0, idx);
+      if (!byServer.has(serverId)) byServer.set(serverId, []);
+      byServer.get(serverId)!.push(toolId);
+    }
+    return byServer;
+  }, [assignedToolIds]);
+
   // ─── Build Edges ────────────────────────────────────────────────────────────
 
   const edges = useMemo(() => {
     const result: Edge[] = [];
 
-    // Edges from assigned tools → config node (tools handle)
+    // Edges from assigned local tools → config
     for (const assignment of toolAssignments) {
+      if (mcpToolIds.has(assignment.toolId)) continue;
       result.push({
         id: `edge-tool-${assignment.toolId}`,
         source: `tool-${assignment.toolId}`,
@@ -328,6 +473,25 @@ function AgentFlowInner({
         selected: selectedEdgeId === `edge-tool-${assignment.toolId}`,
         data: { onDelete: () => onRemoveToolAssignment(assignment.toolId) },
         style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
+      });
+    }
+
+    // One edge per MCP server that has ≥1 connected tool
+    for (const [serverId, toolIds] of mcpServerConnectedIds) {
+      result.push({
+        id: `edge-mcp-${serverId}`,
+        source: `mcp-server-${serverId}`,
+        target: "config",
+        targetHandle: "tools",
+        type: "deletable",
+        animated: true,
+        selected: selectedEdgeId === `edge-mcp-${serverId}`,
+        data: {
+          onDelete: () => {
+            for (const toolId of toolIds) onRemoveToolAssignment(toolId);
+          },
+        },
+        style: { stroke: MCP_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
       });
     }
 
@@ -376,7 +540,7 @@ function AgentFlowInner({
     }
 
     return result;
-  }, [agent.id, toolAssignments, callableAgentIds, selectedEdgeId, onRemoveToolAssignment, onRemoveCallableAgent, isPublic]);
+  }, [agent.id, toolAssignments, callableAgentIds, selectedEdgeId, onRemoveToolAssignment, onRemoveCallableAgent, isPublic, mcpToolIds, mcpServerConnectedIds]);
 
   // ─── Edge Delete Handler ───────────────────────────────────────────────────
 
@@ -385,12 +549,16 @@ function AgentFlowInner({
       for (const edge of deletedEdges) {
         if (edge.id.startsWith("edge-tool-")) {
           onRemoveToolAssignment(edge.id.replace("edge-tool-", ""));
+        } else if (edge.id.startsWith("edge-mcp-")) {
+          const serverId = edge.id.replace("edge-mcp-", "");
+          const toolIds = mcpServerConnectedIds.get(serverId) ?? [];
+          for (const toolId of toolIds) onRemoveToolAssignment(toolId);
         } else if (edge.id.startsWith("edge-agent-")) {
           onRemoveCallableAgent(edge.id.replace("edge-agent-", ""));
         }
       }
     },
-    [onRemoveToolAssignment, onRemoveCallableAgent],
+    [onRemoveToolAssignment, onRemoveCallableAgent, mcpServerConnectedIds],
   );
 
   // ─── Connection Handler (drag to connect) ─────────────────────────────────

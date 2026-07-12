@@ -127,6 +127,28 @@ export interface AgentToolAssignment {
   };
 }
 
+// ─── MCP Servers ──────────────────────────────────────────────────────────────
+
+export interface McpServerTool {
+  name: string;
+  description: string;
+  inputSchema: object;
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  url: string;
+  headers: Record<string, string>;
+  isActive: boolean;
+  toolCount?: number;
+  tools?: McpServerTool[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type NewMcpServer = Omit<McpServer, "id" | "createdAt" | "updatedAt" | "toolCount">;
+
 // ─── App Settings ─────────────────────────────────────────────────────────────
 
 export interface AppSetting {

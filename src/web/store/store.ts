@@ -5,6 +5,7 @@ import { authReducer } from "src/common/authSlice";
 import { agentsReducer } from "src/modules/agents/common/agentsSlice";
 import { chatReducer } from "src/modules/chat/common/chatSlice";
 import { llmProvidersReducer } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { mcpServersReducer } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { teamsReducer } from "src/modules/teams/common/teamsSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
 
@@ -16,6 +17,7 @@ export const store = configureStore({
     tools: toolsReducer,
     teams: teamsReducer,
     chat: chatReducer,
+    mcpServers: mcpServersReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
 });

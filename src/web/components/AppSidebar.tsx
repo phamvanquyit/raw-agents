@@ -8,6 +8,7 @@ import {
   FaceScanSquare,
   HomeAngle,
   Logout2,
+  PlugCircle,
   Programming,
   Settings,
   User as UserIcon,
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/settings", label: "Settings", icon: <Settings weight="BoldDuotone" width={20} height={20} /> },
   { to: "/agents", label: "Agents", icon: <FaceScanSquare weight="BoldDuotone" width={20} height={20} /> },
   { to: "/tools", label: "Tools", icon: <Programming weight="BoldDuotone" width={20} height={20} /> },
+  { to: "/mcp-servers", label: "MCP", icon: <PlugCircle weight="BoldDuotone" width={20} height={20} /> },
 ];
 
 /* ── Sidebar Tooltip (inline — no lib needed) ────────────────────────────── */

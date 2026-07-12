@@ -19,8 +19,8 @@ export function CallableAgentNode({ data }: NodeProps<CallableAgentNodeType>) {
     <div
       className={`relative flex items-center gap-2 px-3 py-2 rounded-md border bg-surface transition-all duration-200 cursor-default ${
         data.isConnected
-          ? "border-[#9c9af2]/25 hover:border-[#9c9af2]/40 hover:shadow-[0_0_16px_rgba(156,154,242,0.1)]"
-          : "border-border opacity-35 hover:opacity-55"
+          ? "border-[#38D9C8]/30 hover:border-[#38D9C8]/50 hover:shadow-[0_0_16px_rgba(56,217,200,0.12)]"
+          : "border-border hover:border-border-hover"
       }`}
       style={data.width ? { width: data.width } : undefined}
     >
@@ -28,11 +28,11 @@ export function CallableAgentNode({ data }: NodeProps<CallableAgentNodeType>) {
       <Handle
         type="source"
         position={Position.Left}
-        className="!w-2 !h-2 !bg-surface-raised !border-2 !border-white/20 transition-all duration-150 hover:!bg-[#9c9af2] hover:!border-[#9c9af2] hover:!w-3 hover:!h-3"
+        className="!w-2 !h-2 !bg-surface-raised !border-2 !border-white/20 transition-all duration-150 hover:!bg-[#38D9C8] hover:!border-[#38D9C8] hover:!w-3 hover:!h-3"
       />
 
-      <div className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0 bg-[rgba(156,154,242,0.12)]">
-        <AppLogo size={14} fill={data.isConnected ? "#9c9af2" : "#8b8d94"} strokeWidth={1} />
+      <div className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0 bg-[rgba(56,217,200,0.12)]">
+        <AppLogo size={14} fill={data.isConnected ? "#38D9C8" : "#8b8d94"} strokeWidth={1} />
       </div>
 
       <div className="text-xs font-semibold text-main leading-[1.3]">{data.name}</div>

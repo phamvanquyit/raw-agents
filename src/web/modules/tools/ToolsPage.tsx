@@ -28,7 +28,6 @@ export default function ToolsPage() {
     dispatch(fetchTools());
   }, [dispatch]);
 
-  // Filtered tools
   const filteredTools = useMemo(() => {
     if (!search.trim()) return tools;
     const q = search.trim().toLowerCase();
@@ -37,7 +36,6 @@ export default function ToolsPage() {
     );
   }, [tools, search]);
 
-  // Separate custom and builtin by id prefix
   const customTools = useMemo(
     () => filteredTools.filter((t) => !t.id.startsWith("builtin:")).sort((a, b) => (a.label ?? "").localeCompare(b.label ?? "")),
     [filteredTools],
@@ -60,7 +58,6 @@ export default function ToolsPage() {
 
   return (
     <div className="py-8 px-10">
-      {/* Header */}
       <div className="flex items-start justify-between mb-8 max-w-6xl mx-auto">
         <div className="flex items-center gap-4">
           <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 text-primary">
@@ -82,9 +79,7 @@ export default function ToolsPage() {
       </div>
 
       <div className="max-w-6xl mx-auto">
-        {/* Tabs + Search row */}
         <div className="flex items-center justify-between gap-4 mb-6">
-          {/* Tab bar */}
           <div className="flex items-center gap-1 p-1 rounded-lg bg-surface-raised/60">
             {tabs.map((tab) => (
               <button
@@ -109,31 +104,26 @@ export default function ToolsPage() {
             ))}
           </div>
 
-          {/* Search */}
           <div className="relative max-w-[300px] w-full">
             <Magnifier width={16} height={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none z-[1]" />
             <Input placeholder="Search tools…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
         </div>
 
-        {/* Tools Table */}
         <RenderIf condition={visibleTools.length > 0}>
           <div className="rounded-xl border border-border/60 overflow-hidden">
-            {/* Table header */}
             <div className="flex items-center gap-4 px-4 py-2.5 bg-surface-raised/40 border-b border-border/40">
               <div className="w-8 shrink-0" />
               <span className="flex-1 text-[11px] font-semibold text-muted uppercase tracking-wider">Name</span>
               <span className="shrink-0 text-[11px] font-semibold text-muted uppercase tracking-wider w-20 text-right">Params</span>
               <span className="shrink-0 text-[11px] font-semibold text-muted uppercase tracking-wider w-24 text-right">Status</span>
             </div>
-            {/* Table rows */}
             {visibleTools.map((tool) => (
               <ToolTableRow key={tool.id} tool={tool} onClick={activeTab === "custom" ? () => handleToolClick(tool.id) : undefined} />
             ))}
           </div>
         </RenderIf>
 
-        {/* Empty state */}
         <RenderIf condition={visibleTools.length === 0}>
           <div className="flex flex-col items-center justify-center py-20 px-5">
             <div className="w-14 h-14 rounded-2xl bg-surface-raised flex items-center justify-center mb-4">

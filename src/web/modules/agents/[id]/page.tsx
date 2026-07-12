@@ -5,7 +5,7 @@
 import { AltArrowLeft, MenuDots, TrashBinTrash } from "@solar-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import type { Agent, AgentTool, AgentToolAssignment } from "src/common/types";
+import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import {
   AlertDialog,
@@ -19,6 +19,7 @@ import {
 import { Button } from "src/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { fetchMcpServers } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { fetchTools } from "src/modules/tools/common/toolsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { deleteAgent, fetchAgents, fetchOneAgent, updateAgent } from "../common/agentsSlice";
@@ -49,6 +50,15 @@ async function apiAddAssignment(agentId: string, toolId: string): Promise<AgentT
   return res.json();
 }
 
+async function apiSetAssignments(agentId: string, toolIds: string[]): Promise<AgentToolAssignment[]> {
+  const res = await fetch(`${API_BASE}/agents/${agentId}/tool-assignments`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items: toolIds.map((toolId) => ({ toolId })) }),
+  });
+  return res.json();
+}
+
 async function apiUpdateCallableAgents(agentId: string, callableAgentIds: string[]): Promise<void> {
   await fetch(`${API_BASE}/agents/${agentId}`, {
     method: "PUT",
@@ -65,6 +75,7 @@ export default function AgentDetailPage() {
   const dispatch = useAppDispatch();
   const agents = useAppSelector((s) => s.agents.items) as Agent[];
   const allTools = useAppSelector((s) => s.tools.items) as AgentTool[];
+  const mcpServers = useAppSelector((s) => s.mcpServers.items) as McpServer[];
 
   // ── Detail form state ──────────────────────────────────────────────────────
   const [loaded, setLoaded] = useState(false);
@@ -92,10 +103,11 @@ export default function AgentDetailPage() {
     fetchAssignments(id).then((a) => setToolAssignments(a));
   }, [id, dispatch]);
 
-  // Fetch tools + providers
+  // Fetch tools + providers + MCP servers
   useEffect(() => {
     dispatch(fetchTools());
     dispatch(fetchLlmProviders());
+    dispatch(fetchMcpServers());
   }, [dispatch]);
 
   // Hydrate form state from store
@@ -151,6 +163,36 @@ export default function AgentDetailPage() {
       });
     },
     [id],
+  );
+
+  const handleToggleMcpTools = useCallback(
+    (toolIds: string[], enable: boolean) => {
+      if (!id || toolIds.length === 0) return;
+      const target = new Set(toolIds);
+      const nextIds = enable
+        ? [...new Set([...toolAssignments.map((a) => a.toolId), ...toolIds])]
+        : toolAssignments.filter((a) => !target.has(a.toolId)).map((a) => a.toolId);
+
+      const optimistic: AgentToolAssignment[] = nextIds.map((toolId) => {
+        const existing = toolAssignments.find((a) => a.toolId === toolId);
+        if (existing) return existing;
+        return {
+          id: `temp-${toolId}`,
+          agentId: id,
+          toolId,
+          createdAt: new Date(),
+          tool: { name: toolId, label: toolId, description: "" },
+        };
+      });
+      setToolAssignments(optimistic);
+
+      apiSetAssignments(id, nextIds)
+        .then(setToolAssignments)
+        .catch(() => {
+          fetchAssignments(id).then(setToolAssignments);
+        });
+    },
+    [id, toolAssignments],
   );
 
   const handleAddCallableAgent = useCallback(
@@ -344,10 +386,12 @@ export default function AgentDetailPage() {
                   agent={agent}
                   agents={agents}
                   allTools={allTools}
+                  mcpServers={mcpServers}
                   toolAssignments={toolAssignments}
                   callableAgentIds={callableAgentIds}
                   onRemoveToolAssignment={handleRemoveToolAssignment}
                   onAddToolAssignment={handleAddToolAssignment}
+                  onToggleMcpTools={handleToggleMcpTools}
                   onAddCallableAgent={handleAddCallableAgent}
                   onRemoveCallableAgent={handleRemoveCallableAgent}
                   selectedProviderId={selectedProviderId}

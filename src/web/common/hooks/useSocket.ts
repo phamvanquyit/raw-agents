@@ -6,9 +6,10 @@
  */
 
 import { useEffect } from "react";
-import type { Agent, AgentConversation, AgentTool } from "src/common/types";
+import type { Agent, AgentConversation, AgentTool, McpServer } from "src/common/types";
 import { removeAgentLocal, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
 import { removeConversationLocal, upsertConversationLocal } from "src/modules/chat/common/chatSlice";
+import { removeMcpServerLocal, upsertMcpServerLocal } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { removeTeamLocal, upsertTeamLocal } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { removeToolLocal, upsertToolLocal } from "src/modules/tools/common/toolsSlice";
@@ -65,6 +66,17 @@ function handleEvent(event: WsEvent) {
     }
     case "tools:deleted": {
       store.dispatch(removeToolLocal((payload as { id: string }).id));
+      break;
+    }
+
+    // ── MCP Servers ──────────────────────────────────────────────────────────
+    case "mcp-servers:created":
+    case "mcp-servers:updated": {
+      store.dispatch(upsertMcpServerLocal(payload as McpServer));
+      break;
+    }
+    case "mcp-servers:deleted": {
+      store.dispatch(removeMcpServerLocal((payload as { id: string }).id));
       break;
     }
 
