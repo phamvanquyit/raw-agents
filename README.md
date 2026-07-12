@@ -11,9 +11,11 @@ Self-hosted AI Agent Manager with a beautiful web UI. Create, manage and schedul
 - 🤖 **Multi-Agent Management** — Create and configure multiple AI agents with different personas and tools
 - 🧠 **Multi-Provider** — OpenAI, Anthropic, Google Gemini, OpenRouter and more via LangChain
 - 🛠️ **Custom Tools** — Give agents custom tools (JavaScript / Python) to interact with the world
+- 🔌 **MCP Servers** — Connect remote MCP servers (SSE / Streamable HTTP) and attach synced tools to agents
+- 🌐 **Browser Tool** — Builtin stealth headless browser for navigate, click, fill, snapshot, and screenshots
 - ⏰ **Scheduled Tasks** — Cron-based task scheduling for automated agent runs
 - 💬 **Real-time Chat** — WebSocket-powered live streaming chat with agents
-- 🌐 **Public Sharing** — Share agents via public links with optional password protection
+- 🔗 **Public Sharing** — Share agents via public links with optional password protection
 
 ## Installation
 
@@ -122,9 +124,10 @@ All data is stored in the data directory (`/data` in Docker, `~/.raw-agents` by 
 
 ```
 <data-dir>/
-├── data.db        # SQLite database (agents, conversations, settings)
-├── agent.pid      # PID file (daemon mode)
-└── agent.log      # Server logs (daemon mode)
+├── data.db                 # SQLite database (agents, conversations, settings)
+├── browser-screenshots/    # PNGs from the builtin browser tool
+├── agent.pid               # PID file (daemon mode)
+└── agent.log               # Server logs (daemon mode)
 ```
 
 ## Tech Stack
