@@ -15,6 +15,7 @@ src/*/dist
 dist-ssr
 dist-electron
 out
+*.tsbuildinfo
 *.local
 .env
 .env.*
