@@ -147,6 +147,33 @@ export const agentMessages = sqliteTable("agent_messages", {
 export type AgentMessage = typeof agentMessages.$inferSelect;
 export type NewAgentMessage = typeof agentMessages.$inferInsert;
 
+// ─── MCP Servers ──────────────────────────────────────────────────────────────
+
+/** Catalog entry synced from a remote MCP server (listTools). */
+export type McpCatalogTool = {
+  name: string;
+  description: string;
+  inputSchema: object;
+};
+
+export const mcpServers = sqliteTable("mcp_servers", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  /** JSON object: custom headers for auth etc. */
+  headers: text("headers", { mode: "json" }).$type<Record<string, string>>().notNull().default(sql`'{}'`),
+  /** Synced MCP tool catalog — enable/disable is per-agent via assignments. */
+  tools: text("tools", { mode: "json" }).$type<McpCatalogTool[]>().notNull().default(sql`'[]'`),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type McpServer = typeof mcpServers.$inferSelect;
+export type NewMcpServer = typeof mcpServers.$inferInsert;
+
 // ─── Custom Tools ─────────────────────────────────────────────────────────────
 
 export const agentTools = sqliteTable("agent_tools", {

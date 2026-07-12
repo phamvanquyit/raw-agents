@@ -1,7 +1,8 @@
 import { and, count, eq, inArray } from "drizzle-orm";
-import { type NewAgent, agentToolAssignments, agentTools, agents, getDb, users } from "../../common/db/client.js";
+import { type McpCatalogTool, type NewAgent, agentToolAssignments, agentTools, agents, getDb, mcpServers, users } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { buildMcpLangGraphName, parseMcpToolId } from "../mcp-servers/mcp-tool-id.js";
 import { getBuiltinTool } from "../tools/tools.service.js";
 
 // ─── Agents ───────────────────────────────────────────────────────────────────
@@ -211,6 +212,25 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
         },
       };
     }
+
+    const mcp = parseMcpToolId(r.toolId);
+    if (mcp) {
+      const server = db.select().from(mcpServers).where(eq(mcpServers.id, mcp.serverId)).get();
+      const catalog = (server?.tools ?? []) as McpCatalogTool[];
+      const def = catalog.find((t) => t.name === mcp.toolName);
+      return {
+        id: r.id,
+        agentId: r.agentId,
+        toolId: r.toolId,
+        createdAt: r.createdAt,
+        tool: {
+          name: buildMcpLangGraphName(server?.name ?? "mcp", mcp.toolName),
+          label: def?.name ?? mcp.toolName,
+          description: def?.description ?? "",
+        },
+      };
+    }
+
     return {
       id: r.id,
       agentId: r.agentId,

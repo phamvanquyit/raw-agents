@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun --format esm",
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm --external cloakbrowser --external playwright-core",
     "start": "bun src/index.ts"
   },
   "dependencies": {
@@ -15,12 +15,15 @@
     "@langchain/google-genai": "^2.1.28",
     "@langchain/langgraph": "^1.2.9",
     "@langchain/openai": "^1.4.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cloakbrowser": "^0.4.10",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.7.7",
     "jose": "^6.2.3",
     "langchain": "^1.5.2",
+    "playwright-core": "^1.61.1",
     "turndown": "^7.2.4",
     "zod": "^4.3.6"
   },

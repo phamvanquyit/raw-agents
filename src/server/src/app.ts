@@ -11,6 +11,7 @@ import { resolveAuth } from "./common/middleware/auth.middleware.js";
 import agentsRoute from "./modules/agents/agents.route.js";
 import conversationsRoute from "./modules/conversations/conversations.route.js";
 import providersRoute from "./modules/llm-providers/llm-providers.route.js";
+import mcpServersRoute from "./modules/mcp-servers/mcp-servers.route.js";
 import settingsRoute from "./modules/settings/settings.route.js";
 import statsRoute from "./modules/stats/stats.route.js";
 import teamsRoute from "./modules/teams/teams.route.js";
@@ -57,6 +58,7 @@ export function createApp(): Hono {
   app.route("/api/conversations", conversationsRoute);
   app.route("/api/tools", toolsRoute);
   app.route("/api/providers", providersRoute);
+  app.route("/api/mcp-servers", mcpServersRoute);
   app.route("/api/settings", settingsRoute);
   app.route("/api/teams", teamsRoute);
   app.route("/api/stats", statsRoute);

@@ -1,7 +1,18 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { SignJWT, jwtVerify } from "jose";
-import { agentConversations, agentMessages, agentToolAssignments, agentTools, agents, getDb, llmProviders } from "../../common/db/client.js";
+import {
+  type McpCatalogTool,
+  agentConversations,
+  agentMessages,
+  agentToolAssignments,
+  agentTools,
+  agents,
+  getDb,
+  llmProviders,
+  mcpServers,
+} from "../../common/db/client.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { buildMcpLangGraphName, parseMcpToolId } from "../mcp-servers/mcp-tool-id.js";
 import { getBuiltinTool } from "../tools/tools.service.js";
 
 // ── Public access token helpers ───────────────────────────────────────────────
@@ -58,6 +69,17 @@ export function getPublicAgent(agentId: string) {
     if (t.toolId.startsWith("builtin:")) {
       const builtin = getBuiltinTool(t.toolId);
       return { name: builtin?.name ?? t.toolId, label: builtin?.label ?? t.toolId, icon: null };
+    }
+    const mcp = parseMcpToolId(t.toolId);
+    if (mcp) {
+      const server = db.select().from(mcpServers).where(eq(mcpServers.id, mcp.serverId)).get();
+      const catalog = (server?.tools ?? []) as McpCatalogTool[];
+      const def = catalog.find((d) => d.name === mcp.toolName);
+      return {
+        name: buildMcpLangGraphName(server?.name ?? "mcp", mcp.toolName),
+        label: def?.name ?? mcp.toolName,
+        icon: null,
+      };
     }
     return { name: t.name ?? "", label: t.label ?? "", icon: t.icon ?? null };
   });
