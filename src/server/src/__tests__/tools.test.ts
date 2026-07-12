@@ -24,12 +24,13 @@ describe("Tools API", () => {
     expect(res.status).toBe(200);
 
     const data = (await res.json()) as { items: Record<string, unknown>[]; total: number };
-    // Should have at least the builtin tools (get_current_time, fetch_webpage)
+    // Should have at least the builtin tools (get_current_time, fetch_webpage, browser)
     expect(data.items.length).toBeGreaterThanOrEqual(1);
 
     // Verify builtin tools are present
     const builtinIds = data.items.map((t) => t.id).filter((id) => (id as string).startsWith("builtin:"));
     expect(builtinIds.length).toBeGreaterThanOrEqual(1);
+    expect(builtinIds).toContain("builtin:browser");
   });
 
   // ── Custom Tool CRUD ──────────────────────────────────────────────────

@@ -4,39 +4,32 @@
  * Builds the full tool list for a user-created agent:
  *   - Builtin tools (directly imported)
  *   - Custom tools (from DB agent_tools table, Python sandbox)
+ *   - MCP tools (from mcp_servers.tools catalog via virtual assignment ids)
  *   - Always-on: manage_memory
  *   - call_agent (if enabled via assignment)
- *
- * Each agent type imports its own tools directly.
- * This file is for the USER AGENT only.
  */
 
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { agentTools, agents, getDb } from "../../../../common/db/client.js";
+import { type McpCatalogTool, agentTools, agents, getDb, mcpServers } from "../../../../common/db/client.js";
+import { callMcpTool } from "../../../mcp-servers/mcp-client.js";
+import { buildMcpLangGraphName, parseMcpToolId } from "../../../mcp-servers/mcp-tool-id.js";
 import { runTool } from "../../../tools/tools.service.js";
 
-// ── Direct imports of user-agent builtin tools ────────────────────────────────
-
+import { browserTool } from "../../../../common/ai/agent-tools/browser.tool.js";
 import { fetchWebpageTool } from "../../../../common/ai/agent-tools/fetch-webpage.tool.js";
 import { makeCallAgentTool } from "../llm-tools/call-agent.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
 import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
 
-// ── Stateless builtin registry (name → instance) ─────────────────────────────
-
 const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   get_current_time: getCurrentTimeTool,
   fetch_webpage: fetchWebpageTool,
+  browser: browserTool,
 };
 
-// ── Label helpers ─────────────────────────────────────────────────────────────
-
-/**
- * Converts a snake_case or camelCase tool name to a human-readable Title Case label.
- */
 export function formatToolName(name: string): string {
   return name
     .replace(/([A-Z])/g, " $1")
@@ -45,15 +38,11 @@ export function formatToolName(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/**
- * Get a human-readable label for any tool name.
- * Priority: known builtins → DB label column → formatToolName fallback
- */
 export function getToolLabel(toolName: string): string {
-  // Check TOOL_DEFs from all imported tool files
   const KNOWN_LABELS: Record<string, string> = {
     get_current_time: "Get Current Time",
     fetch_webpage: "Fetch",
+    browser: "Browser",
     call_agent: "Call Agent",
     manage_memory: "Manage Memory",
   };
@@ -68,9 +57,6 @@ export function getToolLabel(toolName: string): string {
   return formatToolName(toolName);
 }
 
-/**
- * For `call_agent` tool calls — resolve a label that includes the called agent's name.
- */
 export function getCallAgentLabel(args: unknown): string {
   try {
     const agentId = (args as any)?.agent_id ?? (args as any)?.agentId ?? (args as any)?.id;
@@ -84,17 +70,9 @@ export function getCallAgentLabel(args: unknown): string {
   return "Call Agent";
 }
 
-// ─── Custom tool builder ──────────────────────────────────────────────────────
-
-function buildCustomTool(record: {
-  id: string;
-  name: string;
-  description: string;
-  parameters: object;
-  codeContent: string;
-}): StructuredToolInterface {
-  const props = ((record.parameters as any)?.properties ?? {}) as Record<string, { type?: string; description?: string; default?: unknown }>;
-  const required = ((record.parameters as any)?.required ?? []) as string[];
+function buildZodSchema(parameters: object): z.ZodObject<Record<string, z.ZodType>> {
+  const props = ((parameters as any)?.properties ?? {}) as Record<string, { type?: string; description?: string; default?: unknown }>;
+  const required = ((parameters as any)?.required ?? []) as string[];
   const shape: Record<string, z.ZodType> = {};
 
   for (const [key, def] of Object.entries(props)) {
@@ -125,7 +103,17 @@ function buildCustomTool(record: {
     shape[key] = field;
   }
 
-  const schema = z.object(shape);
+  return z.object(shape);
+}
+
+function buildCustomTool(record: {
+  id: string;
+  name: string;
+  description: string;
+  parameters: object;
+  codeContent: string;
+}): StructuredToolInterface {
+  const schema = buildZodSchema(record.parameters);
 
   return tool(
     async (input: unknown) => {
@@ -147,48 +135,88 @@ function buildCustomTool(record: {
   );
 }
 
-// ─── Known builtin names (for filtering custom vs builtin) ────────────────────
+function buildMcpTool(opts: {
+  langGraphName: string;
+  description: string;
+  parameters: object;
+  serverId: string;
+  mcpToolName: string;
+}): StructuredToolInterface {
+  const schema = buildZodSchema(opts.parameters);
 
-const ALL_BUILTIN_NAMES = new Set(["get_current_time", "fetch_webpage", "call_agent", "manage_memory"]);
+  return tool(
+    async (input: unknown) => {
+      try {
+        const db = getDb();
+        const server = db.select().from(mcpServers).where(eq(mcpServers.id, opts.serverId)).get();
+        if (!server) {
+          return JSON.stringify({ error: `MCP server not found for tool "${opts.langGraphName}"`, ok: false });
+        }
+        if (!server.isActive) {
+          return JSON.stringify({ error: `MCP server is inactive for tool "${opts.langGraphName}"`, ok: false });
+        }
 
-// ─── Main resolver ────────────────────────────────────────────────────────────
+        const result = await callMcpTool(
+          opts.serverId,
+          server.url,
+          (server.headers ?? {}) as Record<string, string>,
+          opts.mcpToolName,
+          (input ?? {}) as Record<string, unknown>,
+        );
+        return typeof result === "string" ? result : JSON.stringify(result);
+      } catch (err) {
+        return JSON.stringify({ error: err instanceof Error ? err.message : String(err), ok: false });
+      }
+    },
+    { name: opts.langGraphName, description: opts.description, schema },
+  );
+}
 
 /**
  * Resolve full tool list for a user agent.
- * Always injects manage_memory (with per-user context).
- *
- * @param agentId       — the agent
- * @param enabledTools  — tool names from assignments
- * @param ownerId       — user ID or fingerprint
- * @param isGuest       — if true, document features disabled in manage_memory
+ * @param enabledToolIds — assignment tool_id values (builtin:*, mcp:*, or custom UUID)
  */
-export function resolveAgentTools(agentId: string, enabledTools: string[], ownerId: string, isGuest = false): StructuredToolInterface[] {
+export function resolveAgentTools(agentId: string, enabledToolIds: string[], ownerId: string, isGuest = false): StructuredToolInterface[] {
   const db = getDb();
   const tools: StructuredToolInterface[] = [];
 
-  for (const name of enabledTools) {
-    // Static builtins
-    if (name in STATIC_BUILTINS) {
-      tools.push(STATIC_BUILTINS[name]);
-    }
-    // call_agent (factory — needs agentId)
-    else if (name === "call_agent") {
-      tools.push(makeCallAgentTool(agentId));
-    }
-  }
-
-  // Custom tools from DB
-  const customToolNames = enabledTools.filter((n) => !ALL_BUILTIN_NAMES.has(n));
-  if (customToolNames.length > 0) {
-    const rows = db.select().from(agentTools).where(eq(agentTools.isActive, true)).all();
-    for (const row of rows) {
-      if (customToolNames.includes(row.name)) {
-        tools.push(buildCustomTool(row));
+  for (const toolId of enabledToolIds) {
+    if (toolId.startsWith("builtin:")) {
+      const name = toolId.slice("builtin:".length);
+      if (name === "call_agent") {
+        tools.push(makeCallAgentTool(agentId));
+      } else if (name in STATIC_BUILTINS) {
+        tools.push(STATIC_BUILTINS[name]);
       }
+      continue;
+    }
+
+    const mcp = parseMcpToolId(toolId);
+    if (mcp) {
+      const server = db.select().from(mcpServers).where(eq(mcpServers.id, mcp.serverId)).get();
+      if (!server || !server.isActive) continue;
+      const catalog = (server.tools ?? []) as McpCatalogTool[];
+      const def = catalog.find((t) => t.name === mcp.toolName);
+      if (!def) continue;
+
+      tools.push(
+        buildMcpTool({
+          langGraphName: buildMcpLangGraphName(server.name, def.name),
+          description: def.description || `MCP tool from ${server.name}`,
+          parameters: def.inputSchema,
+          serverId: server.id,
+          mcpToolName: def.name,
+        }),
+      );
+      continue;
+    }
+
+    const row = db.select().from(agentTools).where(eq(agentTools.id, toolId)).get();
+    if (row?.isActive) {
+      tools.push(buildCustomTool(row));
     }
   }
 
-  // Always-on: manage_memory (per-user)
   tools.push(makeManageMemoryTool(agentId, ownerId, isGuest));
 
   return tools;

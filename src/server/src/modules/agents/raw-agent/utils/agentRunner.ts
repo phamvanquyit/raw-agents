@@ -8,7 +8,7 @@
  * LangGraph JS version — uses createAgent from langchain
  *
  * Tool resolution:
- *   1. agent_tool_assignments (junction table, JOIN agent_tools)
+ *   1. agent_tool_assignments (builtin:*, mcp:*, or custom tool UUID)
  *   2. agent.callableAgentIds → injected into system prompt
  *   3. Always-on: manage_memory (per-user facts + documents)
  */
@@ -52,15 +52,15 @@ export type AgentResult = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Build enabled tool name list from junction table assignments */
-function buildEnabledToolNames(assignments: AssignmentWithTool[], options: { allowCallAgent?: boolean } = {}): string[] {
-  let names = assignments.map((a) => a.tool.name);
+/** Build enabled tool_id list from junction table assignments */
+function buildEnabledToolIds(assignments: AssignmentWithTool[], options: { allowCallAgent?: boolean } = {}): string[] {
+  let ids = assignments.map((a) => a.toolId);
 
   if (options.allowCallAgent === false) {
-    names = names.filter((n) => n !== "call_agent");
+    ids = ids.filter((id) => id !== "builtin:call_agent");
   }
 
-  return names;
+  return ids;
 }
 
 /** Convert MessageParam[] to BaseMessage[] for LangGraph */
@@ -179,7 +179,7 @@ export async function generateAgent(
 
   // Get tool assignments from junction table
   const assignments = listAssignments(agentId);
-  const enabledToolNames = [...buildEnabledToolNames(assignments, options), "manage_memory"];
+  const enabledToolIds = buildEnabledToolIds(assignments, options);
 
   const ownerId = options.ownerId ?? "user";
   const isGuest = options.isGuest ?? false;
@@ -190,7 +190,7 @@ export async function generateAgent(
   const [model, systemPrompt, tools] = await Promise.all([
     getChatModel(agent.aiProvider, agent.aiModel),
     Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
-    Promise.resolve(resolveAgentTools(agentId, enabledToolNames, ownerId, isGuest)),
+    Promise.resolve(resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest)),
   ]);
 
   const reactAgent = createAgent({
@@ -246,7 +246,7 @@ export async function* streamAgent(
 
   // Get tool assignments from junction table
   const assignments = listAssignments(agentId);
-  const enabledToolNames = [...buildEnabledToolNames(assignments), "manage_memory"];
+  const enabledToolIds = buildEnabledToolIds(assignments);
 
   const ownerId = options.ownerId ?? "user";
   const isGuest = options.isGuest ?? false;
@@ -258,7 +258,7 @@ export async function* streamAgent(
     const [model, systemPrompt, tools] = await Promise.all([
       getChatModel(agent.aiProvider, agent.aiModel),
       Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
-      Promise.resolve(resolveAgentTools(agentId, enabledToolNames, ownerId, isGuest)),
+      Promise.resolve(resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest)),
     ]);
 
     const reactAgent = createAgent({

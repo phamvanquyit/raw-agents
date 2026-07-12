@@ -77,6 +77,12 @@ COPY --from=builder /app/src/web/package.json ./src/web/
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --production --frozen-lockfile
 
+# CloakBrowser: Chromium system libs + pre-download stealth binary (builtin browser tool)
+ENV CLOAKBROWSER_CACHE_DIR=/root/.cloakbrowser
+RUN bunx --bun playwright-core install-deps chromium && \
+    bunx --bun cloakbrowser install && \
+    cd src/server && bun -e "import { launch } from 'cloakbrowser'; const b = await launch({ headless: true, humanize: true }); const p = await b.newPage(); await p.goto('about:blank'); await b.close(); console.log('cloakbrowser smoke ok');"
+
 # Create data directory
 RUN mkdir -p /data
 

@@ -8,6 +8,7 @@ interface ToolDefinition {
   description: string;
   parameters: object;
 }
+import { TOOL_DEF as BROWSER_DEF } from "../../common/ai/agent-tools/browser.tool.js";
 import { TOOL_DEF as FETCH_WEBPAGE_DEF } from "../../common/ai/agent-tools/fetch-webpage.tool.js";
 import { TOOL_DEF as CALL_AGENT_DEF } from "../agents/raw-agent/llm-tools/call-agent.tool.js";
 import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
@@ -16,6 +17,7 @@ import { TOOL_DEF as MANAGE_MEMORY_DEF } from "../agents/raw-agent/llm-tools/man
 const ALL_TOOL_DEFS: ToolDefinition[] = [
   GET_TIME_DEF,
   FETCH_WEBPAGE_DEF,
+  BROWSER_DEF,
   CALL_AGENT_DEF,
   MANAGE_MEMORY_DEF,
   {
@@ -55,10 +57,9 @@ const ALL_TOOL_DEFS: ToolDefinition[] = [
 ];
 import { type NewAgentTool, agentToolAssignments, agentTools, getDb } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
+import { getDataDir } from "../../common/utils/data-dir.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 import { executeTool } from "./common/python-runner.js";
-
-const DATA_DIR = process.env.DATA_DIR ?? `${process.env.HOME}/.raw-agents`;
 
 /** Core tools that are always-on and shouldn't appear in user-facing tool lists */
 const ALWAYS_ON_TOOL_NAMES = new Set(["manage_memory", "generate_code", "run_current_script", "update_prompt"]);
@@ -166,7 +167,7 @@ export async function runTool(id: string, inputJson = "{}", code?: string) {
   const tool = getTool(id);
   if (!tool) return null;
   const codeToRun = code ?? tool.codeContent;
-  const resultStr = await executeTool(id, codeToRun, inputJson, DATA_DIR);
+  const resultStr = await executeTool(id, codeToRun, inputJson, getDataDir());
   return JSON.parse(resultStr);
 }
 
@@ -186,6 +187,6 @@ export function getDraftCode(id: string): string | null {
 export async function runDraftCode(id: string, inputJson = "{}") {
   const draftCode = getDraftCode(id);
   if (!draftCode) return null;
-  const resultStr = await executeTool(id, draftCode, inputJson, DATA_DIR);
+  const resultStr = await executeTool(id, draftCode, inputJson, getDataDir());
   return resultStr;
 }
