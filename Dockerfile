@@ -59,17 +59,8 @@ FROM runtime-base
 
 WORKDIR /app
 
-# Copy built server bundle
-COPY --from=builder /app/src/server/dist ./dist
-
-# Copy SQL migration files (needed at runtime by the migration runner)
-# Bundled index.js resolves __dirname via import.meta.url → dist/
-COPY --from=builder /app/src/server/src/common/db/migrations ./dist/migrations
-
-# Copy web UI build
-COPY --from=builder /app/src/web/dist ./public
-
 # Copy package manifests and install production deps only
+# Workspace deps (cloakbrowser, playwright-core) land in src/server/node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bun.lock ./
 COPY --from=builder /app/src/server/package.json ./src/server/
@@ -77,11 +68,22 @@ COPY --from=builder /app/src/web/package.json ./src/web/
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --production --frozen-lockfile
 
+# Server bundle under src/server/dist so Bun resolves --external packages
+# from src/server/node_modules (cloakbrowser is not hoisted to root)
+COPY --from=builder /app/src/server/dist ./src/server/dist
+
+# SQL migrations: bundled index.js resolves via import.meta.url → …/dist/migrations
+COPY --from=builder /app/src/server/src/common/db/migrations ./src/server/dist/migrations
+
+# Web UI: app.ts looks for join(__dirname, "../public") → src/server/public
+COPY --from=builder /app/src/web/dist ./src/server/public
+
 # CloakBrowser: Chromium system libs + pre-download stealth binary (builtin browser tool)
 ENV CLOAKBROWSER_CACHE_DIR=/root/.cloakbrowser
-RUN bunx --bun playwright-core install-deps chromium && \
+RUN cd src/server && \
+    bunx --bun playwright-core install-deps chromium && \
     bunx --bun cloakbrowser install && \
-    cd src/server && bun -e "import { launch } from 'cloakbrowser'; const b = await launch({ headless: true, humanize: true }); const p = await b.newPage(); await p.goto('about:blank'); await b.close(); console.log('cloakbrowser smoke ok');"
+    bun -e "import { launch } from 'cloakbrowser'; const b = await launch({ headless: true, humanize: true }); const p = await b.newPage(); await p.goto('about:blank'); await b.close(); console.log('cloakbrowser smoke ok');"
 
 # Create data directory
 RUN mkdir -p /data
@@ -101,4 +103,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # Data volume
 VOLUME ["/data"]
 
-CMD ["bun", "run", "dist/index.js"]
+CMD ["bun", "run", "src/server/dist/index.js"]
