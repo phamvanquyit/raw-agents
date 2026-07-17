@@ -119,7 +119,7 @@ export function ChatSidebar({
         <div className="mx-3 h-px bg-border/30 shrink-0" />
 
         {/* Conversation list */}
-        <div className="flex-1 overflow-y-auto px-2 pb-4 pt-2" style={{ scrollbarWidth: "thin" }}>
+        <div className="flex-1 min-h-0 overflow-y-auto game-scrollbar px-2 pb-4 pt-2">
           {conversations.length === 0 ? (
             <p className="text-[12px] text-muted text-center py-4">No conversations yet</p>
           ) : (

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { AltArrowDown } from "@solar-icons/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { AgentMessage } from "src/common/types";
 import { wsClient } from "../../../common/api/wsClient";
-import { connectChatSSE, useAgentRunner } from "../../../common/hooks/useAgent";
+import { useAgentRunner } from "../../../common/hooks/useAgent";
+import { useChatStreaming } from "../../../common/hooks/useChatStreaming";
+import { useStreamResume } from "../../../common/hooks/useStreamResume";
 import { AppLogo } from "../../../components/AppLogo";
 import { InputArea } from "../../../components/chat/_components/InputArea";
 import { MessageList } from "../../../components/chat/_components/MessageList";
 import { useAutoScroll } from "../../../components/chat/hooks/useAutoScroll";
-import { useChatStreaming } from "../../../components/chat/hooks/useChatStreaming";
 import { ChatSidebar, ErrorScreen, GridBackground, HIDDEN_TOOL_NAMES, LoadingScreen, PasswordGate, getFingerprint, toDisplayMsg } from "./components";
 import type { ConvMeta, PublicAgent } from "./components";
 
@@ -36,7 +38,8 @@ export default function PublicChatPage() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const { run, running, cancel } = useAgentRunner();
 
-  const { scrollRef, scrollToBottom } = useAutoScroll();
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const { scrollRef, scrollToBottom } = useAutoScroll({ onScrolledUpChange: setIsScrolledUp });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const agentId = agent?.id;
@@ -89,35 +92,63 @@ export default function PublicChatPage() {
     [],
   );
 
+  const markTerminalRef = useRef<(convId: string) => void>(() => {});
+  const handleConnectionLostRef = useRef<() => void>(() => {});
+
+  const handleConversationDone = useCallback(
+    async (convId: string) => {
+      markTerminalRef.current(convId);
+      unmarkProcessing(convId);
+      if (agentId) refreshConversationsRef.current(agentId);
+    },
+    [unmarkProcessing, agentId],
+  );
+
+  const handleConversationError = useCallback(
+    async (convId: string, error?: string) => {
+      if (error === "Connection lost") {
+        handleConnectionLostRef.current();
+        if (agentId) {
+          const convs = await refreshConversationsRef.current(agentId);
+          const stillRunning = convs.some((c) => c.id === convId && c.status === "running");
+          if (!stillRunning) unmarkProcessing(convId);
+        }
+        return;
+      }
+      markTerminalRef.current(convId);
+      unmarkProcessing(convId);
+      if (agentId) refreshConversationsRef.current(agentId);
+    },
+    [unmarkProcessing, agentId],
+  );
+
   const { setMessages, streamingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages } = useChatStreaming({
     toDisplayMsg,
     messageFilter,
     fetchMessages,
-    onConversationDone: async (convId) => {
-      unmarkProcessing(convId);
-      if (agentId) refreshConversationsRef.current(agentId);
-    },
-    onConversationError: async (convId) => {
-      unmarkProcessing(convId);
-    },
+    onConversationDone: handleConversationDone,
+    onConversationError: handleConversationError,
   });
+
+  const isServerRunning = Boolean(conversationId && processingConvIds.has(conversationId));
+  const streamConnectOptions = useMemo(() => (agentId ? { fingerprint: getFingerprint(), agentId } : undefined), [agentId]);
+
+  const { markTerminal, handleConnectionLost } = useStreamResume({
+    running,
+    conversationId,
+    isServerRunning,
+    buildSSECallbacks,
+    loadMessages,
+    connectOptions: streamConnectOptions,
+  });
+  markTerminalRef.current = markTerminal;
+  handleConnectionLostRef.current = handleConnectionLost;
 
   // Keep scroll pinned when content changes — backup for MutationObserver
   // which can miss auto-scroll when textarea resize changes clientHeight
   useEffect(() => {
     scrollToBottom();
   }, [liveMessages.length, streamingContent]);
-
-  // Auto-focus chat input when switching conversations
-  useEffect(() => {
-    if (!conversationId) return;
-    // Small delay so React finishes rendering the new conversation
-    const timer = setTimeout(() => {
-      const el = document.querySelector<HTMLTextAreaElement>("[data-chat-input]");
-      el?.focus();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [conversationId]);
 
   // Load public info & restore auth from saved token
   useEffect(() => {
@@ -289,76 +320,30 @@ export default function PublicChatPage() {
     }
   };
 
-  // Listen to WS events globally to track processing state across ALL tabs/clients
+  // Track processing state across tabs via conversations:updated broadcast
   useEffect(() => {
-    const unsubs: (() => void)[] = [];
-
-    // chat:done / chat:error — sent only to the initiating client
-    unsubs.push(
-      wsClient.on<{ conversationId: string; text: string }>("chat:done", (payload) => {
-        unmarkProcessing(payload.conversationId);
-      }),
-    );
-
-    unsubs.push(
-      wsClient.on<{ conversationId: string; error: string }>("chat:error", (payload) => {
-        unmarkProcessing(payload.conversationId);
-      }),
-    );
-
-    // conversations:updated — broadcast to ALL clients (other tabs receive this)
-    unsubs.push(
-      wsClient.on<{ id: string; status: string }>("conversations:updated", (payload) => {
-        if (payload.status === "running") {
-          markProcessing(payload.id);
-        } else {
-          unmarkProcessing(payload.id);
-        }
-      }),
-    );
-
-    return () => {
-      for (const u of unsubs) u();
-    };
+    return wsClient.on<{ id: string; status: string }>("conversations:updated", (payload) => {
+      if (payload.status === "running") {
+        markProcessing(payload.id);
+      } else {
+        unmarkProcessing(payload.id);
+      }
+    });
   }, [markProcessing, unmarkProcessing]);
 
   // Sync processingConvIds from server status on conversations load
   useEffect(() => {
     const runningIds = new Set(conversations.filter((c) => c.status === "running").map((c) => c.id));
     setProcessingConvIds((prev) => {
-      // Only update if there's actually a difference
       const isSame = prev.size === runningIds.size && [...runningIds].every((id) => prev.has(id));
       return isSame ? prev : runningIds;
     });
   }, [conversations]);
 
-  // Auto-resume: when current conversation is running on server but not locally streaming
-  // (e.g. after F5), open SSE to receive live events. Validates ownership via fingerprint.
-  useEffect(() => {
-    if (!conversationId || !agentId) return;
-    const isRunning = processingConvIds.has(conversationId);
-    if (!isRunning || running) return;
-
-    const fp = getFingerprint();
-    const resumeConvId = conversationId;
-    void loadMessages(resumeConvId);
-
-    const callbacks = buildSSECallbacks(resumeConvId);
-    const abort = new AbortController();
-    const cleanup = connectChatSSE(
-      resumeConvId,
-      {
-        ...callbacks,
-        abortSignal: abort.signal,
-      },
-      { fingerprint: fp, agentId },
-    );
-
-    return () => {
-      abort.abort();
-      cleanup();
-    };
-  }, [conversationId, agentId, processingConvIds, running, unmarkProcessing, loadMessages, buildSSECallbacks]);
+  const handleCancel = useCallback(() => {
+    if (conversationId) markTerminal(conversationId);
+    cancel();
+  }, [cancel, conversationId, markTerminal]);
 
   const handleSend = async (text: string) => {
     if (!agent || running) return;
@@ -389,7 +374,7 @@ export default function PublicChatPage() {
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     clearStreamingState();
-    scrollToBottom();
+    scrollToBottom({ force: true });
 
     const mockAgent: any = { id: agent.id, name: agent.name };
 
@@ -470,27 +455,46 @@ export default function PublicChatPage() {
           </svg>
         </button>
 
-        <MessageList
-          messages={liveMessages}
-          generating={running && !streamingContent}
-          activityStatus={activityStatus}
-          assistantLabel={agent?.name ?? "Assistant"}
-          emptyStateContent={
-            <div className="flex flex-col items-center gap-2">
-              <AppLogo size={32} />
-              <span className="text-[12px] text-muted">Ask me anything to get started</span>
-            </div>
-          }
-          messagesEndRef={messagesEndRef}
-          scrollContainerRef={scrollRef}
-        />
+        <div className="relative flex-1 min-h-0 flex flex-col">
+          <MessageList
+            messages={liveMessages}
+            generating={running && !streamingContent}
+            activityStatus={activityStatus}
+            assistantLabel={agent?.name ?? "Assistant"}
+            emptyStateContent={
+              <div className="flex flex-col items-center gap-2">
+                <AppLogo size={32} />
+                <span className="text-[12px] text-muted">Ask me anything to get started</span>
+              </div>
+            }
+            messagesEndRef={messagesEndRef}
+            scrollContainerRef={scrollRef}
+          />
+          {isScrolledUp && (
+            <button
+              type="button"
+              onClick={() => scrollToBottom({ force: true })}
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-surface text-soft hover:text-foreground hover:bg-surface-raised transition-colors"
+              aria-label="Scroll to bottom"
+            >
+              <AltArrowDown width={14} height={14} />
+            </button>
+          )}
+        </div>
 
         {/* Input */}
         <div className="shrink-0 w-full relative z-10">
           <div className="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none" />
           <div className="px-4 pb-4 pt-2">
             <div className="max-w-3xl mx-auto">
-              <InputArea placeholder="Type a message..." generating={running} onSend={handleSend} onCancel={cancel} hideConfig />
+              <InputArea
+                placeholder="Type a message..."
+                generating={running}
+                onSend={handleSend}
+                onCancel={handleCancel}
+                hideConfig
+                focusSignal={conversationId}
+              />
             </div>
           </div>
         </div>

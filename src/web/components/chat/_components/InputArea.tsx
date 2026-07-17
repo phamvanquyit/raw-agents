@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "src/common/lib/cn";
 import RenderIf from "src/components/ui/RenderIf";
@@ -14,9 +14,33 @@ interface InputAreaProps {
   onProviderChange?: (id: string) => void;
   onModelChange?: (model: string) => void;
   hideConfig?: boolean;
+  /** When this changes (e.g. conversation id), focus the input */
+  focusSignal?: string | null;
 }
 
-export function InputArea({ generating, placeholder, onSend, onCancel, providerId, model, onProviderChange, onModelChange, hideConfig }: InputAreaProps) {
+function isEditableTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) return true;
+  return Boolean(
+    el.closest(
+      "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu'], [data-radix-popper-content-wrapper]",
+    ),
+  );
+}
+
+export function InputArea({
+  generating,
+  placeholder,
+  onSend,
+  onCancel,
+  providerId,
+  model,
+  onProviderChange,
+  onModelChange,
+  hideConfig,
+  focusSignal,
+}: InputAreaProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasText = text.trim().length > 0;
@@ -24,6 +48,49 @@ export function InputArea({ generating, placeholder, onSend, onCancel, providerI
   const noModel = !hideConfig && !model;
   const canSend = !generating && !noModel;
   const sendEnabled = hasText && canSend;
+
+  // Focus when conversation changes
+  useEffect(() => {
+    if (focusSignal === undefined) return;
+    const ta = textareaRef.current;
+    if (!ta || ta.disabled) return;
+
+    setText("");
+    ta.style.height = "auto";
+
+    const timer = setTimeout(() => {
+      ta.focus({ preventScroll: true });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [focusSignal]);
+
+  // Type-to-focus: printable keys outside inputs jump into the chat textarea
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.length !== 1) return;
+
+      const ta = textareaRef.current;
+      if (!ta || ta.disabled || document.activeElement === ta) return;
+      if (isEditableTarget(e.target) || isEditableTarget(document.activeElement)) return;
+
+      e.preventDefault();
+      ta.focus();
+      const start = ta.selectionStart ?? ta.value.length;
+      const end = ta.selectionEnd ?? ta.value.length;
+      const next = ta.value.slice(0, start) + e.key + ta.value.slice(end);
+      setText(next);
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start + e.key.length;
+        ta.style.height = "auto";
+        ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+      });
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const handleSend = () => {
     if (!sendEnabled) return;

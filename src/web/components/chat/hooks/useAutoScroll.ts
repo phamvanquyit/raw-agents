@@ -14,9 +14,16 @@ import { useCallback, useEffect, useRef } from "react";
  *   scrolls, preventing the scroll handler from mis-reading our own scrollTop
  *   assignments as "user scrolled back to bottom".
  * - Mutations are debounced via rAF (1 scroll per frame max).
+ * - `scrollToBottom()` is soft by default (respects user scroll-up).
+ *   Pass `{ force: true }` for send / button click.
  */
-export function useAutoScroll(opts?: { threshold?: number }) {
+export function useAutoScroll(opts?: {
+  threshold?: number;
+  onScrolledUpChange?: (scrolledUp: boolean) => void;
+}) {
   const threshold = opts?.threshold ?? 80;
+  const onScrolledUpChangeRef = useRef(opts?.onScrolledUpChange);
+  onScrolledUpChangeRef.current = opts?.onScrolledUpChange;
 
   const elRef = useRef<HTMLElement | null>(null);
   const observerRef = useRef<MutationObserver | null>(null);
@@ -34,6 +41,12 @@ export function useAutoScroll(opts?: { threshold?: number }) {
   // ── Helper ───────────────────────────────────────────────────────────────
   const checkNearBottom = (el: HTMLElement): boolean => el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
 
+  const setScrolledUp = useCallback((value: boolean) => {
+    if (userScrolledUpRef.current === value) return;
+    userScrolledUpRef.current = value;
+    onScrolledUpChangeRef.current?.(value);
+  }, []);
+
   // ── Setup / teardown ─────────────────────────────────────────────────────
   const setup = useCallback(
     (el: HTMLElement) => {
@@ -42,14 +55,14 @@ export function useAutoScroll(opts?: { threshold?: number }) {
         if (programmaticScrollRef.current) return;
 
         // This is a genuine user scroll — update the flag.
-        userScrolledUpRef.current = !checkNearBottom(el);
+        setScrolledUp(!checkNearBottom(el));
       };
 
       const scrollToEl = () => {
         programmaticScrollRef.current = true;
         el.scrollTop = el.scrollHeight;
         // Reset the flag after the browser has processed the scroll.
-        // Using rAF + microtask ensures the scroll event from our assignment
+        // Using rAF ensures the scroll event from our assignment
         // fires (and is ignored) before we flip this back.
         requestAnimationFrame(() => {
           programmaticScrollRef.current = false;
@@ -84,7 +97,7 @@ export function useAutoScroll(opts?: { threshold?: number }) {
       el.addEventListener("scroll", handleScroll, { passive: true });
 
       // Initial scroll — always go to bottom on mount.
-      userScrolledUpRef.current = false;
+      setScrolledUp(false);
       requestAnimationFrame(() => {
         scrollToEl();
         setTimeout(() => {
@@ -95,7 +108,7 @@ export function useAutoScroll(opts?: { threshold?: number }) {
       observerRef.current = observer;
       scrollListenerRef.current = handleScroll;
     },
-    [threshold],
+    [threshold, setScrolledUp],
   );
 
   const teardown = useCallback((el: HTMLElement) => {
@@ -132,20 +145,25 @@ export function useAutoScroll(opts?: { threshold?: number }) {
   }, [teardown]);
 
   // ── Imperative API ──────────────────────────────────────────────────────
-  const scrollToBottom = useCallback(() => {
-    const el = elRef.current;
-    if (!el) return;
-    userScrolledUpRef.current = false;
-    programmaticScrollRef.current = true;
-    el.scrollTop = el.scrollHeight;
-    requestAnimationFrame(() => {
-      programmaticScrollRef.current = false;
-    });
-  }, []);
+  const scrollToBottom = useCallback(
+    (opts?: { force?: boolean }) => {
+      const el = elRef.current;
+      if (!el) return;
+      if (!opts?.force && userScrolledUpRef.current) return;
+
+      setScrolledUp(false);
+      programmaticScrollRef.current = true;
+      el.scrollTop = el.scrollHeight;
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false;
+      });
+    },
+    [setScrolledUp],
+  );
 
   const forceFollow = useCallback(() => {
-    userScrolledUpRef.current = false;
-  }, []);
+    setScrolledUp(false);
+  }, [setScrolledUp]);
 
   return { scrollRef, scrollToBottom, forceFollow };
 }

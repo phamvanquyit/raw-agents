@@ -6,16 +6,13 @@
 
 import { Background, BackgroundVariant, type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useCallback, useMemo, useState } from "react";
 import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
 import { SimpleDialog } from "src/components/ui/dialog";
-import { ChatPage } from "../chat/ChatPage";
 import { PromptPage } from "../prompt/PromptPage";
 import { DeletableEdge } from "./edges/DeletableEdge";
 import { AgentConfigNode, type AgentConfigNodeType } from "./nodes/AgentConfigNode";
 import { CallableAgentNode, type CallableAgentNodeType } from "./nodes/CallableAgentNode";
-import { ChatNode, type ChatNodeType } from "./nodes/ChatNode";
 import { DashedGroupNode, type DashedGroupNodeType } from "./nodes/DashedGroupNode";
 import { FlowToolNode, type FlowToolNodeType } from "./nodes/FlowToolNode";
 import { McpServerNode, type McpServerNodeType } from "./nodes/McpServerNode";
@@ -29,7 +26,6 @@ const nodeTypes = {
   callableAgent: CallableAgentNode,
   dashedGroup: DashedGroupNode,
   agentConfig: AgentConfigNode,
-  chat: ChatNode,
   publish: PublishNode,
 };
 
@@ -129,8 +125,6 @@ function AgentFlowInner({
   const callableSet = useMemo(() => new Set(callableAgentIds), [callableAgentIds]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
-  const [chatModalOpen, setChatModalOpen] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const handleToggleMcpTool = useCallback(
     (toolId: string, connected: boolean) => {
@@ -146,13 +140,6 @@ function AgentFlowInner({
     },
     [onToggleMcpTools],
   );
-
-  // Auto-open chat modal when URL has ?conv= (e.g. after F5 refresh)
-  useEffect(() => {
-    if (searchParams.has("conv")) {
-      setChatModalOpen(true);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- only on mount
 
   // ─── Build Nodes ────────────────────────────────────────────────────────────
 
@@ -242,20 +229,7 @@ function AgentFlowInner({
     };
     result.push(configNode);
 
-    // ── 0b. Chat Node (left of config) ────────────────────────────────────
-
-    const chatNode: ChatNodeType = {
-      id: "chat",
-      type: "chat",
-      position: { x: CENTER_X - 190 - 220, y: CENTER_Y + 140 },
-      draggable: true,
-      data: {
-        onOpenChat: () => setChatModalOpen(true),
-      },
-    };
-    result.push(chatNode);
-
-    // ── 0c. Publish Node (below-left of config, visible when public) ────
+    // ── 0b. Publish Node (left of config, visible when public) ──────────
 
     if (isPublic) {
       const publishNode: PublishNodeType = {
@@ -487,9 +461,7 @@ function AgentFlowInner({
         animated: true,
         selected: selectedEdgeId === `edge-mcp-${serverId}`,
         data: {
-          onDelete: () => {
-            for (const toolId of toolIds) onRemoveToolAssignment(toolId);
-          },
+          onDelete: () => onToggleMcpTools(toolIds, false),
         },
         style: { stroke: MCP_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
       });
@@ -511,19 +483,6 @@ function AgentFlowInner({
       });
     }
 
-    // Edge from Chat node → config node (chat handle)
-    result.push({
-      id: "edge-chat",
-      source: "chat",
-      target: "config",
-      targetHandle: "chat",
-      type: "default",
-      animated: true,
-      selectable: false,
-      deletable: false,
-      style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.3 },
-    });
-
     // Edge from Publish node → config node (publish handle)
     if (isPublic) {
       result.push({
@@ -540,7 +499,18 @@ function AgentFlowInner({
     }
 
     return result;
-  }, [agent.id, toolAssignments, callableAgentIds, selectedEdgeId, onRemoveToolAssignment, onRemoveCallableAgent, isPublic, mcpToolIds, mcpServerConnectedIds]);
+  }, [
+    agent.id,
+    toolAssignments,
+    callableAgentIds,
+    selectedEdgeId,
+    onRemoveToolAssignment,
+    onToggleMcpTools,
+    onRemoveCallableAgent,
+    isPublic,
+    mcpToolIds,
+    mcpServerConnectedIds,
+  ]);
 
   // ─── Edge Delete Handler ───────────────────────────────────────────────────
 
@@ -552,13 +522,13 @@ function AgentFlowInner({
         } else if (edge.id.startsWith("edge-mcp-")) {
           const serverId = edge.id.replace("edge-mcp-", "");
           const toolIds = mcpServerConnectedIds.get(serverId) ?? [];
-          for (const toolId of toolIds) onRemoveToolAssignment(toolId);
+          onToggleMcpTools(toolIds, false);
         } else if (edge.id.startsWith("edge-agent-")) {
           onRemoveCallableAgent(edge.id.replace("edge-agent-", ""));
         }
       }
     },
-    [onRemoveToolAssignment, onRemoveCallableAgent, mcpServerConnectedIds],
+    [onRemoveToolAssignment, onToggleMcpTools, onRemoveCallableAgent, mcpServerConnectedIds],
   );
 
   // ─── Connection Handler (drag to connect) ─────────────────────────────────
@@ -642,33 +612,6 @@ function AgentFlowInner({
         }
       >
         <PromptPage />
-      </SimpleDialog>
-
-      {/* ── Chat Modal (full-screen) ── */}
-      <SimpleDialog
-        open={chatModalOpen}
-        onClose={() => {
-          setChatModalOpen(false);
-          setSearchParams(
-            (prev) => {
-              const p = new URLSearchParams(prev);
-              p.delete("conv");
-              return p;
-            },
-            { replace: true },
-          );
-        }}
-        title={`Chat with ${name || "Agent"}`}
-        width="96vw"
-        height="92vh"
-        noPadding
-        icon={
-          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#a8ff53" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        }
-      >
-        <ChatPage />
       </SimpleDialog>
 
       <ReactFlow

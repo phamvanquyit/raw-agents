@@ -40,10 +40,12 @@ export function AgentSidebar({ agent, onClose }: AgentSidebarProps) {
       <div className="flex-1 min-h-0 overflow-y-auto py-3 px-3 flex flex-col gap-0.5">
         {TABS.map((tab) => {
           const Icon = tab.icon;
+          const to = tab.path ? `/agents/${id}/${tab.path}` : `/agents/${id}`;
           return (
             <NavLink
               key={tab.id}
-              to={`/agents/${id}/${tab.id}`}
+              to={to}
+              end={!tab.path}
               className={({ isActive }) =>
                 [
                   "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[14px] transition-all duration-150 cursor-pointer border no-underline",

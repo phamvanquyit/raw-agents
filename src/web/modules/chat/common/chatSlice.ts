@@ -139,7 +139,19 @@ const chatSlice = createSlice({
         state.loading = true;
       })
       .addCase(fetchConversations.fulfilled, (state, action) => {
-        state.conversations = action.payload;
+        // Preserve local "running" when a stale fetch races with a newer WS update
+        const localById = new Map(state.conversations.map((c) => [c.id, c]));
+        state.conversations = action.payload.map((incoming) => {
+          const local = localById.get(incoming.id);
+          if (local?.status === "running" && incoming.status !== "running") {
+            const localStart = local.startedAt ? new Date(local.startedAt as Date | string).getTime() : 0;
+            const incomingStart = incoming.startedAt ? new Date(incoming.startedAt as Date | string).getTime() : 0;
+            if (localStart >= incomingStart) {
+              return { ...incoming, status: "running" as const, startedAt: local.startedAt, finishedAt: null };
+            }
+          }
+          return incoming;
+        });
         state.loading = false;
       })
       .addCase(fetchConversations.rejected, (state) => {

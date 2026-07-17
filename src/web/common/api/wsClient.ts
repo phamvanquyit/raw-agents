@@ -5,9 +5,11 @@
  *  - Auto-reconnect with exponential back-off (max 30s)
  *  - Typed event subscription via `wsClient.on(type, handler)`
  *  - wsClient.send(type, payload) — send message to server
- *  - Chat streaming via chat:chunk / chat:tool-call / chat:tool-result / chat:done / chat:error
+ *  - CRUD sync events (agents, conversations, tools, …)
  *  - clientId received from server on connect (for targeted events)
  *  - Heartbeat ping every 25s to keep connection alive through proxies
+ *
+ * Chat tokens stream over SSE, not WebSocket.
  */
 
 // ─── Types (mirrored from server wsHub — keep in sync) ───────────────────────
@@ -16,16 +18,12 @@ export type WsEventType =
   | "agents:created"
   | "agents:updated"
   | "agents:deleted"
+  | "agents:tools-updated"
   | "conversations:created"
   | "conversations:updated"
   | "conversations:deleted"
   | "messages:created"
   | "messages:updated"
-  | "tasks:created"
-  | "tasks:updated"
-  | "tasks:deleted"
-  | "tasks:cleared"
-  | "tasks:agent_deleted"
   | "teams:created"
   | "teams:updated"
   | "teams:deleted"
@@ -36,21 +34,7 @@ export type WsEventType =
   | "mcp-servers:updated"
   | "mcp-servers:deleted"
   | "ping"
-  | "client:id"
-  // ── Chat stream events ──
-  | "chat:chunk"
-  | "chat:thinking"
-  | "chat:tool-call"
-  | "chat:tool-result"
-  | "chat:done"
-  | "chat:error"
-  // ── AI assistant stream events (editor/prompt assistant) ──
-  | "ai:start"
-  | "ai:tool-result"
-  | "ai:chunk"
-  | "ai:tool-call"
-  | "ai:done"
-  | "ai:error";
+  | "client:id";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;

@@ -112,7 +112,7 @@ export function MessageList({
   const lastIsAgent = lastMsg ? isAgentRole(lastMsg.role) : false;
 
   return (
-    <div ref={scrollContainerRef} className={"flex-1 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:var(--color-scrollbar-thumb)_transparent]"}>
+    <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto game-scrollbar">
       <div className={`max-w-[760px] mx-auto ${className}`}>
         <RenderIf condition={!hasMessages}>
           <div className="flex flex-col items-center justify-center h-full gap-3 px-6 py-6 text-center">

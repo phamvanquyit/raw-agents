@@ -67,15 +67,6 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
 
   return (
     <div className="h-full flex flex-col rounded-xl border border-white/8 bg-surface shadow-[0_0_32px_rgba(0,0,0,0.3),0_0_0_1px_rgba(255,255,255,0.03)] transition-all duration-200">
-      {/* Handle — left (receives edge from Chat node) */}
-      <Handle
-        type="target"
-        id="chat"
-        position={Position.Left}
-        style={{ top: "50%" }}
-        className="!w-2 !h-2 !bg-[rgba(168,255,83,0.15)] !border-2 !border-[rgba(168,255,83,0.25)] transition-all duration-150"
-      />
-
       {/* Handle — right top (receives edge from Tools group) */}
       <Handle
         type="target"

@@ -1,10 +1,9 @@
 // ─── Agent Detail Page ────────────────────────────────────────────────────────
-// Route: /agents/:id/* — Full-screen agent detail with header + React Flow canvas.
-// Shows current agent at center, callable agents above, tools on left.
+// Route: /agents/:id/* — Full-screen agent detail with Chat / Editor tabs.
 
 import { AltArrowLeft, MenuDots, TrashBinTrash } from "@solar-icons/react";
-import { useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { NavLink, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import {
@@ -25,7 +24,7 @@ import { useAppDispatch, useAppSelector } from "src/store/store";
 import { deleteAgent, fetchAgents, fetchOneAgent, updateAgent } from "../common/agentsSlice";
 import { ChatPage } from "./chat/ChatPage";
 import { type AgentDetailContext, AgentDetailCtx } from "./common/agentDetailContext";
-
+import { TABS } from "./common/constants";
 import { AgentFlowView } from "./flow/AgentFlowView";
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
@@ -84,6 +83,8 @@ export default function AgentDetailPage() {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [toolAssignments, setToolAssignments] = useState<AgentToolAssignment[]>([]);
+  const toolAssignmentsRef = useRef(toolAssignments);
+  toolAssignmentsRef.current = toolAssignments;
   const [callableAgentIds, setCallableAgentIds] = useState<string[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [aiModel, setAiModel] = useState("");
@@ -145,14 +146,14 @@ export default function AgentDetailPage() {
   const handleRemoveToolAssignment = useCallback(
     (toolId: string) => {
       if (!id) return;
-      const assignment = toolAssignments.find((a) => a.toolId === toolId);
+      const assignment = toolAssignmentsRef.current.find((a) => a.toolId === toolId);
       if (!assignment) return;
-      setToolAssignments(toolAssignments.filter((a) => a.toolId !== toolId));
+      setToolAssignments((prev) => prev.filter((a) => a.toolId !== toolId));
       apiRemoveAssignment(id, assignment.id).catch(() => {
-        fetchAssignments(id).then((a) => setToolAssignments(a));
+        fetchAssignments(id).then(setToolAssignments);
       });
     },
-    [id, toolAssignments],
+    [id],
   );
 
   const handleAddToolAssignment = useCallback(
@@ -169,12 +170,11 @@ export default function AgentDetailPage() {
     (toolIds: string[], enable: boolean) => {
       if (!id || toolIds.length === 0) return;
       const target = new Set(toolIds);
-      const nextIds = enable
-        ? [...new Set([...toolAssignments.map((a) => a.toolId), ...toolIds])]
-        : toolAssignments.filter((a) => !target.has(a.toolId)).map((a) => a.toolId);
+      const prev = toolAssignmentsRef.current;
+      const nextIds = enable ? [...new Set([...prev.map((a) => a.toolId), ...toolIds])] : prev.filter((a) => !target.has(a.toolId)).map((a) => a.toolId);
 
       const optimistic: AgentToolAssignment[] = nextIds.map((toolId) => {
-        const existing = toolAssignments.find((a) => a.toolId === toolId);
+        const existing = prev.find((a) => a.toolId === toolId);
         if (existing) return existing;
         return {
           id: `temp-${toolId}`,
@@ -192,7 +192,7 @@ export default function AgentDetailPage() {
           fetchAssignments(id).then(setToolAssignments);
         });
     },
-    [id, toolAssignments],
+    [id],
   );
 
   const handleAddCallableAgent = useCallback(
@@ -315,7 +315,7 @@ export default function AgentDetailPage() {
     <AgentDetailCtx.Provider value={ctxValue}>
       <div className="flex flex-col h-screen overflow-hidden">
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-3 px-5 h-[52px] bg-surface border-b border-border shrink-0">
+        <div className="relative flex items-center gap-3 px-5 h-[52px] bg-surface border-b border-border shrink-0">
           <button
             type="button"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border bg-transparent text-soft text-sm font-medium cursor-pointer transition-all duration-150 font-[inherit] hover:bg-surface-raised hover:text-main hover:border-border-hover"
@@ -329,6 +329,29 @@ export default function AgentDetailPage() {
             <AppLogo size={22} fill="#a8ff53" strokeWidth={1} />
             <span className="text-base font-bold text-primary whitespace-nowrap overflow-hidden text-ellipsis">{agent.name}</span>
           </div>
+
+          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 p-0.5 rounded-full border border-border bg-surface-raised">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const to = tab.path ? `/agents/${id}/${tab.path}` : `/agents/${id}`;
+              return (
+                <NavLink
+                  key={tab.id}
+                  to={to}
+                  end={!tab.path}
+                  className={({ isActive }) =>
+                    [
+                      "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium no-underline transition-colors duration-150",
+                      isActive ? "bg-white/[0.06] text-main" : "text-muted hover:text-soft",
+                    ].join(" ")
+                  }
+                >
+                  <Icon width={14} height={14} className="opacity-70" />
+                  <span>{tab.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
 
           <div className="flex items-center gap-0.5">
             {/* ── Kebab menu ── */}
@@ -379,8 +402,10 @@ export default function AgentDetailPage() {
         {/* ── Content ────────────────────────────────────────────────────── */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <Routes>
+            <Route index element={<ChatPage />} />
+            <Route path="chat" element={<Navigate to={`/agents/${id}`} replace />} />
             <Route
-              index
+              path="editor"
               element={
                 <AgentFlowView
                   agent={agent}
@@ -409,7 +434,6 @@ export default function AgentDetailPage() {
                 />
               }
             />
-            <Route path="chat" element={<ChatPage />} />
           </Routes>
         </div>
       </div>

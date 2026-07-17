@@ -1,18 +1,21 @@
 /**
  * useAgent.ts
  *
- * React hooks + streaming helpers for running agents.
- * All AI logic is on server — this file manages WS streaming + React state.
+ * React hooks + streaming helpers for conversation-backed agents.
+ * Server handles AI + persistence; this file manages SSE + React state.
  *
  * Exports:
- *   - useAgentRunner   → stream chat via WS (initial send)
+ *   - useAgentRunner   → POST chat SSE (initial send)
  *   - useAgentAutoRun  → trigger autonomous work session
- *   - connectChatSSE   → subscribe to SSE stream for a running conversation (F5 reconnect / multi-tab)
+ *   - connectChatSSE   → GET /stream (F5 reconnect / multi-tab)
  *   - ChatMessage      → shared type
  */
 
 import { useCallback, useRef, useState } from "react";
+import { getAuthToken } from "src/common/api";
 import type { Agent } from "src/common/types";
+import type { AgentSseCallbacks } from "src/components/chat/common/sse";
+import { parseSseStream } from "src/components/chat/common/sse";
 import { updateAgent, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
 import { createConversation, fetchConversations } from "src/modules/chat/common/chatSlice";
 import { store } from "src/store/store";
@@ -44,10 +47,28 @@ interface AgentStreamCallbacks {
   password?: string;
   token?: string;
 }
+
+function toSseCallbacks(callbacks: {
+  onChunk: (chunk: string) => void;
+  onThinking: (chunk: string) => void;
+  onToolCall: AgentStreamCallbacks["onToolCall"];
+  onToolResult: AgentStreamCallbacks["onToolResult"];
+  onDone: (text: string) => void | Promise<void>;
+  onError: (err: string) => void | Promise<void>;
+}): AgentSseCallbacks {
+  return {
+    onTextDelta: callbacks.onChunk,
+    onThinkingDelta: callbacks.onThinking,
+    onToolCall: callbacks.onToolCall,
+    onToolResult: callbacks.onToolResult,
+    onDone: callbacks.onDone,
+    onError: callbacks.onError,
+  };
+}
+
 /**
  * Stream chat from server-side agent.
- * POST /api/conversations/:id/chat returns SSE directly (like coding-agent).
- * We read the response body as a stream — no race conditions.
+ * POST /api/conversations/:id/chat returns SSE directly.
  */
 async function streamAgentChat(agentId: string, message: string, conversationId: string, callbacks: AgentStreamCallbacks): Promise<void> {
   const { onChunk, onThinking, onToolCall, onToolResult, onDone, onError, abortSignal, password, token } = callbacks;
@@ -76,68 +97,7 @@ async function streamAgentChat(agentId: string, message: string, conversationId:
     return;
   }
 
-  // Read SSE events from response body stream
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Parse SSE lines: "data: {...}\n\n"
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? ""; // Keep incomplete last line in buffer
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const jsonStr = trimmed.slice(5).trim();
-        if (!jsonStr) continue;
-
-        try {
-          const event = JSON.parse(jsonStr);
-          switch (event.type) {
-            case "text-delta":
-              onChunk(event.text);
-              break;
-            case "thinking-delta":
-              onThinking(event.text);
-              break;
-            case "tool-call":
-              onToolCall({
-                toolCallId: event.toolCallId,
-                toolName: event.toolName,
-                toolLabel: event.toolLabel,
-                input: event.input,
-              });
-              break;
-            case "tool-result":
-              onToolResult({
-                toolCallId: event.toolCallId,
-                toolName: event.toolName,
-                result: event.result,
-              });
-              break;
-            case "done":
-              onDone(event.text ?? "");
-              return;
-            case "error":
-              onError(event.error ?? "Unknown error");
-              return;
-          }
-        } catch {
-          // ignore malformed SSE data
-        }
-      }
-    }
-  } catch (err) {
-    if ((err as Error).name === "AbortError") return;
-    onError((err as Error).message ?? "Stream read error");
-  }
+  await parseSseStream(res.body, toSseCallbacks({ onChunk, onThinking, onToolCall, onToolResult, onDone, onError }), { signal: abortSignal });
 }
 
 /**
@@ -146,9 +106,12 @@ async function streamAgentChat(agentId: string, message: string, conversationId:
 async function stopAgentChat(agentId: string, conversationId: string): Promise<void> {
   const BASE_URL: string = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "";
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
     await fetch(`${BASE_URL}/api/agents/${agentId}/chat/stop`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ conversationId }),
     });
   } catch {
@@ -169,80 +132,76 @@ interface ChatSSECallbacks {
 }
 
 /**
- * Connect to SSE stream for a running conversation.
- * Used for F5 reconnect or multi-tab: opens EventSource → receives live events.
+ * Connect to SSE stream for a running conversation (F5 / multi-tab).
+ * Uses fetch + Authorization (EventSource cannot send Bearer tokens and is
+ * unreliable through the Vite proxy).
  *
- * @param conversationId - The conversation to subscribe to.
- * @param callbacks      - Event handlers for stream events.
- * @param options        - For public conversations, pass { fingerprint, agentId }.
- * @returns Cleanup function that closes the EventSource.
+ * @returns Cleanup function that aborts the stream.
  */
 export function connectChatSSE(conversationId: string, callbacks: ChatSSECallbacks, options?: { fingerprint?: string; agentId?: string }): () => void {
   const BASE_URL: string = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "";
 
-  // Build SSE URL based on context
   let url: string;
   if (options?.fingerprint && options?.agentId) {
-    // Public conversation — validates ownership via fingerprint on server
     url = `${BASE_URL}/api/public/agents/${options.agentId}/conversations/${conversationId}/stream?fp=${options.fingerprint}`;
   } else {
-    // Admin conversation
     url = `${BASE_URL}/api/conversations/${conversationId}/stream`;
   }
 
-  const eventSource = new EventSource(url);
-
-  eventSource.onmessage = (e) => {
-    try {
-      const event = JSON.parse(e.data);
-      switch (event.type) {
-        case "text-delta":
-          callbacks.onChunk(event.text);
-          break;
-        case "thinking-delta":
-          callbacks.onThinking(event.text);
-          break;
-        case "tool-call":
-          callbacks.onToolCall({
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            toolLabel: event.toolLabel,
-            input: event.input,
-          });
-          break;
-        case "tool-result":
-          callbacks.onToolResult({
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            result: event.result,
-          });
-          break;
-        case "done":
-          callbacks.onDone(event.text ?? "");
-          eventSource.close();
-          break;
-        case "error":
-          callbacks.onError(event.error ?? "Unknown error");
-          eventSource.close();
-          break;
-      }
-    } catch {
-      // ignore malformed SSE messages
-    }
-  };
-
-  eventSource.onerror = () => {
-    // Connection closed — normal when task finishes or server unavailable.
-    // Don't call onError to avoid confusing "stream ended" with real errors.
-    eventSource.close();
-  };
-
-  // Abort signal support — close EventSource when caller aborts
-  if (callbacks.abortSignal) {
-    callbacks.abortSignal.addEventListener("abort", () => eventSource.close(), { once: true });
+  const abort = new AbortController();
+  const externalSignal = callbacks.abortSignal;
+  const onExternalAbort = () => abort.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) abort.abort();
+    else externalSignal.addEventListener("abort", onExternalAbort, { once: true });
   }
 
-  return () => eventSource.close();
+  let closedByUs = false;
+
+  const run = async () => {
+    const headers: Record<string, string> = { Accept: "text/event-stream" };
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let res: Response;
+    try {
+      res = await fetch(url, { method: "GET", headers, signal: abort.signal });
+    } catch (err) {
+      if ((err as Error).name === "AbortError" || closedByUs || abort.signal.aborted) return;
+      callbacks.onError("Connection lost");
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      if (closedByUs || abort.signal.aborted) return;
+      callbacks.onError(res.status === 404 ? "No active stream" : "Connection lost");
+      return;
+    }
+
+    await parseSseStream(
+      res.body,
+      toSseCallbacks({
+        ...callbacks,
+        onDone: (text) => {
+          if (closedByUs || abort.signal.aborted) return;
+          return callbacks.onDone(text);
+        },
+        onError: (err) => {
+          if (closedByUs || abort.signal.aborted) return;
+          return callbacks.onError(err);
+        },
+      }),
+      { signal: abort.signal },
+    );
+  };
+
+  void run();
+
+  return () => {
+    closedByUs = true;
+    abort.abort();
+    externalSignal?.removeEventListener("abort", onExternalAbort);
+  };
 }
 
 // ─── useAgentRunner ───────────────────────────────────────────────────────────
@@ -305,11 +264,9 @@ export function useAgentRunner() {
   }, []);
 
   const cancel = useCallback(() => {
-    // 1. Tell server to abort the background AI task
     if (agentIdRef.current && conversationIdRef.current) {
       stopAgentChat(agentIdRef.current, conversationIdRef.current).catch(() => {});
     }
-    // 2. Signal the WS stream listener to clean up
     abortRef.current?.abort();
     setRunning(false);
   }, []);
@@ -335,8 +292,6 @@ export function useAgentAutoRun() {
 
       const userMessage = agent.startMessage?.trim() || DEFAULT_START_MESSAGE;
 
-      // Create conversation — server will save messages + update status
-      // Create conversation via Redux
       const conv = await store.dispatch(createConversation({ agentId: agent.id, title: "Auto run", trigger: "cron" })).unwrap();
       const conversationId = conv.id;
 
@@ -356,7 +311,6 @@ export function useAgentAutoRun() {
         },
 
         onDone: async () => {
-          // Server already saved assistant message + updated conversation status
           await store.dispatch(updateAgent({ id: agent.id, lastRunAt: new Date() }));
           store.dispatch(upsertAgentLocal({ id: agent.id, runStatus: "idle" }));
           runningAgents.current.delete(agent.id);
@@ -366,7 +320,6 @@ export function useAgentAutoRun() {
 
         onError: async (err) => {
           console.error(`[AutoRun] ${agent.name} error:`, err);
-          // Server already updated conversation to failed status
           await store.dispatch(updateAgent({ id: agent.id, lastRunAt: new Date() }));
           store.dispatch(upsertAgentLocal({ id: agent.id, runStatus: "idle" }));
           runningAgents.current.delete(agent.id);

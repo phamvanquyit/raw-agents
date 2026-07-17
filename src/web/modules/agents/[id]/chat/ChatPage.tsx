@@ -1,14 +1,15 @@
-import { Plain3 } from "@solar-icons/react";
+import { AltArrowDown, Plain3 } from "@solar-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
-import { connectChatSSE, useAgentRunner } from "src/common/hooks/useAgent";
+import { useAgentRunner } from "src/common/hooks/useAgent";
 import type { AgentMessage } from "src/common/types";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 
+import { useChatStreaming } from "src/common/hooks/useChatStreaming";
+import { useStreamResume } from "src/common/hooks/useStreamResume";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
-import { useChatStreaming } from "src/components/chat/hooks/useChatStreaming";
 import { updateAgent } from "src/modules/agents/common/agentsSlice";
 import { createConversation, fetchConversations, markConversationDone, setActiveConversationId, updateConversation } from "src/modules/chat/common/chatSlice";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
@@ -74,7 +75,9 @@ export function ChatPage() {
   const { run, running, cancel } = useAgentRunner();
 
   // Track which conversation is currently streaming — isolates streaming per conv
+  const [streamingConvId, setStreamingConvId] = useState<string | null>(null);
   const streamingConvIdRef = useRef<string | null>(null);
+  streamingConvIdRef.current = streamingConvId;
 
   // ── Fetch messages from API (returns data, hook handles setMessages) ────────
 
@@ -82,31 +85,66 @@ export function ChatPage() {
     return apiClient.get<AgentMessage[]>(`/api/conversations/${convId}/messages`);
   }, []);
 
+  // Filled after useStreamResume — avoids circular hook dependency with useChatStreaming
+  const markTerminalRef = useRef<(convId: string) => void>(() => {});
+  const handleConnectionLostRef = useRef<() => void>(() => {});
+
+  const handleConversationDone = useCallback(
+    async (convId: string) => {
+      markTerminalRef.current(convId);
+      setStreamingConvId(null);
+      dispatch(markConversationDone(convId));
+    },
+    [dispatch],
+  );
+
+  const handleConversationError = useCallback(
+    async (convId: string, error?: string) => {
+      if (error === "Connection lost") {
+        setStreamingConvId(null);
+        handleConnectionLostRef.current();
+        if (agent) await dispatch(fetchConversations(agent.id));
+        return;
+      }
+      markTerminalRef.current(convId);
+      setStreamingConvId(null);
+      if (agent) await dispatch(fetchConversations(agent.id));
+    },
+    [agent, dispatch],
+  );
+
   // ── Streaming hook (local messages, no Redux) ───────────────────────────────
 
   const { setMessages, streamingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages } = useChatStreaming({
     toDisplayMsg,
     fetchMessages,
-    onConversationDone: async (convId) => {
-      streamingConvIdRef.current = null;
-      dispatch(markConversationDone(convId));
-    },
-    onConversationError: async (_convId) => {
-      streamingConvIdRef.current = null;
-      if (agent) await dispatch(fetchConversations(agent.id));
-    },
+    onConversationDone: handleConversationDone,
+    onConversationError: handleConversationError,
   });
 
   // Detect if server-side conversation is still running (survives F5)
   const activeConversation = useMemo(() => conversations.find((c) => c.id === activeConversationId), [conversations, activeConversationId]);
   const isServerRunning = activeConversation?.status === "running";
-  // Show thinking indicator only when viewing the conversation that's actually streaming
-  const isStreamingThisConv = streamingConvIdRef.current === activeConversationId;
-  const showGenerating = (running && isStreamingThisConv) || isServerRunning;
+  // Show thinking indicator when this conv is streaming locally or still running on server
+  const showGenerating = (running && streamingConvId === activeConversationId) || isServerRunning;
+
+  const { suppressResumeConvIdRef, markTerminal, handleConnectionLost } = useStreamResume({
+    running,
+    conversationId: activeConversationId,
+    isServerRunning,
+    buildSSECallbacks,
+    loadMessages,
+    clearStreamingState,
+    onAttach: setStreamingConvId,
+    retryOnConnectionLost: true,
+  });
+  markTerminalRef.current = markTerminal;
+  handleConnectionLostRef.current = handleConnectionLost;
 
   const [loading, setLoading] = useState(false);
+  const [isScrolledUp, setIsScrolledUp] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { scrollRef, scrollToBottom } = useAutoScroll();
+  const { scrollRef, scrollToBottom } = useAutoScroll({ onScrolledUpChange: setIsScrolledUp });
   const prevAgentIdRef = useRef<string | null>(null);
 
   // ── Reset streaming when switching conversations ────────────────────────────
@@ -118,30 +156,11 @@ export function ChatPage() {
     }
   }, [activeConversationId, clearStreamingState]);
 
-  // Auto-resume: when mounting a conversation that's still running on server (e.g. after F5),
-  // open SSE connection to receive live stream events instead of polling.
+  // When another tab starts a run, pull the new user message even before SSE connects
   useEffect(() => {
-    if (!isServerRunning || running || !activeConversationId) return;
-
-    // Mark this conv as the streaming target for SSE resume
-    streamingConvIdRef.current = activeConversationId;
-    const resumeConvId = activeConversationId;
-
-    // Load existing messages (including user message) before streaming starts
-    void loadMessages(resumeConvId);
-
-    const callbacks = buildSSECallbacks(resumeConvId);
-    const abort = new AbortController();
-    const cleanup = connectChatSSE(resumeConvId, {
-      ...callbacks,
-      abortSignal: abort.signal,
-    });
-
-    return () => {
-      abort.abort();
-      cleanup();
-    };
-  }, [isServerRunning, running, activeConversationId, agent, dispatch, loadMessages, buildSSECallbacks]);
+    if (!isServerRunning || !activeConversationId || running) return;
+    void loadMessages(activeConversationId);
+  }, [isServerRunning, activeConversationId, running, loadMessages]);
 
   useEffect(() => {
     dispatch(fetchLlmProviders());
@@ -247,7 +266,7 @@ export function ChatPage() {
 
       clearStreamingState();
       // Mark which conversation we're streaming to
-      streamingConvIdRef.current = convId;
+      setStreamingConvId(convId);
 
       // Optimistic: show user message immediately
       setMessages((prev) => [
@@ -263,7 +282,7 @@ export function ChatPage() {
           createdAt: new Date(),
         },
       ]);
-      scrollToBottom();
+      scrollToBottom({ force: true });
 
       // If first message in a conversation still titled "New Chat", rename it
       const activeConv = conversations.find((c) => c.id === convId);
@@ -284,10 +303,12 @@ export function ChatPage() {
   );
 
   const handleCancel = useCallback(async () => {
-    cancel();
-
     const cancelledConvId = streamingConvIdRef.current;
-    streamingConvIdRef.current = null;
+    // Suppress auto-resume before running flips false (stop is in-flight)
+    if (cancelledConvId) suppressResumeConvIdRef.current = cancelledConvId;
+
+    cancel();
+    setStreamingConvId(null);
 
     // Give the server a moment to save the partial assistant message to DB
     await new Promise((r) => setTimeout(r, 300));
@@ -315,21 +336,32 @@ export function ChatPage() {
             <span className="text-[12px] text-[#8a7a5a] animate-pulse">Loading...</span>
           </div>
         ) : (
-          <MessageList
-            messages={liveMessages}
-            generating={showGenerating && !streamingContent}
-            activityStatus={isServerRunning && !running ? "Processing..." : activityStatus}
-            assistantLabel={agent.name}
-            emptyStateContent={
-              <div className="flex flex-col items-center gap-2">
-                <Plain3 width={28} height={28} className="text-[#5a5040] opacity-40" />
-                <span className="text-[12px] text-[#8a7a5a]">Start a conversation with {agent.name}</span>
-              </div>
-            }
-            messagesEndRef={messagesEndRef}
-            scrollContainerRef={scrollRef}
-            className="game-scrollbar"
-          />
+          <div className="relative flex-1 min-h-0 flex flex-col">
+            <MessageList
+              messages={liveMessages}
+              generating={showGenerating && !streamingContent}
+              activityStatus={isServerRunning && !running ? "Processing..." : activityStatus}
+              assistantLabel={agent.name}
+              emptyStateContent={
+                <div className="flex flex-col items-center gap-2">
+                  <Plain3 width={28} height={28} className="text-[#5a5040] opacity-40" />
+                  <span className="text-[12px] text-[#8a7a5a]">Start a conversation with {agent.name}</span>
+                </div>
+              }
+              messagesEndRef={messagesEndRef}
+              scrollContainerRef={scrollRef}
+            />
+            {isScrolledUp && (
+              <button
+                type="button"
+                onClick={() => scrollToBottom({ force: true })}
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-surface text-soft hover:text-foreground hover:bg-surface-raised transition-colors"
+                aria-label="Scroll to bottom"
+              >
+                <AltArrowDown width={14} height={14} />
+              </button>
+            )}
+          </div>
         )}
 
         {/* Input area */}
@@ -344,6 +376,7 @@ export function ChatPage() {
               model={agent.aiModel ?? undefined}
               onProviderChange={(pid) => void dispatch(updateAgent({ id: agent.id, aiProvider: pid }))}
               onModelChange={(m) => void dispatch(updateAgent({ id: agent.id, aiModel: m }))}
+              focusSignal={activeConversationId}
             />
           </div>
         )}
