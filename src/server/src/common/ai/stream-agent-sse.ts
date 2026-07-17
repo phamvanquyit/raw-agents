@@ -31,13 +31,13 @@ export interface StreamAgentSSEOptions {
 /**
  * Run a LangGraph agent and stream its output as SSE events.
  *
- * SSE event types emitted:
- *   - `{ type: "chunk",       text }          ` — AI text token
- *   - `{ type: "thinking",    text }          ` — AI thinking / reasoning token
- *   - `{ type: "tool-call",   toolCallId, toolName, input }` — agent invokes a tool
- *   - `{ type: "tool-result", toolCallId, toolName, result }` — tool returns a result
- *   - `{ type: "done" }                       ` — stream finished
- *   - `{ type: "error",       error }         ` — unrecoverable error
+ * SSE event types emitted (same protocol as raw-agent chat):
+ *   - `{ type: "text-delta",     text }          ` — AI text token
+ *   - `{ type: "thinking-delta", text }          ` — AI thinking / reasoning token
+ *   - `{ type: "tool-call",      toolCallId, toolName, input }`
+ *   - `{ type: "tool-result",    toolCallId, toolName, result }`
+ *   - `{ type: "done" }`
+ *   - `{ type: "error",          error }`
  */
 export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, abortSignal }: StreamAgentSSEOptions): Promise<void> {
   try {
@@ -67,14 +67,14 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
 
           if (typeof content === "string" && content) {
             await stream.writeSSE({
-              data: JSON.stringify({ type: "chunk", text: content }),
+              data: JSON.stringify({ type: "text-delta", text: content }),
             });
           } else if (Array.isArray(content)) {
             for (const block of content) {
               // Claude: {type:"thinking", thinking:"..."}
               if (block.type === "thinking" && block.thinking) {
                 await stream.writeSSE({
-                  data: JSON.stringify({ type: "thinking", text: block.thinking }),
+                  data: JSON.stringify({ type: "thinking-delta", text: block.thinking }),
                 });
               }
               // OpenAI Responses API: {type:"reasoning", summary:[{type:"summary_text",text:"..."}]}
@@ -84,26 +84,26 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
                   for (const s of summaries) {
                     if (s.text) {
                       await stream.writeSSE({
-                        data: JSON.stringify({ type: "thinking", text: s.text }),
+                        data: JSON.stringify({ type: "thinking-delta", text: s.text }),
                       });
                     }
                   }
                 } else if (typeof block.text === "string" && block.text) {
                   await stream.writeSSE({
-                    data: JSON.stringify({ type: "thinking", text: block.text }),
+                    data: JSON.stringify({ type: "thinking-delta", text: block.text }),
                   });
                 }
               }
               // Standard text block
               else if (block.type === "text" && block.text) {
                 await stream.writeSSE({
-                  data: JSON.stringify({ type: "chunk", text: block.text }),
+                  data: JSON.stringify({ type: "text-delta", text: block.text }),
                 });
               }
               // Output text block (Responses API)
               else if (block.type === "output_text" && block.text) {
                 await stream.writeSSE({
-                  data: JSON.stringify({ type: "chunk", text: block.text }),
+                  data: JSON.stringify({ type: "text-delta", text: block.text }),
                 });
               }
             }
@@ -113,7 +113,7 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
           const reasoning = msgChunk?.additional_kwargs?.reasoning_content ?? msgChunk?.additional_kwargs?.reasoning;
           if (typeof reasoning === "string" && reasoning) {
             await stream.writeSSE({
-              data: JSON.stringify({ type: "thinking", text: reasoning }),
+              data: JSON.stringify({ type: "thinking-delta", text: reasoning }),
             });
           }
         }

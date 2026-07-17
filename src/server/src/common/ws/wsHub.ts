@@ -7,7 +7,7 @@
  *   - wsHub.emit(type, payload) — alias for broadcast (back-compat)
  *
  * Each connection is assigned a unique clientId on open.
- * Stream events (chat streaming) use targeted send; state events use broadcast.
+ * State/CRUD events use broadcast. Chat tokens stream over SSE, not WS.
  */
 
 import type { ServerWebSocket } from "bun";
@@ -36,16 +36,7 @@ export type WsEventType =
   | "users:created"
   | "users:updated"
   | "users:deleted"
-  | "ping"
-  // ── Chat stream events (targeted, not broadcast) ──
-  | "chat:chunk"
-  | "chat:thinking"
-  | "chat:tool-call"
-  | "chat:tool-result"
-  | "chat:done"
-  | "chat:error"
-  // ── AI assistant stream events (editor/prompt assistant) ──
-  | "assistant:prompt-updated";
+  | "ping";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;

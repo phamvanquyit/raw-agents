@@ -430,7 +430,11 @@ export async function* streamAgent(
     yield { type: "done", text: fullText };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("AbortError") || msg === "AbortError") return;
+    const isAbort = msg.includes("AbortError") || msg === "AbortError" || (err instanceof Error && err.name === "AbortError");
+    if (isAbort) {
+      yield { type: "error", error: "cancelled" };
+      return;
+    }
     yield { type: "error", error: msg };
   }
 }

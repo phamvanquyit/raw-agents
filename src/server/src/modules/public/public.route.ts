@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { agentConversations, getDb } from "../../common/db/client.js";
-import { runRegistry } from "../agents/raw-agent/utils/run-registry.js";
+import { relayRunToSSE, runRegistry } from "../agents/raw-agent/utils/run-registry.js";
 import {
   createPublicConversation,
   deletePublicConversation,
@@ -74,7 +74,7 @@ app.delete("/agents/:id/conversations/:convId", (c) => {
 // ─── SSE Stream ──────────────────────────────────────────────────────────────
 // GET /api/public/agents/:id/conversations/:convId/stream?fp=<fingerprint>
 // Subscribe to live stream events. Validates ownership via fingerprint.
-app.get("/agents/:id/conversations/:convId/stream", (c) => {
+app.get("/agents/:id/conversations/:convId/stream", async (c) => {
   const agentId = c.req.param("id");
   const convId = c.req.param("convId");
   const fp = c.req.query("fp");
@@ -96,34 +96,21 @@ app.get("/agents/:id/conversations/:convId/stream", (c) => {
     .get();
   if (!conv) return c.json({ error: "Conversation not found" }, 404);
 
+  // Wait briefly — client may open stream right as POST registers the run
+  const maxWait = 5000;
+  const pollInterval = 50;
+  let waited = 0;
+  while (!runRegistry.has(convId) && waited < maxWait) {
+    await new Promise((r) => setTimeout(r, pollInterval));
+    waited += pollInterval;
+  }
+
   if (!runRegistry.has(convId)) {
     return c.json({ error: "No active stream for this conversation" }, 404);
   }
 
   return streamSSE(c, async (stream) => {
-    await new Promise<void>((resolve) => {
-      const unsub = runRegistry.subscribe(convId, (event) => {
-        stream.writeSSE({ data: JSON.stringify(event) }).catch(() => {
-          unsub();
-          resolve();
-        });
-
-        if (event.type === "done" || event.type === "error") {
-          unsub();
-          resolve();
-        }
-      });
-
-      if (!runRegistry.has(convId)) {
-        unsub();
-        resolve();
-      }
-
-      stream.onAbort(() => {
-        unsub();
-        resolve();
-      });
-    });
+    await relayRunToSSE(convId, stream);
   });
 });
 
