@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Hono } from "hono";
+import type { AgentStreamEvent } from "../modules/agents/raw-agent/utils/agentRunner.js";
+import { runRegistry } from "../modules/agents/raw-agent/utils/run-registry.js";
 import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
 
 describe("SSE Chat & Streaming API", () => {
@@ -87,6 +89,64 @@ describe("SSE Chat & Streaming API", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { status: string };
     expect(["failed", "done"]).toContain(data.status);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // runRegistry — background run + replay (F5-resilient)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  test("runRegistry — late subscriber gets structural replay + live text snapshot", () => {
+    const id = `replay-${crypto.randomUUID()}`;
+    const { runId } = runRegistry.create(id, agentId);
+    runRegistry.emit(id, { type: "text-delta", text: "Hello" }, runId);
+    runRegistry.emit(id, { type: "text-delta", text: " world" }, runId);
+
+    // Text deltas are snapshotted (not individually buffered) to avoid F5 dup with DB
+    const received: AgentStreamEvent[] = [];
+    runRegistry.subscribe(id, (e) => received.push(e));
+    expect(received).toEqual([{ type: "text-delta", text: "Hello world" }]);
+
+    runRegistry.emit(id, { type: "tool-call", toolCallId: "t1", toolName: "search", toolLabel: "Search", input: {} }, runId);
+    expect(received.at(-1)?.type).toBe("tool-call");
+
+    // After tool-call, live text is cleared; new text accumulates again
+    runRegistry.emit(id, { type: "text-delta", text: "Result" }, runId);
+    runRegistry.emit(id, { type: "done", text: "Result" }, runId);
+    expect(received.at(-1)).toEqual({ type: "done", text: "Result" });
+
+    runRegistry.finish(id, runId);
+    const late: AgentStreamEvent[] = [];
+    runRegistry.subscribe(id, (e) => late.push(e));
+    // Structural only: tool-call + done (live text cleared on done)
+    expect(late.map((e) => e.type)).toEqual(["tool-call", "done"]);
+  });
+
+  test("runRegistry — superseded emit is ignored; create unblocks old relays", () => {
+    const id = `super-${crypto.randomUUID()}`;
+    const first = runRegistry.create(id, agentId);
+    const oldEvents: AgentStreamEvent[] = [];
+    runRegistry.subscribe(id, (e) => oldEvents.push(e));
+
+    const second = runRegistry.create(id, agentId);
+    expect(oldEvents.at(-1)).toEqual({ type: "error", error: "cancelled" });
+
+    // Old runId must not pollute the new buffer
+    runRegistry.emit(id, { type: "text-delta", text: "stale" }, first.runId);
+    const fresh: AgentStreamEvent[] = [];
+    runRegistry.subscribe(id, (e) => fresh.push(e));
+    expect(fresh).toEqual([]);
+
+    runRegistry.emit(id, { type: "done", text: "ok" }, second.runId);
+    runRegistry.finish(id, second.runId);
+  });
+
+  test("runRegistry — cancel only works on active (unfinished) runs", () => {
+    const id = `cancel-${crypto.randomUUID()}`;
+    const { runId } = runRegistry.create(id, agentId);
+    expect(runRegistry.cancel(id)).toBe(true);
+    runRegistry.emit(id, { type: "error", error: "cancelled" }, runId);
+    runRegistry.finish(id, runId);
+    expect(runRegistry.cancel(id)).toBe(false);
   });
 
   // ═══════════════════════════════════════════════════════════════════════
