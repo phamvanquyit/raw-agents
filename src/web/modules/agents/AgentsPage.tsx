@@ -5,10 +5,11 @@ import { useNavigate } from "react-router-dom";
 import type { Agent } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import { fetchAgents } from "src/modules/agents/common/agentsSlice";
-import AgentsTreeView from "src/modules/agents/components/AgentsTreeView";
+import { AgentsBoard } from "src/modules/agents/components/AgentsBoard";
 import { NewAgentPopover } from "src/modules/agents/components/NewAgentDialog";
 import { fetchTeams } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
+import { NewTeamPopover } from "src/modules/teams/components/NewTeamDialog";
 import { TeamDialog } from "src/modules/teams/components/TeamDialog";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
@@ -18,7 +19,6 @@ export default function AgentsPage() {
   const agents = useAppSelector((s) => s.agents.items) as Agent[];
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
 
-  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<TeamWithMembers | null>(null);
 
   useEffect(() => {
@@ -57,18 +57,11 @@ export default function AgentsPage() {
     navigate(`/agents/${id}`);
   };
 
-  const handleOpenCreateTeam = () => {
-    setEditingTeam(null);
-    setTeamDialogOpen(true);
-  };
-
   const handleOpenEditTeam = (team: TeamWithMembers) => {
     setEditingTeam(team);
-    setTeamDialogOpen(true);
   };
 
   const handleCloseTeamDialog = () => {
-    setTeamDialogOpen(false);
     setEditingTeam(null);
   };
 
@@ -81,9 +74,11 @@ export default function AgentsPage() {
             <p className="mt-1.5 text-sm text-muted-foreground">Organize agents by team</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="default" icon={<UsersGroupTwoRounded width={16} height={16} />} onClick={handleOpenCreateTeam}>
-              New Team
-            </Button>
+            <NewTeamPopover>
+              <Button type="default" icon={<UsersGroupTwoRounded width={16} height={16} />}>
+                New Team
+              </Button>
+            </NewTeamPopover>
             <NewAgentPopover>
               <Button type="primary" icon={<AddCircle width={16} height={16} />}>
                 New Agent
@@ -92,10 +87,10 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        <AgentsTreeView teams={teams} ungroupedAgents={ungroupedAgents} teamAgents={teamAgents} onNavigate={handleNavigate} onEditTeam={handleOpenEditTeam} />
+        <AgentsBoard teams={teams} ungroupedAgents={ungroupedAgents} teamAgents={teamAgents} onNavigate={handleNavigate} onEditTeam={handleOpenEditTeam} />
       </PageShell>
 
-      <TeamDialog open={teamDialogOpen} onClose={handleCloseTeamDialog} team={editingTeam} />
+      <TeamDialog open={!!editingTeam} onClose={handleCloseTeamDialog} team={editingTeam} />
     </>
   );
 }

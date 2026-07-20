@@ -19,7 +19,6 @@ interface NewAgentPopoverProps {
 export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [aiModel, setAiModel] = useState("");
   const [teamId, setTeamId] = useState<string>(defaultTeamId ?? "");
@@ -34,7 +33,6 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
   useEffect(() => {
     if (open) {
       setName("");
-      setDescription("");
       setSelectedProviderId(null);
       setAiModel("");
       setTeamId(defaultTeamId ?? "");
@@ -72,7 +70,6 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
       await dispatch(
         createAgent({
           name: name.trim(),
-          description: description.trim() || null,
           avatar: JSON.stringify(genConfig()),
           aiProvider: selectedProviderId,
           aiModel,
@@ -104,7 +101,7 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
       onOpenChange={setOpen}
       trigger="click"
       placement="bottomRight"
-      arrow={false}
+      arrow
       styles={{ root: { width: 420 }, container: { width: 420, padding: 0 } }}
       content={
         <div className="w-[420px]">
@@ -134,15 +131,6 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
                 onKeyDown={handleKeyDown}
                 placeholder="e.g. Research Bot, Support Agent…"
                 autoComplete="off"
-              />
-            </Form.Item>
-
-            <Form.Item label={<span className="text-muted-foreground">Description</span>} className="!mb-0" layout="vertical">
-              <Input.TextArea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Short description of what this agent does"
-                rows={2}
               />
             </Form.Item>
 

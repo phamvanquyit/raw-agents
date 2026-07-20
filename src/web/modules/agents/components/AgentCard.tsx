@@ -1,68 +1,43 @@
+import { Global } from "@solar-icons/react";
 import type { Agent } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import { UserAvatar } from "src/components/UserAvatar";
 
-export interface AgentCardProps {
-  agent: Agent;
-  onNavigate: (id: string) => void;
+function modelLabel(aiModel: string | null): string {
+  if (!aiModel) return "No model";
+  return aiModel.split("/").pop() || aiModel;
 }
 
-export default function AgentCard({ agent, onNavigate }: AgentCardProps) {
-  const modelName = agent.aiModel ? agent.aiModel.split("/").pop() : null;
-  const toolCount = agent.toolCount ?? 0;
+export interface AgentCardProps {
+  agent: Agent;
+  onOpen: () => void;
+  index?: number;
+}
 
+export function AgentCard({ agent, onOpen, index = 0 }: AgentCardProps) {
   return (
-    <div
-      className="group relative bg-card border border-border rounded-md p-4 cursor-pointer transition-all duration-200 hover:border-primary-200"
-      onClick={() => onNavigate(agent.id)}
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{ animationDelay: `${index * 40}ms` }}
+      className="group relative flex min-h-56 flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl border border-border-subtle bg-card px-6 py-10 text-center transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-brand/35 hover:bg-secondary cursor-pointer motion-safe:animate-[fadeIn_0.35s_ease-out_both]"
     >
-      {/* Icon + Name (centered) */}
-      <div className="flex flex-col items-center gap-2 mb-3">
-        <div className="pt-2">
-          <UserAvatar avatar={agent.avatar} name={agent.name} size={56} />
-        </div>
-        <span className="text-base font-semibold text-foreground truncate max-w-full text-center">{agent.name}</span>
-      </div>
-
-      {/* Description */}
-      <RenderIf condition={!!agent.description}>
-        <p className="text-xs text-muted-foreground leading-snug line-clamp-2 m-0 mb-5 text-center">{agent.description}</p>
+      <RenderIf condition={agent.isPublic}>
+        <span title="Published" className="absolute right-3 top-3 z-10 flex size-7 items-center justify-center rounded-md bg-success/15 text-success">
+          <Global width={14} height={14} />
+        </span>
       </RenderIf>
 
-      <RenderIf condition={!agent.description}>
-        <p className="text-xs text-muted-foreground italic m-0 mb-5 text-center">No description</p>
-      </RenderIf>
-
-      {/* Meta info — label:value rows */}
-      <div className="flex flex-col gap-3 pt-5 border-t border-border">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground shrink-0">Model</span>
-          <RenderIf condition={!!modelName} fallback={<span className="text-xs text-muted-foreground italic">—</span>}>
-            <span className="text-xs font-medium text-muted-foreground truncate">{modelName}</span>
-          </RenderIf>
-        </div>
-
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground shrink-0">Tools</span>
-          <span className="text-xs text-muted-foreground">
-            {toolCount} {toolCount === 1 ? "tool" : "tools"}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground shrink-0">Visibility</span>
-          {agent.isPublic ? (
-            <span className="text-xs font-medium text-chart-2">Published</span>
-          ) : (
-            <span className="text-xs text-muted-foreground">Private</span>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground shrink-0">Creator</span>
-          <span className="text-xs text-muted-foreground truncate">{agent?.creatorName || "-"}</span>
+      <div className={`rounded-full p-[3px] transition-colors duration-200 ${agent.isPublic ? "bg-brand/30" : "bg-border group-hover:bg-brand/25"}`}>
+        <div className="rounded-full bg-card p-0.5">
+          <UserAvatar avatar={agent.avatar} name={agent.name} size={88} />
         </div>
       </div>
-    </div>
+
+      <div className="flex min-w-0 w-full flex-col items-center gap-1.5">
+        <span className="w-full truncate text-lg font-semibold text-foreground">{agent.name}</span>
+        <span className="truncate font-mono text-sm text-muted-foreground">{modelLabel(agent.aiModel)}</span>
+      </div>
+    </button>
   );
 }
