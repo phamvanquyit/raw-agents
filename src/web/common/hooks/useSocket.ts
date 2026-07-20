@@ -12,6 +12,8 @@ import { removeConversationLocal, upsertConversationLocal } from "src/modules/ch
 import { removeMcpServerLocal, upsertMcpServerLocal } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { removeTeamLocal, upsertTeamLocal } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
+import { removeToolFolderLocal, reorderToolFoldersLocal, upsertToolFolderLocal } from "src/modules/tools/common/toolFoldersSlice";
+import type { ToolFolderWithTools } from "src/modules/tools/common/toolFoldersSlice";
 import { removeToolLocal, upsertToolLocal } from "src/modules/tools/common/toolsSlice";
 import { store } from "src/store/store";
 import { wsClient } from "../api/wsClient";
@@ -66,6 +68,21 @@ function handleEvent(event: WsEvent) {
     }
     case "tools:deleted": {
       store.dispatch(removeToolLocal((payload as { id: string }).id));
+      break;
+    }
+
+    // ── Tool Folders ──────────────────────────────────────────────────────────
+    case "tool-folders:created":
+    case "tool-folders:updated": {
+      store.dispatch(upsertToolFolderLocal(payload as ToolFolderWithTools));
+      break;
+    }
+    case "tool-folders:deleted": {
+      store.dispatch(removeToolFolderLocal((payload as { id: string }).id));
+      break;
+    }
+    case "tool-folders:reordered": {
+      store.dispatch(reorderToolFoldersLocal((payload as { folderIds: string[] }).folderIds));
       break;
     }
 

@@ -32,7 +32,7 @@ export function ToolTableRow({
       <div
         className={[
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-          isBuiltin ? "bg-tertiary/10 text-tertiary" : "bg-surface-raised text-muted",
+          isBuiltin ? "bg-chart-2/10 text-chart-2" : "bg-muted text-muted-foreground",
         ].join(" ")}
       >
         <SolarIcon name={tool.icon} size={16} fallback={<FallbackIcon size={16} />} />
@@ -40,7 +40,7 @@ export function ToolTableRow({
 
       <span
         className={[
-          "flex-1 min-w-0 text-[13px] font-semibold text-main truncate group-hover:text-primary transition-colors duration-150",
+          "flex-1 min-w-0 text-[13px] font-semibold text-foreground truncate group-hover:text-primary transition-colors duration-150",
           !isBuiltin && !isActive ? "opacity-90" : "",
         ].join(" ")}
       >
@@ -48,22 +48,22 @@ export function ToolTableRow({
       </span>
 
       {/* Params */}
-      <span className="shrink-0 text-[11px] text-muted tabular-nums w-20 text-right">
+      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums w-20 text-right">
         {paramCount > 0 ? `${paramCount} param${paramCount !== 1 ? "s" : ""}` : "—"}
       </span>
 
       {/* Status */}
       <div className="shrink-0 w-24 flex justify-end">
         {isBuiltin ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-tertiary/10 text-tertiary">Built-in</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-chart-2/10 text-chart-2">Built-in</span>
         ) : (
           <span
             className={[
               "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold",
-              isActive ? "bg-primary/10 text-primary" : "bg-surface-raised text-muted",
+              isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
             ].join(" ")}
           >
-            <span className={["w-1.5 h-1.5 rounded-full", isActive ? "bg-primary" : "bg-muted/40"].join(" ")} />
+            <span className={["w-1.5 h-1.5 rounded-full", isActive ? "bg-primary" : "bg-muted"].join(" ")} />
             {isActive ? "Active" : "Inactive"}
           </span>
         )}

@@ -2,7 +2,7 @@
 // Route: /tools/:id — Full-page editor for a single tool.
 // Layout: Header → [ Editor(top) + RunPanel(bottom, collapsible) | CodingAgentPanel(right) ]
 
-import { CheckCircle, CloseCircle, Play, TestTube } from "@solar-icons/react";
+import { CheckCircle, CloseCircle, Play, Programming, TestTube } from "@solar-icons/react";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -295,7 +295,7 @@ export default function EditToolPage() {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-          <span className="text-sm text-muted font-medium">Loading tool…</span>
+          <span className="text-sm text-muted-foreground font-medium">Loading tool…</span>
         </div>
       </div>
     );
@@ -305,17 +305,17 @@ export default function EditToolPage() {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="w-12 h-12 rounded-xl bg-surface-raised flex items-center justify-center">
-            <span className="text-xl">🔧</span>
+          <div className="w-12 h-12 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
+            <Programming width={22} height={22} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-main mb-1">Tool not found</p>
-            <p className="text-xs text-muted">This tool may have been deleted.</p>
+            <p className="text-sm font-semibold text-foreground mb-1">Tool not found</p>
+            <p className="text-xs text-muted-foreground">This tool may have been deleted.</p>
           </div>
           <button
             type="button"
             onClick={() => navigate("/tools")}
-            className="text-xs font-semibold text-primary hover:text-primary-hover cursor-pointer bg-transparent border-0 underline underline-offset-2"
+            className="text-xs font-semibold text-primary hover:text-primary cursor-pointer bg-transparent border-0 underline underline-offset-2"
           >
             Back to Tools
           </button>
@@ -340,21 +340,20 @@ export default function EditToolPage() {
         onSave={handleSave}
       />
 
-      {/* Validation error banner */}
-      {showValidationError && (saveError || hasValidationErrors) && (
-        <ValidationBanner
-          errors={saveError ? [saveError] : codeValidationErrors}
-          onDismiss={() => {
-            setShowValidationError(false);
-            setSaveError(null);
-          }}
-        />
-      )}
-
       {/* Body: [Editor + RunPanel] | CodingAgentPanel */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left: Editor (top) + RunPanel (bottom) */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative">
+          {showValidationError && (saveError || hasValidationErrors) && (
+            <ValidationBanner
+              errors={saveError ? [saveError] : codeValidationErrors}
+              onDismiss={() => {
+                setShowValidationError(false);
+                setSaveError(null);
+              }}
+            />
+          )}
+
           {/* Monaco editor — diff mode when AI draft exists */}
           <div className="flex-1 min-h-0 overflow-hidden relative">
             {codeDraft !== null && codeDraft !== localCode ? (
@@ -369,11 +368,8 @@ export default function EditToolPage() {
                   }}
                 />
                 {/* Accept / Reject floating bar */}
-                <div
-                  className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border/60"
-                  style={{ background: "rgba(14,15,18,0.92)", backdropFilter: "blur(8px)" }}
-                >
-                  <span className="text-[11px] font-semibold text-muted tracking-wide uppercase mr-1">AI Draft</span>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border/60 bg-muted">
+                  <span className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase mr-1">AI Draft</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -383,7 +379,7 @@ export default function EditToolPage() {
                       setSavedCode(draft);
                       if (id) void apiClient.put(`/api/tools/${id}`, { codeContent: draft });
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#A8FF53] hover:text-[#c4ff8a] cursor-pointer bg-[#A8FF53]/10 hover:bg-[#A8FF53]/20 border border-[#A8FF53]/30 rounded-sm px-3 py-1 transition-all duration-150"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary cursor-pointer bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-sm px-3 py-1 transition-all duration-150"
                   >
                     <CheckCircle size={14} />
                     Accept
@@ -394,7 +390,7 @@ export default function EditToolPage() {
                       setCodeDraft(localCode);
                       if (id) void apiClient.put(`/api/tools/${id}`, { draftCode: localCode });
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#FF4D6D] hover:text-[#ff7a93] cursor-pointer bg-[#FF4D6D]/10 hover:bg-[#FF4D6D]/20 border border-[#FF4D6D]/30 rounded-sm px-3 py-1 transition-all duration-150"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-destructive hover:text-destructive-hover cursor-pointer bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 rounded-sm px-3 py-1 transition-all duration-150"
                   >
                     <CloseCircle size={14} />
                     Reject
@@ -432,15 +428,15 @@ export default function EditToolPage() {
               />
 
               {/* Panel header */}
-              <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-border bg-surface">
+              <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-border bg-card">
                 <div className="flex items-center gap-1.5">
                   <TestTube size={12} className="text-primary" />
-                  <span className="text-[10px] font-bold text-soft uppercase tracking-wider">Test</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Test</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setBottomOpen(false)}
-                  className="text-[10px] text-muted hover:text-main cursor-pointer bg-transparent border-0 px-1.5 py-0.5 rounded hover:bg-surface-raised transition-colors"
+                  className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 px-1.5 py-0.5 rounded hover:bg-muted transition-colors"
                 >
                   ✕
                 </button>
@@ -453,11 +449,11 @@ export default function EditToolPage() {
             </>
           ) : (
             /* Collapsed: small bottom bar with open button */
-            <div className="shrink-0 flex items-center px-3 py-1 border-t border-border bg-surface">
+            <div className="shrink-0 flex items-center px-3 py-1 border-t border-border bg-card">
               <button
                 type="button"
                 onClick={() => setBottomOpen(true)}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted hover:text-primary cursor-pointer bg-transparent border-0 px-1.5 py-1 rounded hover:bg-surface-raised transition-colors"
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary cursor-pointer bg-transparent border-0 px-1.5 py-1 rounded hover:bg-muted transition-colors"
               >
                 <Play size={10} />
                 Test

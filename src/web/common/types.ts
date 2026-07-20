@@ -9,6 +9,7 @@ export interface Agent {
   id: string;
   name: string;
   description: string | null;
+  avatar: string | null;
   systemPrompt: string | null;
   callableAgentIds: string[];
   isActive: boolean;
@@ -95,6 +96,19 @@ export interface AgentMessage {
 
 export type NewAgentMessage = Omit<AgentMessage, "id" | "createdAt">;
 
+// ─── Tool Folders ─────────────────────────────────────────────────────────────
+
+export interface ToolFolder {
+  id: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export type NewToolFolder = Omit<ToolFolder, "id" | "createdAt">;
+
 // ─── Custom Tools ─────────────────────────────────────────────────────────────
 
 export interface AgentTool {
@@ -106,6 +120,7 @@ export interface AgentTool {
   parameters: object;
   codeContent: string;
   draftCode?: string | null;
+  folderId?: string | null;
   isActive: boolean;
   createdAt: Date;
 }
@@ -141,6 +156,8 @@ export interface McpServer {
   url: string;
   headers: Record<string, string>;
   isActive: boolean;
+  lastSyncError?: string | null;
+  lastSyncedAt?: Date | string | null;
   toolCount?: number;
   tools?: McpServerTool[];
   createdAt: Date;

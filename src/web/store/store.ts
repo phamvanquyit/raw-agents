@@ -7,6 +7,7 @@ import { chatReducer } from "src/modules/chat/common/chatSlice";
 import { llmProvidersReducer } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { mcpServersReducer } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { teamsReducer } from "src/modules/teams/common/teamsSlice";
+import { toolFoldersReducer } from "src/modules/tools/common/toolFoldersSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
 
 export const store = configureStore({
@@ -15,6 +16,7 @@ export const store = configureStore({
     llmProviders: llmProvidersReducer,
     agents: agentsReducer,
     tools: toolsReducer,
+    toolFolders: toolFoldersReducer,
     teams: teamsReducer,
     chat: chatReducer,
     mcpServers: mcpServersReducer,

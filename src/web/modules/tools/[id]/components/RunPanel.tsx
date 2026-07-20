@@ -122,7 +122,7 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
       <div className="shrink-0 p-3 border-b border-border">
         {/* Header + Run button */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">Input</span>
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Input</span>
         </div>
 
         {/* Param badges */}
@@ -132,8 +132,8 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
               <span
                 key={p.name}
                 className={[
-                  "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono",
-                  p.required ? "bg-primary/10 text-primary" : "bg-surface-raised text-muted",
+                  "inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-mono",
+                  p.required ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
                 ].join(" ")}
               >
                 {p.name}
@@ -158,7 +158,7 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
             }}
             options={{
               fontSize: 11,
-              fontFamily: "'Geist Mono Variable', 'Geist Mono', monospace",
+              fontFamily: "var(--font-family-mono)",
               minimap: { enabled: false },
               lineNumbers: "off",
               folding: false,
@@ -175,19 +175,19 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
           />
         </div>
 
-        {hasJsonError && <span className="text-[10px] text-danger mt-1 block">Invalid JSON — fix before running</span>}
+        {hasJsonError && <span className="text-[10px] text-destructive mt-1 block">Invalid JSON — fix before running</span>}
       </div>
 
       {/* ── Output section ── */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
-          <span className="text-[11px] font-semibold text-muted uppercase tracking-wider">Output</span>
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Output</span>
           {result && !isRunning && (
             <div className="flex items-center gap-1">
               <span
                 className={[
-                  "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold",
-                  result.status === "ok" ? "bg-primary/10 text-primary" : "bg-danger/10 text-danger",
+                  "inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-semibold",
+                  result.status === "ok" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive",
                 ].join(" ")}
               >
                 {result.status === "ok" ? "✓ OK" : "✗ Error"}
@@ -196,7 +196,7 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
                 type="button"
                 title="Clear"
                 onClick={() => setResult(null)}
-                className="p-0.5 text-muted hover:text-main transition-colors cursor-pointer border-0 bg-transparent"
+                className="p-0.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer border-0 bg-transparent"
               >
                 <CloseCircle size={11} />
               </button>
@@ -207,13 +207,13 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
         <div className="flex-1 min-h-0 overflow-y-auto game-scrollbar p-3">
           {!result && !isRunning && (
             <div className="flex items-center justify-center h-full">
-              <span className="text-[11px] text-muted italic">Run to see output</span>
+              <span className="text-[11px] text-muted-foreground italic">Run to see output</span>
             </div>
           )}
 
           {isRunning && (
             <div className="flex items-center justify-center h-full">
-              <span className="text-[11px] text-muted italic">{phaseLabel}</span>
+              <span className="text-[11px] text-muted-foreground italic">{phaseLabel}</span>
             </div>
           )}
 
@@ -221,8 +221,8 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
             <div className="flex flex-col gap-2">
               {result.console && (
                 <div>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted mb-1 block">Console</span>
-                  <pre className="bg-code text-soft text-[10px] font-mono leading-relaxed px-2.5 py-2 rounded-md overflow-x-auto whitespace-pre-wrap break-all m-0">
+                  <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Console</span>
+                  <pre className="bg-muted text-muted-foreground text-[10px] font-mono leading-relaxed px-2.5 py-2 rounded-md overflow-x-auto whitespace-pre-wrap break-all m-0">
                     {result.console}
                   </pre>
                 </div>
@@ -230,7 +230,7 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
               <div
                 className={[
                   "rounded-md border px-2.5 py-2",
-                  result.status === "ok" ? "bg-primary/5 border-primary/15 text-primary" : "bg-danger/5 border-danger/15 text-danger",
+                  result.status === "ok" ? "bg-primary/5 border-primary/15 text-primary" : "bg-destructive/5 border-destructive/15 text-destructive",
                 ].join(" ")}
               >
                 <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all m-0">{result.output || "(empty output)"}</pre>

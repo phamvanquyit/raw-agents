@@ -75,12 +75,12 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
         ].join(" ")}
       />
 
-      <div className="flex flex-col h-full min-h-0 border-border bg-surface overflow-hidden" style={{ width }}>
+      <div className="flex flex-col h-full min-h-0 border-border bg-card overflow-hidden" style={{ width }}>
         <MessageList
           messages={messages}
           generating={generating}
           assistantLabel="AI Assistant"
-          emptyStateContent={<p className="text-xs text-muted leading-relaxed max-w-50 m-0">Describe your request to get coding assistance.</p>}
+          emptyStateContent={<p className="text-xs text-muted-foreground leading-relaxed max-w-50 m-0">Describe your request to get coding assistance.</p>}
           messagesEndRef={messagesEndRef}
           scrollContainerRef={scrollContainerRef}
           className="selectable"

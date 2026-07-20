@@ -1,12 +1,13 @@
 import { AddCircle } from "@solar-icons/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { AgentTeam } from "src/common/types";
+import { genConfig } from "src/components/UserAvatar";
 import { Button } from "src/components/ui/button";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
 import { ModelPicker } from "src/components/ui/model-picker";
+import { Select } from "src/components/ui/options-select";
 import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
-import { Select } from "src/components/ui/select";
 import { Textarea } from "src/components/ui/textarea";
 import { createAgent, fetchAgents } from "src/modules/agents/common/agentsSlice";
 
@@ -79,6 +80,7 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
         createAgent({
           name: name.trim(),
           description: description.trim() || null,
+          avatar: JSON.stringify(genConfig()),
           aiProvider: selectedProviderId,
           aiModel,
           ...(teamId ? { teamId } : {}),
@@ -101,7 +103,6 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
     }
   };
 
-  // Build team options — no inline create, teams are managed on /teams page
   const teamOptions = [{ value: "", label: "No team" }, ...teams.map((t: AgentTeam) => ({ value: t.id, label: t.name }))];
 
   return (
@@ -111,7 +112,7 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <AddCircle width={16} height={16} className="text-primary shrink-0" />
-          <span className="text-sm font-semibold text-main">New Agent</span>
+          <span className="text-sm font-semibold text-foreground">New Agent</span>
         </div>
 
         {/* Body */}
@@ -132,13 +133,7 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
           </Field>
 
           <Field label="Description">
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Short description of what this agent does"
-              autoHeight
-              rows={2}
-            />
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description of what this agent does" rows={2} />
           </Field>
 
           {/* Team selector */}
@@ -151,7 +146,7 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
             <ModelPicker selectedProviderId={selectedProviderId} selectedModel={aiModel} onChange={handleModelChange} />
           </Field>
 
-          {error && <div className="text-[12px] text-[#a03030] font-medium">{error}</div>}
+          {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
         </div>
 
         {/* Footer */}

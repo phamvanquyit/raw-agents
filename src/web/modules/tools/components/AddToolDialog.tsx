@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "src/components/ui/button";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
 import { Textarea } from "src/components/ui/textarea";
+import { fetchToolFolders } from "src/modules/tools/common/toolFoldersSlice";
 import { createTool, fetchTools } from "src/modules/tools/common/toolsSlice";
 import { toSnakeCase } from "src/modules/tools/common/utils";
 import { useAppDispatch } from "src/store/store";
@@ -11,9 +12,11 @@ import { useAppDispatch } from "src/store/store";
 interface AddToolPopoverProps {
   onCreated: (toolId: string) => void;
   children: React.ReactNode;
+  /** Folder for the new tool; null = ungrouped */
+  defaultFolderId?: string | null;
 }
 
-export function AddToolPopover({ onCreated, children }: AddToolPopoverProps) {
+export function AddToolPopover({ onCreated, children, defaultFolderId = null }: AddToolPopoverProps) {
   const dispatch = useAppDispatch();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -23,7 +26,6 @@ export function AddToolPopover({ onCreated, children }: AddToolPopoverProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Reset fields & auto-focus when popover opens
   useEffect(() => {
     if (open) {
       setLabel("");
@@ -52,9 +54,11 @@ export function AddToolPopover({ onCreated, children }: AddToolPopoverProps) {
           parameters: { type: "object", properties: {}, required: [] },
           codeContent: "",
           isActive: false,
+          folderId: defaultFolderId,
         }),
       ).unwrap();
       await dispatch(fetchTools());
+      await dispatch(fetchToolFolders());
       setOpen(false);
       onCreated(tool.id);
     } catch (err) {
@@ -66,7 +70,7 @@ export function AddToolPopover({ onCreated, children }: AddToolPopoverProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-[340px] p-0">
+      <PopoverContent align="start" side="top" sideOffset={8} className="w-[320px] p-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -75,7 +79,7 @@ export function AddToolPopover({ onCreated, children }: AddToolPopoverProps) {
           className="flex flex-col"
         >
           <div className="px-4 pt-4 pb-3">
-            <h3 className="text-sm font-semibold text-main m-0">New Tool</h3>
+            <h3 className="text-sm font-semibold text-foreground m-0">New Tool</h3>
           </div>
           <div className="flex flex-col gap-3.5 px-4 pb-4">
             <Field label="Tool Name" required>
@@ -100,7 +104,7 @@ export function AddToolPopover({ onCreated, children }: AddToolPopoverProps) {
                 className="min-h-0!"
               />
             </Field>
-            {error && <div className="text-[11px] font-medium text-[#8a3030]">{error}</div>}
+            {error && <div className="text-[11px] font-medium text-destructive">{error}</div>}
           </div>
           <div className="flex flex-row gap-2.5 justify-end px-4 py-3 border-t border-border/40">
             <Button variant="secondary" size="sm" type="button" onClick={() => setOpen(false)}>

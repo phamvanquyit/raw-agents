@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { AgentMessage } from "src/common/types";
 import type { ChatAgentMessage } from "src/components/chat/common/types";
+import { isCallAgentToolName } from "src/components/chat/common/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,7 +98,7 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
         setThinkingDuration(undefined);
         setStreamError(null);
         void loadMessages(convId);
-        if (toolName === "call_agent") {
+        if (isCallAgentToolName(toolName)) {
           const agentName = toolLabel?.replace(/^Call\s+/i, "") ?? "agent";
           setActivityStatus(`Talking to ${agentName}...`);
         } else {

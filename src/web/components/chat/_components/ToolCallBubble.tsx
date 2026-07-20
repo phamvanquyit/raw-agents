@@ -1,19 +1,18 @@
 import { CheckCircle, DangerCircle, Restart } from "@solar-icons/react";
 import { useState } from "react";
+import RenderIf from "src/components/ui/RenderIf";
 import { useAppSelector } from "src/store/store";
 import type { ChatAgentMessage } from "../common/types";
 import { formatToolName, prettyJson } from "../common/utils";
-
-import RenderIf from "src/components/ui/RenderIf";
-import { CallAgentBubble } from "./CallAgentBubble";
+import { resolveToolUI } from "./tool-uis";
 
 // ─── Status indicator ────────────────────────────────────────────────────────
 
 function StatusIcon({ hasError, hasOutput, isConvRunning, size = 14 }: { hasError: boolean; hasOutput: boolean; isConvRunning: boolean; size?: number }) {
   if (hasError) {
     return (
-      <div className="w-4 h-4 rounded-full bg-danger/10 flex items-center justify-center shrink-0">
-        <DangerCircle size={size - 3} className="text-danger" />
+      <div className="w-4 h-4 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+        <DangerCircle size={size - 3} className="text-destructive" />
       </div>
     );
   }
@@ -51,13 +50,13 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none group transition-colors hover:bg-surface-raised/40 bg-surface/40"
+        className="w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none group transition-colors hover:bg-muted/40 bg-card/40"
       >
         {/* Status */}
         <StatusIcon hasError={hasError} hasOutput={hasOutput} isConvRunning={!!isConvRunning} size={13} />
 
         {/* Tool label */}
-        <span className="text-[12px] font-medium text-soft group-hover:text-main transition-colors truncate flex-1 text-left">{label}</span>
+        <span className="text-[12px] font-medium text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1 text-left">{label}</span>
 
         {/* Expand chevron */}
         <svg
@@ -65,7 +64,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
           height="10"
           viewBox="0 0 10 10"
           fill="none"
-          className={`shrink-0 text-muted transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${open ? "rotate-180" : ""}`}
         >
           <path d="M2.5 3.5L5 6.5L7.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -76,23 +75,27 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
         <div className="border-t border-border font-mono text-[11px]">
           <RenderIf condition={hasInput}>
             <div className="px-3 py-2 border-b border-border/60">
-              <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-semibold">input</span>
-              <pre className="tool-bubble-pre m-0 mt-1 whitespace-pre-wrap break-all text-soft leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
+              <span className="text-2xs text-muted-foreground uppercase tracking-widest font-sans font-semibold">input</span>
+              <pre className="tool-bubble-pre m-0 mt-1 whitespace-pre-wrap break-all text-muted-foreground leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
                 {prettyJson(msg.toolInput)}
               </pre>
             </div>
           </RenderIf>
           <div className="px-3 py-2">
-            <span className={["text-[9px] uppercase tracking-widest font-sans font-semibold", hasOutput ? "text-muted" : "text-muted/50"].join(" ")}>
+            <span
+              className={["text-2xs uppercase tracking-widest font-sans font-semibold", hasOutput ? "text-muted-foreground" : "text-muted-foreground"].join(
+                " ",
+              )}
+            >
               output
             </span>
             <pre
               className={[
                 "tool-bubble-pre m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal",
-                hasOutput ? "text-soft" : "text-muted italic",
+                hasOutput ? "text-muted-foreground" : "text-muted-foreground italic",
               ].join(" ")}
             >
-              {hasOutput ? prettyJson(msg.toolOutput) : hasError ? "❌ Tool execution failed" : "waiting…"}
+              {hasOutput ? prettyJson(msg.toolOutput) : hasError ? "Tool execution failed" : "Waiting…"}
             </pre>
           </div>
         </div>
@@ -111,7 +114,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
                 />
               ))}
             </div>
-            <span className="text-[10px] text-muted italic">Running…</span>
+            <span className="text-[10px] text-muted-foreground italic">Running…</span>
           </div>
         </div>
       </RenderIf>
@@ -127,14 +130,14 @@ export function ToolCallGroup({
   assistantColor,
   showAvatar = true,
 }: { messages: ChatAgentMessage[]; assistantLabel?: string; assistantColor?: string | null; showAvatar?: boolean }) {
-  const color = assistantColor ?? "#6b9a4a";
+  const color = assistantColor ?? "var(--primary)";
   return (
     <div className="ca-fade-in mt-1">
       {showAvatar && (
         <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
           <span
             className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase select-none"
-            style={{ background: color, color: "#fff", letterSpacing: "0.08em" }}
+            style={{ background: color, color: "var(--primary-foreground)", letterSpacing: "0.08em" }}
           >
             {assistantLabel}
           </span>
@@ -164,19 +167,19 @@ export function ToolCallBubble({
   assistantColor?: string | null;
   showAvatar?: boolean;
 }) {
-  // Delegate to the dedicated call_agent component
-  if (msg.toolName === "call_agent") {
-    return <CallAgentBubble msg={msg} assistantLabel={assistantLabel} assistantColor={assistantColor} showAvatar={showAvatar} />;
+  const CustomUI = resolveToolUI(msg.toolName);
+  if (CustomUI) {
+    return <CustomUI msg={msg} assistantLabel={assistantLabel} assistantColor={assistantColor} showAvatar={showAvatar} />;
   }
 
-  const color = assistantColor ?? "#6b9a4a";
+  const color = assistantColor ?? "var(--primary)";
   return (
     <div className="ca-fade-in mt-1">
       {showAvatar && (
         <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
           <span
             className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase select-none"
-            style={{ background: color, color: "#fff", letterSpacing: "0.08em" }}
+            style={{ background: color, color: "var(--primary-foreground)", letterSpacing: "0.08em" }}
           >
             {assistantLabel}
           </span>

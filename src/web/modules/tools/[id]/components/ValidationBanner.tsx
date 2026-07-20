@@ -7,9 +7,9 @@ interface ValidationBannerProps {
 
 export function ValidationBanner({ errors, onDismiss }: ValidationBannerProps) {
   return (
-    <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-danger/5 border-b border-danger/15">
-      <DangerTriangle size={13} className="text-danger shrink-0" />
-      <span className="text-[11px] font-medium text-danger/80 leading-snug">
+    <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-2 px-4 py-2 bg-destructive/10 border-b border-destructive/15 pointer-events-auto">
+      <DangerTriangle size={13} className="text-destructive shrink-0" />
+      <span className="text-[11px] font-medium text-destructive/80 leading-snug">
         {errors.length === 1 && errors[0].includes(" ") ? (
           errors[0]
         ) : (
@@ -18,7 +18,7 @@ export function ValidationBanner({ errors, onDismiss }: ValidationBannerProps) {
             {errors.map((e, i) => (
               <span key={e}>
                 {i > 0 && (i === errors.length - 1 ? " and " : ", ")}
-                <code className="text-[10px] font-mono bg-danger/10 text-danger px-1 py-0.5 rounded">{e}</code>
+                <code className="text-[10px] font-mono bg-destructive/10 text-destructive px-1 py-0.5 rounded">{e}</code>
               </span>
             ))}
           </>
@@ -27,7 +27,7 @@ export function ValidationBanner({ errors, onDismiss }: ValidationBannerProps) {
       <button
         type="button"
         onClick={onDismiss}
-        className="ml-auto text-danger/40 hover:text-danger transition-colors cursor-pointer border-0 bg-transparent shrink-0 p-0.5"
+        className="ml-auto text-destructive/40 hover:text-destructive transition-colors cursor-pointer border-0 bg-transparent shrink-0 p-0.5"
       >
         ×
       </button>

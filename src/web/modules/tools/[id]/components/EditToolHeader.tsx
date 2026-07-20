@@ -24,12 +24,12 @@ export function EditToolHeader({ label, toolId, isActive, toggling, deleting, sa
   const navigate = useNavigate();
 
   return (
-    <div className="shrink-0 flex items-center gap-3 h-[52px] px-4 border-b border-border bg-surface">
+    <div className="shrink-0 flex items-center gap-3 h-[52px] px-4 border-b border-border bg-card">
       {/* Back button */}
       <button
         type="button"
         onClick={() => navigate("/tools")}
-        className="flex items-center justify-center w-8 h-8 rounded-lg bg-transparent border border-transparent hover:bg-surface-raised hover:border-border text-muted hover:text-main transition-all duration-150 cursor-pointer shrink-0"
+        className="flex items-center justify-center w-8 h-8 rounded-lg bg-transparent border border-transparent hover:bg-muted hover:border-border text-muted-foreground hover:text-foreground transition-all duration-150 cursor-pointer shrink-0"
         title="Back to Tools"
       >
         <AltArrowLeft width={16} height={16} />
@@ -40,7 +40,7 @@ export function EditToolHeader({ label, toolId, isActive, toggling, deleting, sa
 
       {/* Tool name + unsaved indicator */}
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-        <h1 className="text-sm font-semibold text-main truncate m-0 leading-tight">{label}</h1>
+        <h1 className="text-sm font-semibold text-foreground truncate m-0 leading-tight">{label}</h1>
         <AnimatePresence>
           {isDirty && !saving && (
             <motion.span
@@ -65,15 +65,13 @@ export function EditToolHeader({ label, toolId, isActive, toggling, deleting, sa
         aria-checked={isActive}
         role="switch"
       >
-        <span className={["text-[11px] font-semibold transition-colors", isActive ? "text-primary" : "text-muted"].join(" ")}>
+        <span className={["text-[11px] font-semibold transition-colors", isActive ? "text-primary" : "text-muted-foreground"].join(" ")}>
           {isActive ? "Active" : "Inactive"}
         </span>
         <div
-          className={[
-            "relative w-9 h-5 rounded-full transition-colors duration-200",
-            isActive ? "bg-primary" : "bg-surface-raised",
-            toggling ? "opacity-60" : "",
-          ].join(" ")}
+          className={["relative w-9 h-5 rounded-full transition-colors duration-200", isActive ? "bg-primary" : "bg-muted", toggling ? "opacity-60" : ""].join(
+            " ",
+          )}
         >
           <div
             className={[
