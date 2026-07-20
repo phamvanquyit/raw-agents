@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { buildJsonSchemaFromCode, parseMetaFromCode } from "./common/code-annotations.js";
 
@@ -70,9 +70,19 @@ const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.to
   parameters: (b.parameters ?? { type: "object", properties: {}, required: [] }) as object,
   codeContent: "",
   folderId: null as string | null,
+  sortOrder: 0,
   isActive: true,
   createdAt: new Date(0),
 }));
+
+function nextSortOrder(folderId: string | null): number {
+  const db = getDb();
+  const rows =
+    folderId == null
+      ? db.select({ sortOrder: agentTools.sortOrder }).from(agentTools).where(isNull(agentTools.folderId)).all()
+      : db.select({ sortOrder: agentTools.sortOrder }).from(agentTools).where(eq(agentTools.folderId, folderId)).all();
+  return rows.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
+}
 
 /** Lookup a builtin tool by its virtual id (e.g. "builtin:browser") */
 export function getBuiltinTool(id: string) {
@@ -117,14 +127,16 @@ export function createTool(
   body: Pick<NewAgentTool, "name" | "label" | "description" | "parameters" | "codeContent"> & {
     isActive?: boolean;
     folderId?: string | null;
+    sortOrder?: number;
   },
 ) {
-  const { isActive = true, folderId = null, ...rest } = body;
+  const { isActive = true, folderId = null, sortOrder, ...rest } = body;
   assertToolNameAvailable(rest.name);
   const tool: NewAgentTool = {
     ...rest,
     id: crypto.randomUUID(),
     folderId,
+    sortOrder: sortOrder ?? nextSortOrder(folderId),
     isActive,
     createdAt: new Date(),
   };
@@ -164,10 +176,30 @@ export function updateTool(id: string, body: Partial<NewAgentTool>) {
   }
 
   const db = getDb();
+  if (body.folderId !== undefined && body.sortOrder === undefined) {
+    const current = db.select({ folderId: agentTools.folderId }).from(agentTools).where(eq(agentTools.id, id)).get();
+    const nextFolderId = body.folderId ?? null;
+    if ((current?.folderId ?? null) !== nextFolderId) {
+      body.sortOrder = nextSortOrder(nextFolderId);
+    }
+  }
+
   db.update(agentTools).set(body).where(eq(agentTools.id, id)).run();
   const updated = db.select().from(agentTools).where(eq(agentTools.id, id)).get();
   wsHub.emit("tools:updated", updated);
   return updated;
+}
+
+/** Set folder + sort order for tools in one column (kanban). */
+export function reorderTools(folderId: string | null, toolIds: string[]) {
+  const db = getDb();
+  for (let i = 0; i < toolIds.length; i++) {
+    const id = toolIds[i];
+    if (!id || id.startsWith("builtin:")) continue;
+    db.update(agentTools).set({ folderId, sortOrder: i }).where(eq(agentTools.id, id)).run();
+  }
+  wsHub.emit("tools:reordered", { folderId, toolIds });
+  return { folderId, toolIds };
 }
 
 export function deleteTool(id: string) {

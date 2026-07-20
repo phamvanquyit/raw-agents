@@ -45,6 +45,40 @@ export interface CodingStreamRequest {
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
+const OMITTED_GENERATE_CODE = "[omitted — see <current_code> for the latest draft]";
+
+/**
+ * Drop full code payloads from older generate_code tool calls.
+ * Keep only the latest generate_code args intact; earlier ones keep summary only.
+ * Latest draft is always injected via <current_code> in the system prompt.
+ */
+function compactGenerateCodeHistory(messages: CodingStreamRequest["messages"]): CodingStreamRequest["messages"] {
+  let lastGenerateIdx = -1;
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.role === "tool-call" && m.toolName === "generate_code") {
+      lastGenerateIdx = i;
+    }
+  }
+  if (lastGenerateIdx < 0) return messages;
+
+  return messages.map((m, i) => {
+    if (m.role !== "tool-call" || m.toolName !== "generate_code" || i >= lastGenerateIdx) {
+      return m;
+    }
+    const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
+    if (!("code" in input)) return m;
+    const { code: _code, ...rest } = input;
+    return {
+      ...m,
+      toolInput: {
+        ...rest,
+        code: OMITTED_GENERATE_CODE,
+      },
+    };
+  });
+}
+
 /**
  * Build LangChain BaseMessage[] from the enriched history that includes
  * user, assistant, and tool-call messages.
@@ -54,9 +88,10 @@ export interface CodingStreamRequest {
  */
 function buildLangChainMessages(messages: CodingStreamRequest["messages"]): BaseMessage[] {
   const result: BaseMessage[] = [];
+  const compacted = compactGenerateCodeHistory(messages);
 
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
+  for (let i = 0; i < compacted.length; i++) {
+    const msg = compacted[i];
 
     if (msg.role === "user") {
       result.push(new HumanMessage(msg.content));
@@ -72,8 +107,8 @@ function buildLangChainMessages(messages: CodingStreamRequest["messages"]): Base
       // Look ahead: collect any consecutive tool-call messages
       const toolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
       let j = i + 1;
-      while (j < messages.length && messages[j].role === "tool-call") {
-        const tc = messages[j] as ToolCallMessage;
+      while (j < compacted.length && compacted[j].role === "tool-call") {
+        const tc = compacted[j] as ToolCallMessage;
         toolCalls.push({
           id: tc.toolCallId || `tc-${j}`,
           name: tc.toolName || "unknown",
@@ -93,7 +128,7 @@ function buildLangChainMessages(messages: CodingStreamRequest["messages"]): Base
 
         // Append ToolMessage for each tool-call that has output
         for (let k = i + 1; k < j; k++) {
-          const tc = messages[k] as ToolCallMessage;
+          const tc = compacted[k] as ToolCallMessage;
           if (tc.toolOutput != null) {
             result.push(
               new ToolMessage({
