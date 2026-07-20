@@ -177,7 +177,8 @@ export async function syncMcpTools(serverId: string): Promise<SyncResult> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const now = new Date();
-    db.update(mcpServers).set({ lastSyncError: message, lastSyncedAt: now, updatedAt: now }).where(eq(mcpServers.id, serverId)).run();
+    db.update(mcpServers).set({ isActive: false, lastSyncError: message, lastSyncedAt: now, updatedAt: now }).where(eq(mcpServers.id, serverId)).run();
+    await disconnectMcp(serverId);
 
     const updated = db.select().from(mcpServers).where(eq(mcpServers.id, serverId)).get();
     if (updated) {
