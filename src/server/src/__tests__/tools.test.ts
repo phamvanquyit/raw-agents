@@ -198,4 +198,91 @@ describe("Tools API", () => {
     // List endpoint strips codeContent
     expect(customTool).not.toHaveProperty("codeContent");
   });
+
+  // ── Reorder / sortOrder ───────────────────────────────────────────────
+
+  test("POST /api/tools — assigns sortOrder", async () => {
+    const res = await authRequest(app, token, "POST", "/api/tools", {
+      name: "sort_tool_a",
+      label: "Sort A",
+      description: "A",
+      parameters: { type: "object", properties: {}, required: [] },
+      codeContent: "",
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { sortOrder: number };
+    expect(typeof data.sortOrder).toBe("number");
+  });
+
+  test("PUT /api/tools/reorder — reorder tools in a folder", async () => {
+    const folderRes = await authRequest(app, token, "POST", "/api/tool-folders", { name: "Sort Folder" });
+    const folder = (await folderRes.json()) as { id: string };
+
+    const aRes = await authRequest(app, token, "POST", "/api/tools", {
+      name: "reorder_a",
+      label: "Reorder A",
+      description: "A",
+      parameters: { type: "object", properties: {}, required: [] },
+      codeContent: "",
+      folderId: folder.id,
+    });
+    const bRes = await authRequest(app, token, "POST", "/api/tools", {
+      name: "reorder_b",
+      label: "Reorder B",
+      description: "B",
+      parameters: { type: "object", properties: {}, required: [] },
+      codeContent: "",
+      folderId: folder.id,
+    });
+    const a = (await aRes.json()) as { id: string; sortOrder: number };
+    const b = (await bRes.json()) as { id: string; sortOrder: number };
+    expect(a.sortOrder).toBeLessThan(b.sortOrder);
+
+    const reorderRes = await authRequest(app, token, "PUT", "/api/tools/reorder", {
+      folderId: folder.id,
+      toolIds: [b.id, a.id],
+    });
+    expect(reorderRes.status).toBe(200);
+
+    const getA = (await (await authRequest(app, token, "GET", `/api/tools/${a.id}`)).json()) as {
+      sortOrder: number;
+      folderId: string;
+    };
+    const getB = (await (await authRequest(app, token, "GET", `/api/tools/${b.id}`)).json()) as {
+      sortOrder: number;
+      folderId: string;
+    };
+    expect(getB.sortOrder).toBe(0);
+    expect(getA.sortOrder).toBe(1);
+    expect(getA.folderId).toBe(folder.id);
+    expect(getB.folderId).toBe(folder.id);
+  });
+
+  test("PUT /api/tools/reorder — move tool to ungrouped", async () => {
+    const folderRes = await authRequest(app, token, "POST", "/api/tool-folders", { name: "Move Out" });
+    const folder = (await folderRes.json()) as { id: string };
+
+    const createRes = await authRequest(app, token, "POST", "/api/tools", {
+      name: "move_ungrouped",
+      label: "Move Ungrouped",
+      description: "X",
+      parameters: { type: "object", properties: {}, required: [] },
+      codeContent: "",
+      folderId: folder.id,
+    });
+    const tool = (await createRes.json()) as { id: string };
+
+    const reorderRes = await authRequest(app, token, "PUT", "/api/tools/reorder", {
+      folderId: null,
+      toolIds: [tool.id],
+    });
+    expect(reorderRes.status).toBe(200);
+
+    const updated = (await (await authRequest(app, token, "GET", `/api/tools/${tool.id}`)).json()) as {
+      folderId: string | null;
+      sortOrder: number;
+    };
+    expect(updated.folderId).toBeNull();
+    expect(updated.sortOrder).toBe(0);
+  });
 });
