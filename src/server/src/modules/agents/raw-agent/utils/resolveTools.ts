@@ -50,6 +50,15 @@ export function getToolLabel(toolName: string): string {
   if (KNOWN_LABELS[toolName]) return KNOWN_LABELS[toolName];
   try {
     const db = getDb();
+    const servers = db.select({ id: mcpServers.id, name: mcpServers.name, tools: mcpServers.tools }).from(mcpServers).all();
+    for (const server of servers) {
+      const catalog = (server.tools ?? []) as McpCatalogTool[];
+      for (const t of catalog) {
+        if (buildMcpLangGraphName(server.name, t.name) === toolName) {
+          return `${server.name} → ${t.name}`;
+        }
+      }
+    }
     const row = db.select({ label: agentTools.label }).from(agentTools).where(eq(agentTools.name, toolName)).get();
     if (row?.label && row.label !== toolName) return row.label;
   } catch {

@@ -256,7 +256,7 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
         createdAt: r.createdAt,
         tool: {
           name: buildMcpLangGraphName(server?.name ?? "mcp", mcp.toolName),
-          label: def?.name ?? mcp.toolName,
+          label: `${server?.name ?? "mcp"} → ${def?.name ?? mcp.toolName}`,
           description: def?.description ?? "",
         },
       };

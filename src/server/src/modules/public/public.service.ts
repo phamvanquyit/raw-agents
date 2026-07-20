@@ -77,7 +77,7 @@ export function getPublicAgent(agentId: string) {
       const def = catalog.find((d) => d.name === mcp.toolName);
       return {
         name: buildMcpLangGraphName(server?.name ?? "mcp", mcp.toolName),
-        label: def?.name ?? mcp.toolName,
+        label: `${server?.name ?? "mcp"} → ${def?.name ?? mcp.toolName}`,
         icon: null,
       };
     }
