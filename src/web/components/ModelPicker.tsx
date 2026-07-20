@@ -23,6 +23,8 @@ export interface ModelPickerProps {
   popoverSide?: "top" | "bottom" | "left" | "right";
   popoverAlign?: "start" | "center" | "end";
   popoverClassName?: string;
+  className?: string;
+  matchTriggerWidth?: boolean;
 }
 
 type View = { level: "providers" } | { level: "models"; providerId: string };
@@ -50,6 +52,8 @@ export function ModelPicker({
   popoverSide,
   popoverAlign = "start",
   popoverClassName,
+  className,
+  matchTriggerWidth = true,
 }: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>({ level: "providers" });
@@ -218,11 +222,14 @@ export function ModelPicker({
   );
 
   const resolvedPopoverClassName = popoverClassName ?? "p-0 overflow-hidden";
-  const widthStyle = { width: triggerWidth, maxWidth: triggerWidth };
+  const widthStyle = matchTriggerWidth ? { width: triggerWidth, maxWidth: triggerWidth } : undefined;
   const placement = mapPlacement(popoverSide, popoverAlign);
 
   const popoverContent = (
-    <div className={cn("box-border min-w-0 max-w-full overflow-hidden", resolvedPopoverClassName)} style={widthStyle}>
+    <div
+      className={cn("box-border min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-popover", resolvedPopoverClassName)}
+      style={widthStyle}
+    >
       {view.level === "providers" ? (
         <div className="flex h-80 w-full min-w-0 flex-col">
           <div className="border-b border-border px-3 py-2.5">
@@ -328,7 +335,7 @@ export function ModelPicker({
   );
 
   return (
-    <div ref={triggerRef} className="w-full min-w-0">
+    <div ref={triggerRef} className={cn("w-full min-w-0", className)}>
       <Popover
         open={open}
         onOpenChange={handleOpenChange}
@@ -336,8 +343,13 @@ export function ModelPicker({
         placement={placement}
         arrow={false}
         styles={{
-          root: widthStyle,
-          container: widthStyle,
+          root: { ...(widthStyle ?? {}), filter: "none" },
+          container: {
+            ...(widthStyle ?? {}),
+            padding: 0,
+            boxShadow: "none",
+            background: "transparent",
+          },
         }}
         content={popoverContent}
       >

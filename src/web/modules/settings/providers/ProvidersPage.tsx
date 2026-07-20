@@ -430,19 +430,19 @@ function ProviderCard({ provider, refreshing, onRefresh, onViewModels, onEdit, o
   const masked = (provider as any).maskedApiKey || "••••••••";
 
   return (
-    <div className="group relative flex flex-col gap-4 overflow-hidden rounded-xl border border-border-subtle bg-card p-4 text-card-foreground transition-colors hover:border-border">
+    <div className="group relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border-subtle bg-card p-3.5 text-card-foreground transition-colors hover:border-border">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <ProviderIcon provider={provider.provider} size={18} />
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+          <ProviderIcon provider={provider.provider} size={17} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="m-0 truncate text-base font-semibold leading-5 text-foreground">{provider.label}</p>
-          <p className="m-0 mt-0.5 text-sm text-muted-foreground">{meta.label}</p>
+          <p className="m-0 truncate text-sm font-semibold leading-5 text-foreground">{provider.label}</p>
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground">{meta.label}</p>
         </div>
       </div>
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-2">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-1.5">
           <Key width={12} height={12} className="shrink-0 text-muted-foreground" />
           <code className="min-w-0 truncate font-mono text-xs text-tertiary-foreground">{masked}</code>
         </div>
@@ -486,11 +486,6 @@ export function ProvidersPage() {
   const [modelsProvider, setModelsProvider] = useState<LlmProvider | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
-  const totalModels = useMemo(
-    () => providers.reduce((sum, p) => sum + (Array.isArray(p.models) ? p.models.length : (p as any).countModels || 0), 0),
-    [providers],
-  );
-
   const handleRefreshModels = async (id: string) => {
     setRefreshingId(id);
     try {
@@ -504,14 +499,9 @@ export function ProvidersPage() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="tabular-nums">{providers.length} connected</span>
-          <span className="text-border">·</span>
-          <span className="tabular-nums">{totalModels} models</span>
-        </div>
-        <Button id="settings-add-provider" type="primary" icon={<Key width={14} height={14} />} onClick={() => setShowAddDialog(true)}>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <Button id="settings-add-provider" type="primary" size="small" icon={<Key width={14} height={14} />} onClick={() => setShowAddDialog(true)}>
           Add Provider
         </Button>
       </div>
@@ -539,7 +529,7 @@ export function ProvidersPage() {
 
       <RenderIf condition={providers.length > 0}>
         {() => (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {providers.map((p) => (
               <ProviderCard
                 key={p.id}

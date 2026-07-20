@@ -28,7 +28,11 @@ export const antdTheme: ThemeConfig = {
     controlHeight: 32,
     controlHeightSM: 28,
     controlHeightLG: 36,
-  },
+    boxShadow: "none",
+    boxShadowSecondary: "none",
+    boxShadowTertiary: "none",
+    dropShadowPopover: "none",
+  } as ThemeConfig["token"],
   components: {
     Button: {
       primaryShadow: "none",

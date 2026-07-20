@@ -25,7 +25,7 @@ export function MessageUser({ msg }: MessageUserProps) {
       {/* Message row */}
       <div className="flex items-start gap-3 px-4 pt-3 pb-2">
         {/* Left: tag + message */}
-        <div className="flex-1 min-w-0 flex flex-col bg-primary/10 px-4 py-2.5 rounded-md border border-primary/15">
+        <div className="flex-1 min-w-0 flex flex-col bg-primary/10 px-4 py-2.5 rounded-xl">
           {/* Message text */}
           <div
             ref={contentRef}

@@ -1,7 +1,7 @@
-import { AltArrowLeft, FaceScanSquare, HomeAngle, Logout2, MenuDots, PlugCircle, Programming, Settings, User as UserIcon } from "@solar-icons/react";
+import { FaceScanSquare, HomeAngle, Logout2, MenuDots, PlugCircle, Programming, User as UserIcon } from "@solar-icons/react";
 import { Dropdown } from "antd";
 import type { MenuProps } from "antd";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { clearAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
@@ -9,10 +9,6 @@ import { UserAvatar } from "src/components/UserAvatar";
 import { cn } from "src/lib/utils";
 import { SETTINGS_TABS } from "src/modules/settings/common/constants";
 import { useAppSelector } from "src/store/store";
-
-function roleLabel(role: User["role"]) {
-  return role === "admin" ? "Admin" : "Member";
-}
 
 const SIDEBAR_W = 220;
 
@@ -33,6 +29,26 @@ const WORKSPACE_NAV: NavItem[] = [
 
 function NavSectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pb-2 pt-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">{children}</div>;
+}
+
+function SketchDivider({ className }: { className?: string }) {
+  return (
+    <svg className={cn("mx-3 h-2.5 w-auto shrink-0 text-sidebar-border", className)} viewBox="0 0 196 10" fill="none" aria-hidden>
+      <path
+        d="M1.5 5.2c18.2-2.1 36.4 2.4 54.5.1 12.8-1.6 25.1-3.8 38-.9 14.2 3.2 28.6 1.1 42.4-1.4 13.1-2.4 26.8 1.8 39.9.6 6.8-.6 13.2-2.1 19.7-1.1"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+      />
+      <path
+        d="M3 6.4c16.8-.9 33.9 1.6 50.6.2 14.1-1.2 27.8-2.9 42-.4 11.9 2.1 24.1.8 35.8-.7 12.4-1.6 25.2 1.4 37.4.3 8.9-.8 17.4-2.4 26.2-1.2"
+        stroke="currentColor"
+        strokeWidth="0.7"
+        strokeLinecap="round"
+        opacity="0.45"
+      />
+    </svg>
+  );
 }
 
 function SidebarNavLink({ item, end }: { item: NavItem; end?: boolean }) {
@@ -70,16 +86,17 @@ function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: (
   if (!user) return null;
 
   const displayName = user.name || user.username;
-  const role = roleLabel(user.role);
 
   const menuItems: MenuProps["items"] = [
     {
       key: "header",
       label: (
-        <div className="px-2 pt-1 pb-1.5">
-          <div className="truncate text-base font-medium text-foreground">{displayName}</div>
-          <div className="truncate text-sm text-muted-foreground">@{user.username}</div>
-          <div className="truncate text-sm text-muted-foreground">{role}</div>
+        <div className="flex items-center gap-2.5 px-1 py-1">
+          <UserAvatar avatar={user.avatar} name={displayName} size={36} className="shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium leading-tight text-foreground">{displayName}</div>
+            <div className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">@{user.username}</div>
+          </div>
         </div>
       ),
       disabled: true,
@@ -110,43 +127,33 @@ function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: (
   ];
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground">
-      <UserAvatar avatar={user.avatar} name={displayName} size={32} className="shrink-0 self-center rounded-full" />
-      <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0">
-        <span className="w-full truncate text-base font-medium text-sidebar-foreground">{displayName}</span>
-        <span className="block w-full min-w-0 truncate text-left text-xs text-muted-foreground">{role}</span>
-      </div>
-      <Dropdown
-        trigger={["click"]}
-        placement="topRight"
-        menu={{ items: menuItems, className: "w-[220px] rounded-lg border-sidebar-border bg-popover p-1 shadow-panel" }}
+    <Dropdown
+      trigger={["click"]}
+      placement="topLeft"
+      menu={{ items: menuItems, className: "w-[204px] rounded-lg border-sidebar-border bg-popover p-1 shadow-none" }}
+    >
+      <button
+        type="button"
+        aria-label="User menu"
+        className="flex w-full min-w-0 items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left text-sidebar-foreground outline-none transition-colors hover:bg-muted cursor-pointer"
       >
-        <button
-          type="button"
-          aria-label="User menu"
-          className="inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md border-0 bg-transparent text-tertiary-foreground outline-none transition-colors hover:bg-muted hover:text-sidebar-foreground cursor-pointer data-[state=open]:bg-muted data-[state=open]:text-sidebar-foreground"
-        >
+        <UserAvatar avatar={user.avatar} name={displayName} size={32} className="shrink-0 self-center rounded-full" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-base font-medium leading-tight text-sidebar-foreground">{displayName}</span>
+          <span className="mt-0.5 block truncate text-xs leading-tight text-muted-foreground tabular-nums">v{__APP_VERSION__}</span>
+        </span>
+        <span className="inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md text-tertiary-foreground">
           <MenuDots width={16} height={16} weight="BoldDuotone" />
-        </button>
-      </Dropdown>
-    </div>
-  );
-}
-
-function SidebarPane({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-full flex-col shrink-0" style={{ width: SIDEBAR_W }}>
-      {children}
-    </div>
+        </span>
+      </button>
+    </Dropdown>
   );
 }
 
 export function AppSidebar() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const currentUser = useAppSelector((s) => s.auth.user);
   const isAdmin = currentUser?.role === "admin";
-  const inSettings = isAdmin && pathname.startsWith("/settings");
 
   const handleLogout = () => {
     clearAuthToken();
@@ -158,84 +165,21 @@ export function AppSidebar() {
       className="flex h-screen shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
       style={{ width: SIDEBAR_W }}
     >
-      <div
-        className="flex h-full transition-transform duration-200 ease-out"
-        style={{
-          width: SIDEBAR_W * 2,
-          transform: inSettings ? `translateX(-${SIDEBAR_W}px)` : "translateX(0)",
-        }}
-      >
-        <SidebarPane>
-          <div className="flex h-14 w-full min-w-0 shrink-0 items-center gap-2.5 px-4">
-            <AppLogo size={22} className="shrink-0 text-brand" />
-            <span className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">Raw Agents</span>
-          </div>
+      <div className="flex h-12 w-full min-w-0 shrink-0 items-center gap-2.5 px-4">
+        <AppLogo size={22} className="shrink-0 text-brand" />
+        <span className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">Raw Agents</span>
+      </div>
+      <SketchDivider className="mb-2" />
 
-          <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2.5 pb-4">
-            <NavSectionLabel>Workspace</NavSectionLabel>
-            <div className="flex flex-col gap-1">
-              {WORKSPACE_NAV.map((item) => (
-                <SidebarNavLink key={item.to} item={item} end={item.to === "/"} />
-              ))}
-            </div>
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2.5 pb-4">
+        <div className="flex flex-col gap-1">
+          {WORKSPACE_NAV.map((item) => (
+            <SidebarNavLink key={item.to} item={item} end={item.to === "/"} />
+          ))}
+        </div>
 
-            {isAdmin && (
-              <>
-                <NavSectionLabel>Admin</NavSectionLabel>
-                <div className="flex flex-col gap-1">
-                  <NavLink
-                    to="/settings/general"
-                    title="Settings"
-                    className={({ isActive }) =>
-                      cn(
-                        "group flex h-9 w-full min-w-0 items-center gap-2.5 rounded-md px-3 text-left text-base no-underline transition-colors duration-150 cursor-pointer",
-                        isActive || inSettings
-                          ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                          : "font-normal text-sidebar-foreground hover:bg-muted",
-                      )
-                    }
-                  >
-                    {({ isActive }) => {
-                      const active = isActive || inSettings;
-                      return (
-                        <>
-                          <span
-                            className={cn(
-                              "flex size-4 shrink-0 items-center justify-center [&_svg]:size-4",
-                              active ? "text-sidebar-accent-foreground" : "text-tertiary-foreground group-hover:text-sidebar-foreground",
-                            )}
-                          >
-                            <Settings {...ICON} />
-                          </span>
-                          <span className="truncate">Settings</span>
-                        </>
-                      );
-                    }}
-                  </NavLink>
-                </div>
-              </>
-            )}
-          </nav>
-
-          <div className="shrink-0 border-t border-sidebar-border px-2 py-2">
-            <SidebarProfileLink user={currentUser} onLogout={handleLogout} />
-          </div>
-        </SidebarPane>
-
-        <SidebarPane>
-          <div className="flex h-14 w-full min-w-0 shrink-0 items-center px-3">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border-0 bg-transparent px-1.5 py-1 text-base text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-sidebar-foreground cursor-pointer"
-              aria-label="Back to main menu"
-            >
-              <AltArrowLeft width={14} height={14} weight="BoldDuotone" />
-              Back
-            </button>
-          </div>
-
-          <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2.5 pb-4" aria-hidden={!inSettings}>
+        {isAdmin && (
+          <div className="mt-auto pt-2">
             <NavSectionLabel>Settings</NavSectionLabel>
             <div className="flex flex-col gap-1">
               {SETTINGS_TABS.map((tab) => {
@@ -246,18 +190,18 @@ export function AppSidebar() {
                     item={{
                       to: `/settings/${tab.key}`,
                       label: tab.label,
-                      icon: <Icon width={16} height={16} weight="BoldDuotone" />,
+                      icon: <Icon {...ICON} />,
                     }}
                   />
                 );
               })}
             </div>
-          </nav>
-
-          <div className="shrink-0 border-t border-sidebar-border px-2 py-2">
-            <SidebarProfileLink user={currentUser} onLogout={handleLogout} />
           </div>
-        </SidebarPane>
+        )}
+      </nav>
+
+      <div className="shrink-0 border-t border-sidebar-border px-2 py-2">
+        <SidebarProfileLink user={currentUser} onLogout={handleLogout} />
       </div>
     </aside>
   );

@@ -4,7 +4,7 @@
 
 :root,
 .dark {
-  --radius: 12px;
+  --radius: 6px;
   --background: #121212;
   --foreground: #d4d4d4;
   --card: #191919;
@@ -54,6 +54,7 @@
 }
 
 @theme inline {
+  --radius: 6px;
   --radius-xs: 2px;
   --radius-sm: 4px;
   --radius-md: 6px;

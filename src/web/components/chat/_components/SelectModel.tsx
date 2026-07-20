@@ -19,21 +19,29 @@ export function SelectModel({ providerId, model, onProviderChange, onModelChange
         onProviderChange?.(pid);
         onModelChange?.(m);
       }}
+      className="w-fit"
+      matchTriggerWidth={false}
       popoverSide="top"
       popoverClassName="w-72 h-80 p-0 overflow-hidden"
-      renderTrigger={({ provider, model: selectedModel }) => (
+      renderTrigger={({ provider, model: selectedModel, open }) => (
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1.5 text-[11px] font-medium transition-all duration-150 cursor-pointer",
-            selectedModel
-              ? "px-2 py-1 rounded-lg text-muted-foreground hover:bg-border/60 hover:text-foreground"
-              : "px-2 py-1 rounded-lg border border-dashed border-border text-muted-foreground hover:bg-muted hover:border-border",
+            "flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 cursor-pointer outline-none",
+            open
+              ? "bg-border/70 text-foreground"
+              : selectedModel
+                ? "text-muted-foreground hover:bg-border/60 hover:text-foreground"
+                : "border border-dashed border-border text-muted-foreground hover:bg-muted hover:border-border",
           )}
         >
           {selectedModel && provider && <ProviderIcon provider={provider.provider} size={14} />}
           <span className="truncate text-[11px] font-medium leading-tight">{selectedModel ? shortModelName(selectedModel) : "Select model"}</span>
-          <AltArrowDown width={9} height={9} className="text-border-hover shrink-0" />
+          <AltArrowDown
+            width={9}
+            height={9}
+            className={cn("shrink-0 transition-transform duration-150", open ? "rotate-180 text-foreground" : "text-border-hover")}
+          />
         </button>
       )}
     />

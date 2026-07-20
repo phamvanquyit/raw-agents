@@ -35,7 +35,7 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="relative my-3 rounded-lg overflow-hidden">
+    <div className="relative my-3 rounded-lg overflow-hidden border border-border">
       <button
         type="button"
         onClick={handleCopy}
@@ -46,7 +46,16 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
       </button>
 
       <div className="overflow-x-auto hover-scrollbar">
-        <table ref={tableRef} className="whitespace-nowrap">
+        <table
+          ref={tableRef}
+          className={
+            "min-w-full text-[14px] border-collapse whitespace-nowrap " +
+            "[&_th]:bg-foreground/[0.07] [&_th]:text-foreground [&_th]:font-semibold " +
+            "[&_th]:px-3 [&_th]:py-[7px] [&_th]:border [&_th]:border-border [&_th]:text-left " +
+            "[&_td]:px-3 [&_td]:py-1.5 [&_td]:border [&_td]:border-border [&_td]:text-foreground " +
+            "[&_tr:nth-child(even)_td]:bg-background/70"
+          }
+        >
           {children}
         </table>
       </div>

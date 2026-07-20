@@ -113,13 +113,15 @@ export function MessageList({
   const lastIsAgent = lastMsg ? isAgentRole(lastMsg.role) : false;
 
   return (
-    <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto game-scrollbar">
-      <div className={`max-w-[760px] mx-auto ${className}`}>
+    <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-y-auto game-scrollbar ${!hasMessages ? "flex flex-col" : ""}`}>
+      <div className={`max-w-[760px] mx-auto ${!hasMessages ? "flex-1 w-full flex flex-col" : ""} ${className}`}>
         <RenderIf condition={!hasMessages}>
-          <div className="flex flex-col items-center justify-center h-full gap-3 px-6 py-6 text-center">
-            <AppLogo size={36} />
+          <div className="flex flex-1 flex-col items-stretch min-h-full w-full">
             {emptyStateContent ?? (
-              <p className="text-xs text-muted-foreground leading-relaxed max-w-50 m-0">Send a message to start chatting with this agent.</p>
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-6 text-center">
+                <AppLogo size={36} />
+                <p className="text-xs text-muted-foreground leading-relaxed max-w-50 m-0">Send a message to start chatting with this agent.</p>
+              </div>
             )}
           </div>
         </RenderIf>
