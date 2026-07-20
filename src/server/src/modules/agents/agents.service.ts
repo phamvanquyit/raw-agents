@@ -75,9 +75,39 @@ export function listAgents(user?: { id: string; role: string }) {
   return db.select().from(agents).where(eq(agents.createdBy, user.id)).all();
 }
 
+/** Minimal random nice-avatar JSON when client omits avatar */
+function randomAvatarJson(): string {
+  const hex = () =>
+    `#${Math.floor(Math.random() * 0xffffff)
+      .toString(16)
+      .padStart(6, "0")}`;
+  return JSON.stringify({
+    sex: Math.random() > 0.5 ? "man" : "woman",
+    faceColor: hex(),
+    earSize: Math.random() > 0.5 ? "small" : "big",
+    hairColor: hex(),
+    hairStyle: ["normal", "thick", "mohawk", "womanLong", "womanShort"][Math.floor(Math.random() * 5)],
+    hatColor: hex(),
+    hatStyle: "none",
+    eyeStyle: ["circle", "oval", "smile"][Math.floor(Math.random() * 3)],
+    glassesStyle: "none",
+    noseStyle: ["short", "long", "round"][Math.floor(Math.random() * 3)],
+    mouthStyle: ["laugh", "smile", "peace"][Math.floor(Math.random() * 3)],
+    shirtStyle: ["hoody", "short", "polo"][Math.floor(Math.random() * 3)],
+    shirtColor: hex(),
+    bgColor: hex(),
+  });
+}
+
 export function createAgent(body: Omit<NewAgent, "id" | "createdAt" | "updatedAt">) {
   const now = new Date();
-  const newAgent: NewAgent = { ...body, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
+  const newAgent: NewAgent = {
+    ...body,
+    avatar: body.avatar?.trim() ? body.avatar : randomAvatarJson(),
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now,
+  };
   getDb().insert(agents).values(newAgent).run();
   wsHub.emit("agents:created", newAgent);
   return newAgent;
@@ -128,6 +158,7 @@ export function cloneAgent(sourceId: string, createdBy?: string) {
     id: newId,
     name: cloneName,
     description: src.description,
+    avatar: src.avatar?.trim() ? src.avatar : randomAvatarJson(),
     systemPrompt: src.systemPrompt,
     isActive: true,
     isPublic: false,
