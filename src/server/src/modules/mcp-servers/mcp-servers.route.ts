@@ -55,12 +55,14 @@ app.post("/", async (c) => {
   // Auto-sync tools after creation
   try {
     const syncResult = await syncMcpTools(server.id!);
-    return c.json({ ...server, syncResult }, 201);
+    const refreshed = getMcpServer(server.id!);
+    return c.json({ ...(refreshed ?? server), syncResult }, 201);
   } catch (err) {
-    // Server created but sync failed — return server with error
+    // Server created but sync failed — return server with persisted error
+    const refreshed = getMcpServer(server.id!);
     return c.json(
       {
-        ...server,
+        ...(refreshed ?? server),
         syncResult: { error: err instanceof Error ? err.message : String(err), added: 0, updated: 0, removed: 0, tools: [] },
       },
       201,

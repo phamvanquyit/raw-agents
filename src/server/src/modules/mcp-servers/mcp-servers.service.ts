@@ -53,7 +53,7 @@ function syncCatalogForServer(serverId: string, remoteDefs: McpToolDef[]): SyncR
     }
   }
 
-  db.update(mcpServers).set({ tools: next, updatedAt: new Date() }).where(eq(mcpServers.id, serverId)).run();
+  db.update(mcpServers).set({ tools: next, lastSyncError: null, lastSyncedAt: new Date(), updatedAt: new Date() }).where(eq(mcpServers.id, serverId)).run();
 
   const updatedServer = db.select().from(mcpServers).where(eq(mcpServers.id, serverId)).get();
   if (updatedServer) {
@@ -171,8 +171,22 @@ export async function syncMcpTools(serverId: string): Promise<SyncResult> {
 
   await disconnectMcp(serverId);
 
-  const remoteDefs = await listMcpTools(serverId, server.url, (server.headers ?? {}) as Record<string, string>);
-  return syncCatalogForServer(serverId, remoteDefs);
+  try {
+    const remoteDefs = await listMcpTools(serverId, server.url, (server.headers ?? {}) as Record<string, string>);
+    return syncCatalogForServer(serverId, remoteDefs);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const now = new Date();
+    db.update(mcpServers).set({ lastSyncError: message, lastSyncedAt: now, updatedAt: now }).where(eq(mcpServers.id, serverId)).run();
+
+    const updated = db.select().from(mcpServers).where(eq(mcpServers.id, serverId)).get();
+    if (updated) {
+      const tools = (updated.tools ?? []) as McpCatalogTool[];
+      wsHub.emit("mcp-servers:updated", toSafeMcpServer({ ...updated, toolCount: tools.length, tools }));
+    }
+
+    throw err;
+  }
 }
 
 // ─── Cursor-format config ─────────────────────────────────────────────────────
