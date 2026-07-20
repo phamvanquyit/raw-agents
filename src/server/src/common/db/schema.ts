@@ -215,6 +215,8 @@ export const agentTools = sqliteTable("agent_tools", {
   folderId: text("folder_id").references(() => toolFolders.id, {
     onDelete: "set null",
   }),
+  /** Order within folder (or ungrouped when folderId is null) */
+  sortOrder: integer("sort_order").notNull().default(0),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
