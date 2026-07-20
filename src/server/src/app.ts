@@ -15,6 +15,7 @@ import mcpServersRoute from "./modules/mcp-servers/mcp-servers.route.js";
 import settingsRoute from "./modules/settings/settings.route.js";
 import statsRoute from "./modules/stats/stats.route.js";
 import teamsRoute from "./modules/teams/teams.route.js";
+import toolFoldersRoute from "./modules/tool-folders/tool-folders.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
 
 import publicRoute from "./modules/public/public.route.js";
@@ -57,6 +58,7 @@ export function createApp(): Hono {
   app.route("/api/agents", agentsRoute);
   app.route("/api/conversations", conversationsRoute);
   app.route("/api/tools", toolsRoute);
+  app.route("/api/tool-folders", toolFoldersRoute);
   app.route("/api/providers", providersRoute);
   app.route("/api/mcp-servers", mcpServersRoute);
   app.route("/api/settings", settingsRoute);
