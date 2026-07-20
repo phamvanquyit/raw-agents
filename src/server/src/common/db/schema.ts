@@ -9,6 +9,8 @@ export const agents = sqliteTable("agents", {
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   description: text("description"),
+  /** react-nice-avatar JSON config (or image URL) */
+  avatar: text("avatar"),
   systemPrompt: text("system_prompt"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   isPublic: integer("is_public", { mode: "boolean" }).notNull().default(false),
@@ -17,7 +19,7 @@ export const agents = sqliteTable("agents", {
   aiProvider: text("ai_provider"),
   aiModel: text("ai_model"),
 
-  /** JSON array of agent UUIDs this agent can delegate to via call_agent */
+  /** JSON array of agent UUIDs this agent can delegate to (one call_agent__* tool each) */
   callableAgentIds: text("callable_agent_ids", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
   /** Which team this agent belongs to (denormalized for simpler queries) */
   teamId: text("team_id").references(() => agentTeams.id, {
@@ -167,12 +169,32 @@ export const mcpServers = sqliteTable("mcp_servers", {
   /** Synced MCP tool catalog — enable/disable is per-agent via assignments. */
   tools: text("tools", { mode: "json" }).$type<McpCatalogTool[]>().notNull().default(sql`'[]'`),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  /** Last sync failure message; null when the latest sync succeeded. */
+  lastSyncError: text("last_sync_error"),
+  /** Timestamp of the last sync attempt (success or failure). */
+  lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
 export type McpServer = typeof mcpServers.$inferSelect;
 export type NewMcpServer = typeof mcpServers.$inferInsert;
+
+// ─── Tool Folders ─────────────────────────────────────────────────────────────
+
+export const toolFolders = sqliteTable("tool_folders", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type ToolFolder = typeof toolFolders.$inferSelect;
+export type NewToolFolder = typeof toolFolders.$inferInsert;
 
 // ─── Custom Tools ─────────────────────────────────────────────────────────────
 
@@ -189,6 +211,10 @@ export const agentTools = sqliteTable("agent_tools", {
   codeContent: text("code_content").notNull(),
   /** AI draft code — written by generate_code tool. null = no pending draft. */
   draftCode: text("draft_code"),
+  /** Optional folder for grouping in the Tools UI */
+  folderId: text("folder_id").references(() => toolFolders.id, {
+    onDelete: "set null",
+  }),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
