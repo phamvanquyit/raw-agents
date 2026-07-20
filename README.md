@@ -134,7 +134,7 @@ All data is stored in the data directory (`/data` in Docker, `~/.raw-agents` by 
 
 - **Runtime**: [Bun](https://bun.sh/)
 - **Server**: [Hono](https://hono.dev/) — lightweight, fast HTTP framework
-- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS
+- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS + Ant Design
 - **Database**: SQLite (`bun:sqlite`) + Drizzle ORM
 - **AI**: LangChain (`@langchain/*`)
 - **State**: Redux Toolkit

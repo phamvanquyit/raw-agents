@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-20
+
+### Added
+- Tools kanban order is persisted — drag tools within a folder (or ungrouped) and the order survives reload
+- `PUT /api/tools/reorder` and `tools:reordered` WebSocket event for syncing order across clients
+
+### Changed
+- Web UI migrated from shadcn/Radix to Ant Design (app shell, agents, tools, settings, chat, and dialogs)
+- Coding agent omits older `generate_code` drafts from history to keep long edit sessions lighter
+
+### Upgrade notes
+- SQLite migration `0030` runs automatically on startup (`agent_tools.sort_order`)
+- Rebuild/re-pull the Docker image for the new UI and server changes
+
 ## [0.6.0] - 2026-07-20
 
 ### Added
@@ -42,5 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.7.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.5.1...v0.6.0
 [0.5.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.4.2...v0.5.0
