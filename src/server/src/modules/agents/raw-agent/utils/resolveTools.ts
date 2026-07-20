@@ -6,7 +6,7 @@
  *   - Custom tools (from DB agent_tools table, Python sandbox)
  *   - MCP tools (from mcp_servers.tools catalog via virtual assignment ids)
  *   - Always-on: manage_memory
- *   - call_agent (if enabled via assignment)
+ *   - call_agent__* tools (one per callableAgentIds target, top-level only)
  */
 
 import { tool } from "@langchain/core/tools";
@@ -19,14 +19,12 @@ import { buildMcpLangGraphName, parseMcpToolId } from "../../../mcp-servers/mcp-
 import { runTool } from "../../../tools/tools.service.js";
 
 import { browserTool } from "../../../../common/ai/agent-tools/browser.tool.js";
-import { fetchWebpageTool } from "../../../../common/ai/agent-tools/fetch-webpage.tool.js";
-import { makeCallAgentTool } from "../llm-tools/call-agent.tool.js";
+import { type CallAgentTarget, isCallAgentToolName, makeCallAgentTools, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
 import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
 
 const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   get_current_time: getCurrentTimeTool,
-  fetch_webpage: fetchWebpageTool,
   browser: browserTool,
 };
 
@@ -39,9 +37,12 @@ export function formatToolName(name: string): string {
 }
 
 export function getToolLabel(toolName: string): string {
+  if (isCallAgentToolName(toolName)) {
+    return getCallAgentLabel({ agent_id: parseCallAgentToolTargetId(toolName) });
+  }
+
   const KNOWN_LABELS: Record<string, string> = {
     get_current_time: "Get Current Time",
-    fetch_webpage: "Fetch",
     browser: "Browser",
     call_agent: "Call Agent",
     manage_memory: "Manage Memory",
@@ -59,7 +60,10 @@ export function getToolLabel(toolName: string): string {
 
 export function getCallAgentLabel(args: unknown): string {
   try {
-    const agentId = (args as any)?.agent_id ?? (args as any)?.agentId ?? (args as any)?.id;
+    const agentId =
+      (args as { agent_id?: string; agentId?: string; id?: string } | null)?.agent_id ??
+      (args as { agentId?: string } | null)?.agentId ??
+      (args as { id?: string } | null)?.id;
     if (!agentId || typeof agentId !== "string") return "Call Agent";
     const db = getDb();
     const row = db.select({ name: agents.name }).from(agents).where(eq(agents.id, agentId)).get();
@@ -71,8 +75,11 @@ export function getCallAgentLabel(args: unknown): string {
 }
 
 function buildZodSchema(parameters: object): z.ZodObject<Record<string, z.ZodType>> {
-  const props = ((parameters as any)?.properties ?? {}) as Record<string, { type?: string; description?: string; default?: unknown }>;
-  const required = ((parameters as any)?.required ?? []) as string[];
+  const props = ((parameters as { properties?: Record<string, { type?: string; description?: string; default?: unknown }> })?.properties ?? {}) as Record<
+    string,
+    { type?: string; description?: string; default?: unknown }
+  >;
+  const required = ((parameters as { required?: string[] })?.required ?? []) as string[];
   const shape: Record<string, z.ZodType> = {};
 
   for (const [key, def] of Object.entries(props)) {
@@ -172,20 +179,32 @@ function buildMcpTool(opts: {
   );
 }
 
+export type ResolveAgentToolsOptions = {
+  callableAgents?: CallAgentTarget[];
+  allowCallAgent?: boolean;
+  abortSignal?: AbortSignal;
+};
+
 /**
  * Resolve full tool list for a user agent.
  * @param enabledToolIds — assignment tool_id values (builtin:*, mcp:*, or custom UUID)
  */
-export function resolveAgentTools(agentId: string, enabledToolIds: string[], ownerId: string, isGuest = false): StructuredToolInterface[] {
+export function resolveAgentTools(
+  agentId: string,
+  enabledToolIds: string[],
+  ownerId: string,
+  isGuest = false,
+  options: ResolveAgentToolsOptions = {},
+): StructuredToolInterface[] {
   const db = getDb();
   const tools: StructuredToolInterface[] = [];
 
   for (const toolId of enabledToolIds) {
     if (toolId.startsWith("builtin:")) {
       const name = toolId.slice("builtin:".length);
-      if (name === "call_agent") {
-        tools.push(makeCallAgentTool(agentId));
-      } else if (name in STATIC_BUILTINS) {
+      // call_agent is no longer a single assignable builtin — injected via callableAgents below
+      if (name === "call_agent") continue;
+      if (name in STATIC_BUILTINS) {
         tools.push(STATIC_BUILTINS[name]);
       }
       continue;
@@ -215,6 +234,18 @@ export function resolveAgentTools(agentId: string, enabledToolIds: string[], own
     if (row?.isActive) {
       tools.push(buildCustomTool(row));
     }
+  }
+
+  if (options.allowCallAgent !== false && options.callableAgents && options.callableAgents.length > 0) {
+    tools.push(
+      ...makeCallAgentTools({
+        callerAgentId: agentId,
+        targets: options.callableAgents,
+        ownerId,
+        isGuest,
+        abortSignal: options.abortSignal,
+      }),
+    );
   }
 
   tools.push(makeManageMemoryTool(agentId, ownerId, isGuest));

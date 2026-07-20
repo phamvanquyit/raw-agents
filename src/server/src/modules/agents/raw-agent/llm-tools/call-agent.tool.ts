@@ -1,50 +1,71 @@
 /**
- * call-agent.tool.ts — Builtin tool: call another agent
+ * call-agent.tool.ts — Builtin: one LangChain tool per callable sub-agent.
  *
  * NOTE: generateAgent is imported lazily to avoid circular dependency:
  *   agentRunner → resolveTools → call-agent → agentRunner
- *
- * LangGraph JS version — uses @langchain/core/tools
  */
 
 import { tool } from "@langchain/core/tools";
+import type { StructuredToolInterface } from "@langchain/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { agents, getDb } from "../../../../common/db/client.js";
 
-export function makeCallAgentTool(callerAgentId?: string) {
-  return tool(
-    async (rawArgs: any) => {
-      const agent_id: string | undefined = rawArgs?.agent_id ?? rawArgs?.agentId ?? rawArgs?.id;
-      const message: string = rawArgs?.message ?? rawArgs?.msg ?? "";
-      const context: string | undefined = rawArgs?.context;
+export const CALL_AGENT_TOOL_PREFIX = "call_agent__";
 
-      if (!agent_id) {
-        return JSON.stringify({
-          success: false,
-          agent_id: undefined,
-          response: null,
-          error: `call_agent: agent_id missing. Got keys: ${Object.keys(rawArgs ?? {}).join(", ")}`,
-        });
-      }
+export function callAgentToolName(agentId: string): string {
+  return `${CALL_AGENT_TOOL_PREFIX}${agentId.replace(/-/g, "_")}`;
+}
 
-      const baseMessage = context ? `${message}\n\n---\n**Additional context:**\n${context}` : message;
+export function isCallAgentToolName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return name === "call_agent" || name.startsWith(CALL_AGENT_TOOL_PREFIX);
+}
 
-      // Resolve caller agent name for context injection
-      let callerName = "Another agent";
-      if (callerAgentId) {
-        try {
-          const db = getDb();
-          const caller = db.select({ name: agents.name }).from(agents).where(eq(agents.id, callerAgentId)).get();
-          if (caller?.name) callerName = caller.name;
-        } catch {
-          /* ignore */
-        }
-      }
+export function parseCallAgentToolTargetId(toolName: string): string | null {
+  if (toolName === "call_agent") return null;
+  if (!toolName.startsWith(CALL_AGENT_TOOL_PREFIX)) return null;
+  const raw = toolName.slice(CALL_AGENT_TOOL_PREFIX.length);
+  const parts = raw.split("_");
+  if (parts.length !== 5) return null;
+  return parts.join("-");
+}
 
-      // Wrap message with inter-agent context so the called agent knows
-      // it's being invoked by another agent, not a human user.
-      const fullMessage = `<caller_context>
+export type CallAgentTarget = {
+  id: string;
+  name: string;
+  description: string | null;
+};
+
+export type MakeCallAgentToolsOptions = {
+  callerAgentId: string;
+  targets: CallAgentTarget[];
+  ownerId: string;
+  isGuest?: boolean;
+  abortSignal?: AbortSignal;
+};
+
+async function runSubAgent(opts: {
+  callerAgentId: string;
+  targetId: string;
+  message: string;
+  context?: string;
+  ownerId: string;
+  isGuest: boolean;
+  abortSignal?: AbortSignal;
+}): Promise<{ success: boolean; agent_id: string; response: string | null; error: string | null }> {
+  const baseMessage = opts.context ? `${opts.message}\n\n---\n**Additional context:**\n${opts.context}` : opts.message;
+
+  let callerName = "Another agent";
+  try {
+    const db = getDb();
+    const caller = db.select({ name: agents.name }).from(agents).where(eq(agents.id, opts.callerAgentId)).get();
+    if (caller?.name) callerName = caller.name;
+  } catch {
+    /* ignore */
+  }
+
+  const fullMessage = `<caller_context>
 This request comes from agent "${callerName}" (not a human user).
 You are being called as a sub-agent to handle a specific task.
 
@@ -57,52 +78,71 @@ Rules for your response:
 
 ${baseMessage}`;
 
-      try {
-        // Lazy import to avoid circular dep: agentRunner → resolveTools → call-agent → agentRunner
-        const { generateAgent } = await import("../utils/agentRunner.js");
-        // allowCallAgent:false — prevent sub-agents from calling other agents (avoids recursive loops)
-        const { text, steps } = await generateAgent(agent_id, [{ role: "user", content: fullMessage }], { allowCallAgent: false });
-        return JSON.stringify({ success: true, agent_id, response: text, steps, error: null });
-      } catch (err) {
-        return JSON.stringify({ success: false, agent_id, response: null, steps: [], error: String(err) });
-      }
-    },
-    {
-      name: "call_agent",
-      description: `Calls another AI agent by their agent_id and returns their response.
-
-IMPORTANT:
-- You MUST provide a valid agent_id (UUID) — get it from the "\<callable_agents\>" section in your system prompt.
-- Do NOT call this tool without agent_id. It will fail.
-- agent_id must be the exact UUID string shown next to the agent's name, e.g. agent_id: \`4d0196c4-...\`
-- You CAN call multiple agents in PARALLEL by making multiple call_agent calls in the same step. Do this when the tasks are independent.
-
-Use this when you need help from a specialist agent — for research, writing, analysis, translation, code review, etc.
-The target agent will run with its own system prompt, memory, tools, and notes.
-
-Tips:
-- Be specific and detailed in your message to the agent.
-- Include all context the agent needs to help you effectively.`,
-      schema: z.object({
-        agent_id: z.string().describe("The ID of the agent to call (UUID)."),
-        message: z.string().min(1).describe("The message or task to send to the agent. Be specific."),
-        context: z.string().optional().describe("Optional extra context from your current task."),
-      }),
-    },
-  );
+  try {
+    const { generateAgent } = await import("../utils/agentRunner.js");
+    const { text } = await generateAgent(opts.targetId, [{ role: "user", content: fullMessage }], {
+      allowCallAgent: false,
+      ownerId: opts.ownerId,
+      isGuest: opts.isGuest,
+      abortSignal: opts.abortSignal,
+    });
+    return { success: true, agent_id: opts.targetId, response: text, error: null };
+  } catch (err) {
+    return {
+      success: false,
+      agent_id: opts.targetId,
+      response: null,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
-export const TOOL_DEF = {
-  toolName: "call_agent",
-  toolLabel: "Call Agent",
-  description: "Delegates a prompt or task to another specialized agent by ID and returns their response.",
-  parameters: {
-    type: "object",
-    properties: {
-      agent_id: { type: "string", description: "The ID of the agent to call (UUID)" },
-      message: { type: "string", description: "The message or task to send to the agent" },
-      context: { type: "string", description: "Optional extra context from your current task" },
-    },
-    required: ["agent_id", "message"],
-  },
-};
+/**
+ * Build one tool per callable agent (tool-per-agent pattern).
+ * Schema is only message/context — target agent is bound in the closure.
+ */
+export function makeCallAgentTools(options: MakeCallAgentToolsOptions): StructuredToolInterface[] {
+  const { callerAgentId, targets, ownerId, isGuest = false, abortSignal } = options;
+
+  return targets.map((target) => {
+    const toolName = callAgentToolName(target.id);
+    const descSuffix = target.description ? ` ${target.description}` : "";
+
+    return tool(
+      async (rawArgs: { message?: string; context?: string; msg?: string }) => {
+        const message = rawArgs?.message ?? rawArgs?.msg ?? "";
+        if (!message.trim()) {
+          return JSON.stringify({
+            success: false,
+            agent_id: target.id,
+            response: null,
+            error: "call_agent: message is required",
+          });
+        }
+
+        const result = await runSubAgent({
+          callerAgentId,
+          targetId: target.id,
+          message,
+          context: rawArgs?.context,
+          ownerId,
+          isGuest,
+          abortSignal,
+        });
+        return JSON.stringify(result);
+      },
+      {
+        name: toolName,
+        description: `Delegate a task to specialist agent "${target.name}".${descSuffix}
+
+Use this when "${target.name}" is the right specialist for the job.
+Be specific and detailed in your message. Include all context needed.
+You CAN call multiple specialist tools in PARALLEL in the same step when tasks are independent.`,
+        schema: z.object({
+          message: z.string().min(1).describe("The message or task to send to the agent. Be specific."),
+          context: z.string().optional().describe("Optional extra context from your current task."),
+        }),
+      },
+    );
+  });
+}

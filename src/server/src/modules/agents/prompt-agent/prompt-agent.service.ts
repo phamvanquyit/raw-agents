@@ -3,7 +3,7 @@
  *
  * Handles the business logic for the prompt assistant:
  *   - Resolves AI model
- *   - Builds tools (generate_prompt, fetch_webpage)
+ *   - Builds tools (generate_prompt, browser)
  *   - Creates a ReAct agent and streams SSE events
  *   - generate_prompt saves directly to DB and emits agents:updated via WS
  */
@@ -13,7 +13,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
 import { createAgent } from "langchain";
-import { fetchWebpageTool } from "../../../common/ai/agent-tools/fetch-webpage.tool.js";
+import { browserTool } from "../../../common/ai/agent-tools/browser.tool.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
 import { getAgent } from "../agents.service.js";
@@ -40,8 +40,11 @@ GOOD PROMPT PRINCIPLES:
 - Prompt should be in English (unless the user requests another language).
 - Keep the prompt concise but complete.
 
-TOOL AVAILABLE:
-- generate_prompt: Apply the new system prompt to the editor and save it.
+TOOLS AVAILABLE:
+- generate_prompt — Apply the new system prompt to the editor and save it.
+- browser — Stealth headless Chromium (navigate, click, fill, snapshot, etc.).
+  Use when the user points to a URL/docs you should read before writing or
+  improving the prompt (works for SPA / JS-rendered pages).
 
 AFTER UPDATING:
 - Briefly confirm that the prompt has been updated.
@@ -88,7 +91,7 @@ export async function streamPromptAgent(agentId: string, body: PromptStreamReque
   const aiSystemPrompt = buildPromptSystemPrompt(agentRow?.name, agentRow?.systemPrompt);
 
   // 3. Build tools — generate_prompt saves to DB + emits WS
-  const tools: StructuredToolInterface[] = [makeGeneratePromptTool(agentId), fetchWebpageTool];
+  const tools: StructuredToolInterface[] = [makeGeneratePromptTool(agentId), browserTool];
 
   // 4. Create agent
   const agent = createAgent({

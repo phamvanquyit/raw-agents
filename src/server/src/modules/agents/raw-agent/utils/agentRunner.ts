@@ -9,8 +9,8 @@
  *
  * Tool resolution:
  *   1. agent_tool_assignments (builtin:*, mcp:*, or custom tool UUID)
- *   2. agent.callableAgentIds → injected into system prompt
- *   3. Always-on: manage_memory (per-user facts + documents)
+ *   2. agent.callableAgentIds → system prompt + one call_agent__* tool each
+ *   3. Always-on: manage_memory
  */
 
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
@@ -20,8 +20,21 @@ import { createAgent } from "langchain";
 import { getChatModel } from "../../../../common/ai/getChatModel.js";
 import { agents, getDb } from "../../../../common/db/client.js";
 import { type AssignmentWithTool, listAssignments } from "../../agents.service.js";
+import { isCallAgentToolName, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { resolveSystemPrompt } from "./buildSystemPrompt.js";
-import { getCallAgentLabel, getToolLabel, resolveAgentTools } from "./resolveTools.js";
+import { getToolLabel, resolveAgentTools } from "./resolveTools.js";
+
+const MODEL_NODE = "model_request";
+const NOSTREAM_TAG = "langsmith:nostream";
+
+function isParentModelStreamChunk(metadata: Record<string, unknown> | undefined): boolean {
+  if (!metadata) return true;
+  const node = metadata.langgraph_node;
+  if (typeof node === "string" && node !== MODEL_NODE) return false;
+  const ns = (metadata.langgraph_checkpoint_ns ?? metadata.checkpoint_ns) as string | undefined;
+  if (typeof ns === "string" && ns.includes("|")) return false;
+  return true;
+}
 
 // ─── Event types for streaming ────────────────────────────────────────────────
 
@@ -53,14 +66,23 @@ export type AgentResult = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build enabled tool_id list from junction table assignments */
-function buildEnabledToolIds(assignments: AssignmentWithTool[], options: { allowCallAgent?: boolean } = {}): string[] {
-  let ids = assignments.map((a) => a.toolId);
+function buildEnabledToolIds(assignments: AssignmentWithTool[]): string[] {
+  return assignments.map((a) => a.toolId).filter((id) => id !== "builtin:call_agent");
+}
 
-  if (options.allowCallAgent === false) {
-    ids = ids.filter((id) => id !== "builtin:call_agent");
-  }
+function loadCallableAgents(callableAgentIds: string[]): { id: string; name: string; description: string | null }[] {
+  if (callableAgentIds.length === 0) return [];
+  const db = getDb();
+  const all = db.select({ id: agents.id, name: agents.name, description: agents.description }).from(agents).all();
+  return all.filter((a) => callableAgentIds.includes(a.id));
+}
 
-  return ids;
+function enrichToolCallInput(toolName: string, args: unknown): unknown {
+  if (!isCallAgentToolName(toolName)) return args;
+  const agentId = parseCallAgentToolTargetId(toolName);
+  if (!agentId) return args;
+  const base = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
+  return { ...base, agent_id: agentId };
 }
 
 /** Convert MessageParam[] to BaseMessage[] for LangGraph */
@@ -179,18 +201,26 @@ export async function generateAgent(
 
   // Get tool assignments from junction table
   const assignments = listAssignments(agentId);
-  const enabledToolIds = buildEnabledToolIds(assignments, options);
+  const enabledToolIds = buildEnabledToolIds(assignments);
 
   const ownerId = options.ownerId ?? "user";
   const isGuest = options.isGuest ?? false;
+  const allowCallAgent = options.allowCallAgent !== false;
 
   // Callable agents from agent's callableAgentIds column
   const callableAgentIds: string[] = (agent.callableAgentIds as string[]) ?? [];
+  const callableAgents = allowCallAgent ? loadCallableAgents(callableAgentIds) : [];
 
   const [model, systemPrompt, tools] = await Promise.all([
     getChatModel(agent.aiProvider, agent.aiModel),
-    Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
-    Promise.resolve(resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest)),
+    Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
+    Promise.resolve(
+      resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest, {
+        callableAgents,
+        allowCallAgent,
+        abortSignal: options.abortSignal,
+      }),
+    ),
   ]);
 
   const reactAgent = createAgent({
@@ -203,11 +233,11 @@ export async function generateAgent(
     messages: toBaseMessages(messages),
   };
 
-  // recursionLimit: each "step" in Vercel AI SDK = 1 model call + tools → ~2 nodes in LangGraph
   const maxSteps = options.maxSteps ?? 8;
   const result = await reactAgent.invoke(input, {
     recursionLimit: maxSteps * 2 + 1,
     signal: options.abortSignal,
+    tags: [NOSTREAM_TAG],
   });
 
   // Parse result.messages (BaseMessage[]) → AgentResult
@@ -254,11 +284,18 @@ export async function* streamAgent(
   try {
     // Callable agents from agent's callableAgentIds column
     const callableAgentIds: string[] = (agent.callableAgentIds as string[]) ?? [];
+    const callableAgents = loadCallableAgents(callableAgentIds);
 
     const [model, systemPrompt, tools] = await Promise.all([
       getChatModel(agent.aiProvider, agent.aiModel),
-      Promise.resolve(resolveSystemPrompt(agentId, callableAgentIds.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
-      Promise.resolve(resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest)),
+      Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
+      Promise.resolve(
+        resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest, {
+          callableAgents,
+          allowCallAgent: true,
+          abortSignal: options.abortSignal,
+        }),
+      ),
     ]);
 
     const reactAgent = createAgent({
@@ -289,8 +326,9 @@ export async function* streamAgent(
       const [mode, data] = chunk as unknown as [string, any];
 
       if (mode === "messages") {
-        // messages mode: [messageChunk, metadata]
-        const [msgChunk] = data as [any, any];
+        const [msgChunk, metadata] = data as [any, Record<string, unknown> | undefined];
+        if (!isParentModelStreamChunk(metadata)) continue;
+
         const msgType = msgChunk?._getType?.() ?? msgChunk?.type;
 
         if (msgType === "ai" || msgType === "AIMessageChunk") {
@@ -374,8 +412,8 @@ export async function* streamAgent(
                     type: "tool-call",
                     toolCallId: tcId,
                     toolName: tc.name,
-                    toolLabel: tc.name === "call_agent" ? getCallAgentLabel(tc.args) : getToolLabel(tc.name),
-                    input: tc.args,
+                    toolLabel: getToolLabel(tc.name),
+                    input: enrichToolCallInput(tc.name, tc.args),
                   };
                 }
               }
@@ -421,8 +459,8 @@ export async function* streamAgent(
           type: "tool-call",
           toolCallId: tcId,
           toolName: pending.name,
-          toolLabel: pending.name === "call_agent" ? getCallAgentLabel(parsedArgs) : getToolLabel(pending.name),
-          input: parsedArgs,
+          toolLabel: getToolLabel(pending.name),
+          input: enrichToolCallInput(pending.name, parsedArgs),
         };
       }
     }

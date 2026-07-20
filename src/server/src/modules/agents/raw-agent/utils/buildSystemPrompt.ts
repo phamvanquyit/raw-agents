@@ -10,12 +10,13 @@
  *   - Guest users: only facts, no documents
  *
  * Callable agents:
- *   Populated only from explicit UI selection ("call_agent:<id>" entries).
+ *   Populated only from explicit UI selection (callableAgentIds).
  *   If no agents are explicitly selected → no delegation context.
  */
 
 import { and, eq } from "drizzle-orm";
 import { agentNotes, agentUserFacts, agents, getDb } from "../../../../common/db/client.js";
+import { callAgentToolName } from "../llm-tools/call-agent.tool.js";
 
 export function buildSystemPrompt(
   agent: {
@@ -92,19 +93,20 @@ ${list}
     const memberList = agentsToDelegate
       .map((a) => {
         const desc = a.description ? ` — ${a.description}` : "";
-        return `- **${a.name}** (agent_id: \`${a.id}\`)${desc}`;
+        const toolName = callAgentToolName(a.id);
+        return `- **${a.name}** → tool \`${toolName}\`${desc}`;
       })
       .join("\n");
 
     parts.push(`<callable_agents>
-You can delegate tasks to these agents using the \`call_agent\` tool:
+You can delegate tasks using these specialist tools (one tool per agent):
 
 ${memberList}
 
 ### Rules
-- When you need to call **multiple agents with independent tasks**, call them ALL in the same step (parallel tool calls). This is faster and more efficient.
-- Only call agents **sequentially** when one agent's result is needed as input for the next.
-- Use the \`agent_id\` (UUID) exactly as listed — do not modify it.
+- Call the tool that matches the specialist you need — do not invent tool names.
+- When you need **multiple independent tasks**, call those tools in the SAME step (parallel).
+- Only call specialists **sequentially** when one result is needed as input for the next.
 - If an agent call fails, report the error clearly to the user.
 </callable_agents>`);
   }

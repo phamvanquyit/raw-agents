@@ -3,7 +3,7 @@
  *
  * Handles the business logic for the coding assistant:
  *   - Resolves AI model
- *   - Builds local tools (generate_code, run_current_script, fetch_webpage)
+ *   - Builds local tools (generate_code, run_current_script, browser)
  *   - Creates a ReAct agent and streams SSE events
  */
 
@@ -12,7 +12,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
 import { createAgent } from "langchain";
-import { fetchWebpageTool } from "../../../common/ai/agent-tools/fetch-webpage.tool.js";
+import { browserTool } from "../../../common/ai/agent-tools/browser.tool.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
 import { makeGenerateCodeTool } from "../common/agent-tools/generate-code.tool.js";
@@ -157,7 +157,7 @@ export async function streamCodingAgent(toolId: string, body: CodingStreamReques
   const model = await getChatModel(providerId, modelId);
 
   // 2. Build tools — all local to this module
-  const tools: StructuredToolInterface[] = [makeGenerateCodeTool(toolId), makeRunCurrentScriptTool(toolId), fetchWebpageTool];
+  const tools: StructuredToolInterface[] = [makeGenerateCodeTool(toolId), makeRunCurrentScriptTool(toolId), browserTool];
 
   // 3. Create agent — system prompt includes current tool metadata + draftCode from DB
   const currentCode = getDraftCode(toolId);

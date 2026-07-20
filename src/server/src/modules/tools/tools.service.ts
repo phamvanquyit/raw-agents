@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { buildJsonSchemaFromCode, parseMetaFromCode } from "./common/code-annotations.js";
 
@@ -9,16 +9,12 @@ interface ToolDefinition {
   parameters: object;
 }
 import { TOOL_DEF as BROWSER_DEF } from "../../common/ai/agent-tools/browser.tool.js";
-import { TOOL_DEF as FETCH_WEBPAGE_DEF } from "../../common/ai/agent-tools/fetch-webpage.tool.js";
-import { TOOL_DEF as CALL_AGENT_DEF } from "../agents/raw-agent/llm-tools/call-agent.tool.js";
 import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
 import { TOOL_DEF as MANAGE_MEMORY_DEF } from "../agents/raw-agent/llm-tools/manage-memory.tool.js";
 
 const ALL_TOOL_DEFS: ToolDefinition[] = [
   GET_TIME_DEF,
-  FETCH_WEBPAGE_DEF,
   BROWSER_DEF,
-  CALL_AGENT_DEF,
   MANAGE_MEMORY_DEF,
   {
     toolName: "generate_code",
@@ -73,12 +69,12 @@ const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.to
   icon: null,
   parameters: (b.parameters ?? { type: "object", properties: {}, required: [] }) as object,
   codeContent: "",
-
+  folderId: null as string | null,
   isActive: true,
   createdAt: new Date(0),
 }));
 
-/** Lookup a builtin tool by its virtual id (e.g. "builtin:fetch_webpage") */
+/** Lookup a builtin tool by its virtual id (e.g. "builtin:browser") */
 export function getBuiltinTool(id: string) {
   return BUILTIN_TOOLS.find((t) => t.id === id) ?? null;
 }
@@ -86,9 +82,7 @@ export function getBuiltinTool(id: string) {
 export function listTools(query: RawQuery = {}) {
   const result = listQuery({ table: agentTools }, query);
   // Join constant-based builtins + custom tools from DB
-  // Exclude builtin:call_agent — it's internal-only
-  const visibleBuiltins = BUILTIN_TOOLS.filter((t) => t.id !== "builtin:call_agent");
-  const items = [...visibleBuiltins, ...result.items].map(({ codeContent, draftCode, ...rest }: any) => rest);
+  const items = [...BUILTIN_TOOLS, ...result.items].map(({ codeContent, draftCode, ...rest }: any) => rest);
   return {
     ...result,
     items,
@@ -102,11 +96,35 @@ export function getTool(id: string) {
   return getDb().select().from(agentTools).where(eq(agentTools.id, id)).get();
 }
 
-export function createTool(body: Pick<NewAgentTool, "name" | "label" | "description" | "parameters" | "codeContent"> & { isActive?: boolean }) {
-  const { isActive = true, ...rest } = body;
+function assertToolNameAvailable(name: string, excludeId?: string) {
+  if (BUILTIN_TOOLS.some((t) => t.name === name)) {
+    throw new BadRequestException("Tool name already exists");
+  }
+  const db = getDb();
+  const dup = excludeId
+    ? db
+        .select()
+        .from(agentTools)
+        .where(and(eq(agentTools.name, name), ne(agentTools.id, excludeId)))
+        .get()
+    : db.select().from(agentTools).where(eq(agentTools.name, name)).get();
+  if (dup) {
+    throw new BadRequestException("Tool name already exists");
+  }
+}
+
+export function createTool(
+  body: Pick<NewAgentTool, "name" | "label" | "description" | "parameters" | "codeContent"> & {
+    isActive?: boolean;
+    folderId?: string | null;
+  },
+) {
+  const { isActive = true, folderId = null, ...rest } = body;
+  assertToolNameAvailable(rest.name);
   const tool: NewAgentTool = {
     ...rest,
     id: crypto.randomUUID(),
+    folderId,
     isActive,
     createdAt: new Date(),
   };
@@ -139,6 +157,10 @@ export function updateTool(id: string, body: Partial<NewAgentTool>) {
     if (meta.name && !body.name) body.name = meta.name;
     if (meta.description && !body.description) body.description = meta.description;
     if (!body.parameters || Object.keys(schema.properties).length > 0) body.parameters = schema;
+  }
+
+  if (body.name) {
+    assertToolNameAvailable(body.name, id);
   }
 
   const db = getDb();

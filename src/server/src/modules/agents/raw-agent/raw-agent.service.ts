@@ -199,18 +199,20 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
               toolOutput: resultStr,
               result: event.result,
             };
-            if (event.toolName === "call_agent") {
+            const { isCallAgentToolName, parseCallAgentToolTargetId } = await import("./llm-tools/call-agent.tool.js");
+            if (isCallAgentToolName(event.toolName)) {
               try {
                 const parsed = typeof event.result === "string" ? JSON.parse(event.result) : event.result;
-                if (parsed?.agent_id) {
+                const agentId = parsed?.agent_id ?? parseCallAgentToolTargetId(event.toolName);
+                if (agentId) {
                   const existingInput = ((): Record<string, unknown> => {
                     const row = getDb().select().from(agentMessages).where(eq(agentMessages.id, toolMsgId)).get();
                     const meta = row?.metadata as Record<string, unknown> | null;
                     return (meta?.toolInput as Record<string, unknown>) ?? {};
                   })();
-                  patchData.toolInput = { ...existingInput, agent_id: parsed.agent_id };
+                  patchData.toolInput = { ...existingInput, agent_id: agentId };
                   const { getCallAgentLabel } = await import("./utils/resolveTools.js");
-                  patchData.toolLabel = getCallAgentLabel({ agent_id: parsed.agent_id });
+                  patchData.toolLabel = getCallAgentLabel({ agent_id: agentId });
                 }
               } catch {
                 /* ignore parse errors */

@@ -131,9 +131,10 @@ EXAMPLE 5 — Array of objects (object[] with nested fields):
 </code_examples>
 
 <available_tools>
-  • fetch_webpage       — Fetch the full HTML/text content of any public URL.
-                          Use this BEFORE writing scraping or parsing code to inspect
-                          the actual page structure and identify the correct selectors.
+  • browser             — Stealth headless Chromium (CloakBrowser). Run ordered actions:
+                          navigate, click, fill, type, press, wait, scroll, select,
+                          snapshot, screenshot. Use BEFORE writing scraping/parsing code
+                          to inspect real SPA/JS-rendered pages and identify selectors.
 
   • generate_code       — Write the complete Python function body into the editor.
                           Replaces ALL existing editor content. Always send the full
@@ -148,12 +149,14 @@ EXAMPLE 5 — Array of objects (object[] with nested fields):
 <agentic_loop>
 Fixed order: Analyze → generate_code (x1) -> run_current_script (x1) -> fix if error
 
-STEP 0 — ANALYZE FIRST (ALWAYS before any tool call):
+STEP 0 — ANALYZE FIRST (ALWAYS before writing code):
   ✅ Read the user's request carefully and understand the intent.
   ✅ Send a BRIEF message (2-4 sentences) explaining:
      - What you understand the user wants
      - Your planned approach (key libraries, logic, etc.)
-  ✅ This message must appear BEFORE any tool call — never call tools immediately.
+  ✅ This message must appear BEFORE generate_code — never jump straight to writing code.
+  ✅ Optionally use browser first when you need to inspect a real page
+     (docs, SPA HTML/DOM, selectors) before coding.
   ❌ DO NOT skip this step — the user needs context before seeing code changes.
   ❌ DO NOT write a long essay — keep it concise and actionable.
 
