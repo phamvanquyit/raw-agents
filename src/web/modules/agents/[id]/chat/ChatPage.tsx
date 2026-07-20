@@ -1,4 +1,4 @@
-import { AltArrowDown, Plain3 } from "@solar-icons/react";
+import { AltArrowDown, PenNewSquare, SidebarMinimalistic } from "@solar-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
@@ -15,7 +15,12 @@ import { createConversation, fetchConversations, markConversationDone, setActive
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
+import { ChatEmptyState } from "./components/ChatEmptyState";
 import { ConversationList } from "./components/ConversationList";
+
+const SIDEBAR_DEFAULT = 260;
+const SIDEBAR_MIN = 180;
+const SIDEBAR_MAX = 420;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -143,9 +148,45 @@ export function ChatPage() {
 
   const [loading, setLoading] = useState(false);
   const [isScrolledUp, setIsScrolledUp] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
+  const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { scrollRef, scrollToBottom } = useAutoScroll({ onScrolledUpChange: setIsScrolledUp });
   const prevAgentIdRef = useRef<string | null>(null);
+  const resizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartW = useRef(0);
+
+  const onResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      resizing.current = true;
+      resizeStartX.current = e.clientX;
+      resizeStartW.current = sidebarWidth;
+      setIsResizing(true);
+    },
+    [sidebarWidth],
+  );
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizing.current) return;
+      const dx = e.clientX - resizeStartX.current;
+      setSidebarWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, resizeStartW.current + dx)));
+    };
+    const onUp = () => {
+      if (!resizing.current) return;
+      resizing.current = false;
+      setIsResizing(false);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   // ── Reset streaming when switching conversations ────────────────────────────
 
@@ -180,28 +221,16 @@ export function ChatPage() {
 
     setMessages([]);
     dispatch(setActiveConversationId(null));
-    setLoading(true);
+    const urlConvId = searchParams.get("conv");
+    if (urlConvId) setLoading(true);
     dispatch(fetchConversations(agent.id))
       .unwrap()
       .then(async (convs) => {
         const agentConvs = convs.filter((c) => c.agentId === agent.id);
-        // Prefer conversation ID from URL if present
-        const urlConvId = searchParams.get("conv");
         const target = urlConvId ? agentConvs.find((c) => c.id === urlConvId) : null;
-        const selected = target ?? agentConvs.find((c) => c.trigger === "manual") ?? agentConvs[0] ?? null;
-        if (selected) {
-          dispatch(setActiveConversationId(selected.id));
-          await loadMessages(selected.id);
-          if (selected.id !== urlConvId) {
-            setSearchParams(
-              (prev) => {
-                const p = new URLSearchParams(prev);
-                p.set("conv", selected.id);
-                return p;
-              },
-              { replace: true },
-            );
-          }
+        if (target) {
+          dispatch(setActiveConversationId(target.id));
+          await loadMessages(target.id);
         }
       })
       .finally(() => setLoading(false));
@@ -324,30 +353,75 @@ export function ChatPage() {
   }, [cancel, agent, dispatch, loadMessages, clearStreamingState]);
 
   return (
-    <div className="flex h-full w-full" style={{ fontFamily: "var(--font-family-chat)" }}>
-      {/* Conversation list sidebar */}
-      <ConversationList onNewChat={handleNewChat} onSelectConversation={handleSelectConversation} />
+    <div
+      className="flex h-full w-full overflow-hidden"
+      style={{
+        fontFamily: "var(--font-family-chat)",
+        userSelect: isResizing ? "none" : undefined,
+        cursor: isResizing ? "col-resize" : undefined,
+      }}
+    >
+      {sidebarOpen && (
+        <>
+          <ConversationList
+            width={sidebarWidth}
+            onNewChat={handleNewChat}
+            onSelectConversation={handleSelectConversation}
+            onCloseSidebar={() => setSidebarOpen(false)}
+          />
+          <div
+            onMouseDown={onResizeStart}
+            className={[
+              "w-px shrink-0 h-full cursor-col-resize z-10 transition-colors duration-150",
+              isResizing ? "bg-primary/50" : "bg-border hover:bg-primary/40",
+            ].join(" ")}
+          />
+        </>
+      )}
 
-      {/* Chat content */}
-      <div className="flex flex-col flex-1 min-w-0 h-full">
-        {/* Messages area */}
+      <div className="relative flex flex-col flex-1 min-w-0 h-full bg-popover">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-48"
+          style={{
+            background: "radial-gradient(ellipse 80% 100% at 50% 0%, color-mix(in oklab, var(--muted) 55%, transparent), transparent)",
+          }}
+        />
+
+        {!sidebarOpen && (
+          <div className="absolute top-2 left-2 z-20 flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="flex items-center justify-center size-8 rounded-lg border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+              aria-label="Open sidebar"
+              title="Open sidebar"
+            >
+              <SidebarMinimalistic width={16} height={16} />
+            </button>
+            <button
+              type="button"
+              onClick={handleNewChat}
+              className="flex items-center justify-center size-8 rounded-lg border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+              aria-label="New chat"
+              title="New chat"
+            >
+              <PenNewSquare width={15} height={15} />
+            </button>
+          </div>
+        )}
+
         {loading ? (
-          <div className="flex-1 flex items-center justify-center min-h-0">
+          <div className="relative flex-1 flex items-center justify-center min-h-0">
             <span className="text-[12px] text-muted-foreground animate-pulse">Loading...</span>
           </div>
         ) : (
-          <div className="relative flex-1 min-h-0 flex flex-col">
+          <div className={["relative flex-1 min-h-0 flex flex-col", !sidebarOpen ? "pt-10" : ""].join(" ")}>
             <MessageList
               messages={liveMessages}
               generating={showGenerating && !streamingContent}
               activityStatus={isServerRunning && !running ? "Processing..." : activityStatus}
               assistantLabel={agent.name}
-              emptyStateContent={
-                <div className="flex flex-col items-center gap-2">
-                  <Plain3 width={28} height={28} className="text-muted-foreground opacity-50" />
-                  <span className="text-[12px] text-muted-foreground">Start a conversation with {agent.name}</span>
-                </div>
-              }
+              emptyStateContent={<ChatEmptyState agent={agent} onStarter={(text) => void handleSend(text)} disabled={showGenerating} />}
               messagesEndRef={messagesEndRef}
               scrollContainerRef={scrollRef}
             />
@@ -355,7 +429,7 @@ export function ChatPage() {
               <button
                 type="button"
                 onClick={() => scrollToBottom({ force: true })}
-                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-muted text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                 aria-label="Scroll to bottom"
               >
                 <AltArrowDown width={14} height={14} />
@@ -364,9 +438,9 @@ export function ChatPage() {
           </div>
         )}
 
-        {/* Input area */}
         {!loading && (
-          <div className="shrink-0 w-full max-w-[760px] mx-auto">
+          <div className="relative shrink-0 w-full max-w-[760px] mx-auto">
+            <div className="pointer-events-none absolute -top-6 left-0 right-0 h-6 bg-gradient-to-t from-popover to-transparent" />
             <InputArea
               generating={showGenerating}
               placeholder={`Message ${agent.name}...`}

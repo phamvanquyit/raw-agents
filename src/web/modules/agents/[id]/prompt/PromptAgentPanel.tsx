@@ -1,10 +1,4 @@
-/**
- * PromptAgentPanel.tsx
- *
- * Self-contained AI assistant panel for the Prompt editor sidebar.
- * Streaming lives in useAssistantStreaming — no Redux dependency.
- */
-
+import { MagicStick } from "@solar-icons/react";
 import { useRef } from "react";
 
 import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
@@ -28,12 +22,23 @@ export function PromptAgentPanel({ providerId, model, streamUrl, maxSteps = 6, o
   const { scrollRef: scrollContainerRef, scrollToBottom } = useAutoScroll();
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-card overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
+        <MagicStick size={13} className="shrink-0 text-brand-soft" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Refine</span>
+      </div>
+
       <MessageList
         messages={messages}
         generating={generating}
         assistantLabel="Prompt AI"
-        emptyStateContent={<p className="text-xs text-muted-foreground leading-relaxed max-w-50 m-0">Describe your request to refine the prompt.</p>}
+        emptyStateContent={
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-8 text-center">
+            <p className="m-0 max-w-52 text-[12px] leading-relaxed text-tertiary-foreground">
+              Ask for tone, structure, or constraints — the editor updates as you refine.
+            </p>
+          </div>
+        }
         messagesEndRef={messagesEndRef}
         scrollContainerRef={scrollContainerRef}
         className="selectable"
@@ -41,7 +46,7 @@ export function PromptAgentPanel({ providerId, model, streamUrl, maxSteps = 6, o
 
       <InputArea
         generating={generating}
-        placeholder="Describe request... (Enter to send)"
+        placeholder="Describe what to change…"
         onSend={(text) => {
           if (!providerId || !model) return;
           scrollToBottom({ force: true });

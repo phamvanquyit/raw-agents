@@ -216,7 +216,7 @@ function AgentFlowInner({
       id: "config",
       type: "agentConfig",
       position: { x: CENTER_X - 190, y: CENTER_Y - 40 },
-      style: { width: 380, height: 500 },
+      style: { width: 380, height: 560 },
       data: {
         name,
         description,
@@ -241,7 +241,7 @@ function AgentFlowInner({
       const publishNode: PublishNodeType = {
         id: "publish",
         type: "publish",
-        position: { x: CENTER_X - 190 - 220, y: CENTER_Y + 390 },
+        position: { x: CENTER_X - 190 - 220, y: CENTER_Y + 440 },
         draggable: true,
         data: {
           isPublic,
@@ -592,7 +592,7 @@ function AgentFlowInner({
   return (
     <div className="flex-1 agent-detail-flow">
       <style>{`
-        .agent-detail-flow .react-flow__renderer { background: var(--background) !important }
+        .agent-detail-flow .react-flow__renderer { background: var(--card) !important }
         .agent-detail-flow .react-flow__background pattern line { stroke: rgba(255,255,255,0.03) !important }
         .agent-detail-flow .react-flow__background pattern circle { fill: rgba(255,255,255,0.06) !important }
         .agent-detail-flow .react-flow__edge-path { stroke-width: 2 }
@@ -606,37 +606,33 @@ function AgentFlowInner({
       <Modal
         open={promptModalOpen}
         onCancel={() => setPromptModalOpen(false)}
-        title={
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
-              <div className="text-[14px] leading-none text-muted-foreground">
-                <svg
-                  width={14}
-                  height={14}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <line x1="10" y1="9" x2="8" y2="9" />
-                </svg>
-              </div>
-            </div>
-            <span className="truncate font-semibold text-foreground">System Prompt</span>
-          </div>
-        }
+        title={null}
+        closable={false}
         footer={null}
-        width="90vw"
+        width="100%"
         destroyOnHidden
-        styles={{ body: { padding: 0, height: "85vh", overflow: "auto" } }}
+        style={{ top: 0, margin: 0, paddingBottom: 0, maxWidth: "100vw" }}
+        styles={{
+          container: {
+            height: "100vh",
+            borderRadius: 0,
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            background: "var(--background)",
+            boxShadow: "none",
+          },
+          body: {
+            padding: 0,
+            flex: 1,
+            minHeight: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          },
+        }}
       >
-        <PromptPage />
+        <PromptPage onClose={() => setPromptModalOpen(false)} />
       </Modal>
 
       <ReactFlow

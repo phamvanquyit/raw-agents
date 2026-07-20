@@ -1,12 +1,9 @@
 // ─── Agent Detail Page ────────────────────────────────────────────────────────
 // Route: /agents/:id/* — Full-screen agent detail with Chat / Editor tabs.
 
-import { AltArrowLeft, MenuDots, TrashBinTrash } from "@solar-icons/react";
-import { Modal, Popover } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
-import { UserAvatar } from "src/components/UserAvatar";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { fetchMcpServers } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { fetchTools } from "src/modules/tools/common/toolsSlice";
@@ -14,7 +11,7 @@ import { useAppDispatch, useAppSelector } from "src/store/store";
 import { deleteAgent, fetchAgents, fetchOneAgent, updateAgent } from "../common/agentsSlice";
 import { ChatPage } from "./chat/ChatPage";
 import { type AgentDetailContext, AgentDetailCtx } from "./common/agentDetailContext";
-import { TABS } from "./common/constants";
+import { AgentDetailHeader } from "./components/AgentDetailHeader";
 import { AgentFlowView } from "./flow/AgentFlowView";
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
@@ -123,28 +120,11 @@ export default function AgentDetailPage() {
 
   const handleProviderChange = useCallback((pid: string | null) => setSelectedProviderId(pid), []);
 
-  const handleBack = useCallback(() => {
-    navigate("/agents");
-  }, [navigate]);
-
   const handleDelete = async () => {
     if (!id) return;
     await dispatch(deleteAgent(id));
     navigate("/agents");
   };
-
-  const confirmDelete = useCallback(() => {
-    const ag = agents.find((a) => a.id === id);
-    if (!ag) return;
-    Modal.confirm({
-      title: `Delete "${ag.name}"?`,
-      content: "This action cannot be undone. All conversations and tasks will be lost.",
-      okText: "Delete",
-      okType: "danger",
-      cancelText: "Cancel",
-      onOk: handleDelete,
-    });
-  }, [agents, id, handleDelete]);
 
   // ── Flow interaction handlers ──────────────────────────────────────────────
 
@@ -327,75 +307,9 @@ export default function AgentDetailPage() {
   return (
     <AgentDetailCtx.Provider value={ctxValue}>
       <div className="flex flex-col h-screen overflow-hidden">
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="relative flex items-center gap-3 px-5 h-[52px] bg-card border-b border-border shrink-0">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border bg-transparent text-muted-foreground text-sm font-medium cursor-pointer transition-all duration-150 font-[inherit] hover:bg-muted hover:text-foreground hover:border-border"
-            onClick={handleBack}
-          >
-            <AltArrowLeft size={14} />
-            <span>Back</span>
-          </button>
+        <AgentDetailHeader id={id} agent={agent} avatar={avatar} onDelete={handleDelete} />
 
-          <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            <UserAvatar avatar={avatar ?? agent.avatar} name={agent.name} size={22} className="shrink-0" />
-            <span className="text-base font-bold text-primary whitespace-nowrap overflow-hidden text-ellipsis">{agent.name}</span>
-          </div>
-
-          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 p-0.5 rounded-full border border-border bg-muted">
-            {TABS.map((tab) => {
-              const Icon = tab.icon;
-              const to = tab.path ? `/agents/${id}/${tab.path}` : `/agents/${id}`;
-              return (
-                <NavLink
-                  key={tab.id}
-                  to={to}
-                  end={!tab.path}
-                  className={({ isActive }) =>
-                    [
-                      "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium no-underline transition-colors duration-150",
-                      isActive ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
-                    ].join(" ")
-                  }
-                >
-                  <Icon width={14} height={14} className="opacity-70" />
-                  <span>{tab.label}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
-
-          <div className="flex items-center gap-0.5">
-            {/* ── Kebab menu ── */}
-            <Popover
-              trigger="click"
-              placement="bottomRight"
-              arrow={false}
-              styles={{ root: { width: 180 }, container: { width: 180, padding: 4 } }}
-              content={
-                <button
-                  type="button"
-                  className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-destructive cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-destructive/10"
-                  onClick={confirmDelete}
-                >
-                  <TrashBinTrash width={13} height={13} />
-                  <span>Delete Agent</span>
-                </button>
-              }
-            >
-              <button
-                type="button"
-                className="flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-muted-foreground cursor-pointer transition-all duration-150 hover:bg-muted hover:text-foreground hover:border-border"
-              >
-                <MenuDots width={15} height={15} />
-              </button>
-            </Popover>
-          </div>
-        </div>
-
-        {/* ── Content ────────────────────────────────────────────────────── */}
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden bg-card">
           <Routes>
             <Route index element={<ChatPage />} />
             <Route path="chat" element={<Navigate to={`/agents/${id}`} replace />} />
