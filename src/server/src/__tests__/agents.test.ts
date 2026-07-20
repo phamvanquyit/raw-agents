@@ -33,6 +33,8 @@ describe("Agents API", () => {
     expect(data.name).toBe("Test Agent");
     expect(data.description).toBe("A test agent");
     expect(data.id).toBeTruthy();
+    expect(typeof data.avatar).toBe("string");
+    expect((data.avatar as string).startsWith("{")).toBe(true);
     agentId = data.id as string;
   });
 
@@ -84,6 +86,14 @@ describe("Agents API", () => {
     expect(data.description).toBe("Updated description");
   });
 
+  test("PUT /api/agents/:id — update avatar", async () => {
+    const avatar = JSON.stringify({ sex: "man", faceColor: "#ff0000", bgColor: "#00ff00" });
+    const res = await authRequest(app, token, "PUT", `/api/agents/${agentId}`, { avatar });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data.avatar).toBe(avatar);
+  });
+
   // ── Clone ─────────────────────────────────────────────────────────────
 
   let clonedId = "";
@@ -95,6 +105,7 @@ describe("Agents API", () => {
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.name).toBe("Updated Agent (Copy)");
     expect(data.id).not.toBe(agentId);
+    expect(data.avatar).toBe(JSON.stringify({ sex: "man", faceColor: "#ff0000", bgColor: "#00ff00" }));
     clonedId = data.id as string;
   });
 
@@ -123,12 +134,12 @@ describe("Agents API", () => {
 
   test("POST /api/agents/:id/tool-assignments — add builtin tool", async () => {
     const res = await authRequest(app, token, "POST", `/api/agents/${agentId}/tool-assignments`, {
-      toolId: "builtin:fetch_webpage",
+      toolId: "builtin:browser",
     });
 
     expect(res.status).toBe(201);
     const data = (await res.json()) as Record<string, unknown>;
-    expect(data.toolId).toBe("builtin:fetch_webpage");
+    expect(data.toolId).toBe("builtin:browser");
   });
 
   test("GET /api/agents/:id/tool-assignments — has assigned tool", async () => {
@@ -137,7 +148,7 @@ describe("Agents API", () => {
 
     const data = (await res.json()) as Record<string, unknown>[];
     expect(data.length).toBe(1);
-    expect(data[0].toolId).toBe("builtin:fetch_webpage");
+    expect(data[0].toolId).toBe("builtin:browser");
     expect(data[0]).toHaveProperty("tool");
   });
 
@@ -158,7 +169,7 @@ describe("Agents API", () => {
 
   test("PUT /api/agents/:id/tool-assignments — replace all", async () => {
     const res = await authRequest(app, token, "PUT", `/api/agents/${agentId}/tool-assignments`, {
-      items: [{ toolId: "builtin:get_current_time" }, { toolId: "builtin:fetch_webpage" }],
+      items: [{ toolId: "builtin:get_current_time" }, { toolId: "builtin:browser" }],
     });
 
     expect(res.status).toBe(200);

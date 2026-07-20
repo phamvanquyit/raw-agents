@@ -36,9 +36,35 @@ describe("MCP Servers API", () => {
     expect(data.url).toBe("https://example.com/mcp");
     expect(data).toHaveProperty("id");
     expect(data.tools).toEqual([]);
+    expect(data.isActive).toBe(true);
+    expect(typeof data.lastSyncError === "string" || data.lastSyncError === null).toBe(true);
     const headers = data.headers as Record<string, string>;
     expect(headers.Authorization).not.toContain("secret-token");
     serverId = data.id as string;
+  });
+
+  test("PUT /api/mcp-servers/:id — toggle isActive", async () => {
+    const offRes = await authRequest(app, token, "PUT", `/api/mcp-servers/${serverId}`, { isActive: false });
+    expect(offRes.status).toBe(200);
+    const off = (await offRes.json()) as Record<string, unknown>;
+    expect(off.isActive).toBe(false);
+
+    const onRes = await authRequest(app, token, "PUT", `/api/mcp-servers/${serverId}`, { isActive: true });
+    expect(onRes.status).toBe(200);
+    const on = (await onRes.json()) as Record<string, unknown>;
+    expect(on.isActive).toBe(true);
+  });
+
+  test("POST /api/mcp-servers/:id/sync — persists lastSyncError on failure", async () => {
+    const res = await authRequest(app, token, "POST", `/api/mcp-servers/${serverId}/sync`);
+    expect(res.status).toBe(400);
+
+    const getRes = await authRequest(app, token, "GET", `/api/mcp-servers/${serverId}`);
+    expect(getRes.status).toBe(200);
+    const data = (await getRes.json()) as Record<string, unknown>;
+    expect(typeof data.lastSyncError).toBe("string");
+    expect((data.lastSyncError as string).length).toBeGreaterThan(0);
+    expect(data.lastSyncedAt).toBeTruthy();
   });
 
   test("GET /api/mcp-servers — list includes catalog", async () => {

@@ -24,7 +24,7 @@ describe("Tools API", () => {
     expect(res.status).toBe(200);
 
     const data = (await res.json()) as { items: Record<string, unknown>[]; total: number };
-    // Should have at least the builtin tools (get_current_time, fetch_webpage, browser)
+    // Should have at least the builtin tools (get_current_time, browser)
     expect(data.items.length).toBeGreaterThanOrEqual(1);
 
     // Verify builtin tools are present
@@ -93,6 +93,38 @@ describe("Tools API", () => {
     expect(res.status).toBe(400);
     const data = (await res.json()) as { message: string };
     expect(data.message).toContain("@name");
+  });
+
+  test("POST /api/tools — duplicate name returns 400", async () => {
+    const res = await authRequest(app, token, "POST", "/api/tools", {
+      name: "test_tool",
+      label: "Duplicate",
+      description: "Should fail",
+      codeContent: "# @name test_tool\n# @label Duplicate\nreturn {}",
+    });
+
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { message: string };
+    expect(data.message).toBe("Tool name already exists");
+  });
+
+  test("PUT /api/tools/:id — rename to existing name returns 400", async () => {
+    const createRes = await authRequest(app, token, "POST", "/api/tools", {
+      name: "other_tool",
+      label: "Other Tool",
+      description: "Another tool",
+      codeContent: "# @name other_tool\n# @label Other Tool\n# @description Another tool\nreturn {}",
+    });
+    expect(createRes.status).toBe(201);
+    const other = (await createRes.json()) as { id: string };
+
+    const res = await authRequest(app, token, "PUT", `/api/tools/${other.id}`, {
+      name: "test_tool",
+    });
+
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { message: string };
+    expect(data.message).toBe("Tool name already exists");
   });
 
   test("PUT /api/tools/:id — update codeContent missing return returns 400", async () => {
