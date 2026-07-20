@@ -1,15 +1,9 @@
-import { AddCircle, AltArrowRight } from "@solar-icons/react";
+import { ChatRound, FaceScanSquare, Global, PlugCircle, Programming, UsersGroupTwoRounded } from "@solar-icons/react";
 import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Agent } from "src/common/types";
-import { AppLogo } from "src/components/AppLogo";
 import { PageShell } from "src/components/PageShell";
-import RenderIf from "src/components/ui/RenderIf";
-import { Badge } from "src/components/ui/badge";
-import { Button } from "src/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "src/components/ui/empty";
 import { fetchAgents } from "src/modules/agents/common/agentsSlice";
-import { NewAgentPopover } from "src/modules/agents/components/NewAgentDialog";
 import { fetchTeams } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
@@ -19,32 +13,36 @@ function greetingForHour(hour: number): string {
   return "Good evening";
 }
 
-function AgentRow({ agent, onOpen }: { agent: Agent; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors duration-150 hover:bg-muted cursor-pointer"
-    >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-brand">
-        <AppLogo size={18} />
-      </span>
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="truncate text-base font-medium text-foreground">{agent.name}</span>
-        <RenderIf condition={agent.isPublic}>
-          <Badge variant="secondary" className="rounded-md px-1.5 text-xs text-success">
-            Published
-          </Badge>
-        </RenderIf>
-      </div>
-      <AltArrowRight
-        width={14}
-        height={14}
-        className="shrink-0 -translate-x-1 text-quaternary-foreground opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100 group-hover:text-sidebar-accent-foreground"
-      />
-    </button>
-  );
+function crewLine(agentCount: number, runningCount: number): string {
+  if (agentCount === 0) return "No agents on deck yet.";
+  if (runningCount > 0) return `${runningCount} agent${runningCount === 1 ? "" : "s"} mid-mission. The rest are standing by.`;
+  if (agentCount === 1) return "One agent on deck.";
+  return `${agentCount} agents on deck.`;
 }
+
+const JUMPS = [
+  {
+    to: "/agents",
+    title: "Agents",
+    blurb: "Build, prompt, and publish your crew.",
+    icon: FaceScanSquare,
+    tone: "text-brand-soft",
+  },
+  {
+    to: "/tools",
+    title: "Tools",
+    blurb: "Wire capabilities agents can call.",
+    icon: Programming,
+    tone: "text-chart-1",
+  },
+  {
+    to: "/mcp-servers",
+    title: "MCP servers",
+    blurb: "Connect external tool servers.",
+    icon: PlugCircle,
+    tone: "text-warn",
+  },
+] as const;
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -52,6 +50,7 @@ export default function DashboardPage() {
 
   const user = useAppSelector((s) => s.auth.user);
   const agents = useAppSelector((s) => s.agents.items) as Agent[];
+  const teams = useAppSelector((s) => s.teams.teams);
 
   useEffect(() => {
     dispatch(fetchAgents());
@@ -61,68 +60,87 @@ export default function DashboardPage() {
   const displayName = user?.name || user?.username || "there";
   const greeting = greetingForHour(new Date().getHours());
 
-  const recentAgents = useMemo(() => {
-    return [...agents]
-      .sort((a, b) => {
-        const da = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const db = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return db - da;
-      })
-      .slice(0, 8);
+  const { runningCount, publishedCount } = useMemo(() => {
+    return {
+      runningCount: agents.filter((a) => a.runStatus === "running").length,
+      publishedCount: agents.filter((a) => a.isPublic).length,
+    };
   }, [agents]);
 
   return (
-    <PageShell contentClassName="max-w-2xl">
-      <header className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
+    <PageShell>
+      <section className="relative mb-10 overflow-hidden rounded-2xl border border-border-subtle bg-card px-6 py-7 sm:px-8 sm:py-8">
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-brand/10 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/3 size-48 rounded-full bg-chart-1/10 blur-3xl" />
+
+        <div className="relative min-w-0 max-w-xl">
+          <p className="m-0 mb-2 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-brand-soft">
+            <span className="size-1.5 rounded-full bg-brand-soft motion-safe:animate-pulse" />
+            Agent desk
+          </p>
           <h1 className="m-0 text-2xl font-semibold leading-tight text-foreground">
             {greeting}, {displayName}
           </h1>
-          <p className="mt-1.5 m-0 text-sm text-muted-foreground">{agents.length === 0 ? "Create an agent to get started." : "Pick up where you left off."}</p>
+          <p className="mt-2 m-0 text-base text-muted-foreground">{crewLine(agents.length, runningCount)}</p>
         </div>
-        <NewAgentPopover>
-          <Button variant="primary" icon={<AddCircle width={16} height={16} />}>
-            New agent
-          </Button>
-        </NewAgentPopover>
-      </header>
 
-      <RenderIf
-        condition={recentAgents.length > 0}
-        fallback={
-          <Empty className="border border-border-subtle bg-card p-10">
-            <EmptyHeader>
-              <EmptyTitle>No agents yet</EmptyTitle>
-              <EmptyDescription>Create your first agent to start building.</EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <NewAgentPopover>
-                <Button variant="primary" size="sm" icon={<AddCircle width={14} height={14} />}>
-                  Create agent
-                </Button>
-              </NewAgentPopover>
-            </EmptyContent>
-          </Empty>
-        }
-      >
-        <section>
-          <div className="mb-3 flex items-baseline justify-between gap-3">
-            <h2 className="m-0 text-sm font-medium text-muted-foreground">Recent agents</h2>
+        <div className="relative mt-7 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/agents")}
+            className="inline-flex items-center gap-2 rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm text-foreground transition-colors hover:border-brand/40 hover:bg-accent cursor-pointer"
+          >
+            <FaceScanSquare width={16} height={16} className="text-brand-soft" />
+            <span className="font-medium">{agents.length}</span>
+            <span className="text-muted-foreground">agents</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/agents")}
+            className="inline-flex items-center gap-2 rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm text-foreground transition-colors hover:border-brand/40 hover:bg-accent cursor-pointer"
+          >
+            <ChatRound width={16} height={16} className="text-success" />
+            <span className="font-medium">{runningCount}</span>
+            <span className="text-muted-foreground">running</span>
+          </button>
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm text-foreground">
+            <Global width={16} height={16} className="text-chart-1" />
+            <span className="font-medium">{publishedCount}</span>
+            <span className="text-muted-foreground">published</span>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-lg border border-border-subtle bg-background/60 px-3 py-2 text-sm text-foreground">
+            <UsersGroupTwoRounded width={16} height={16} className="text-warn" />
+            <span className="font-medium">{teams.length}</span>
+            <span className="text-muted-foreground">teams</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="mb-4">
+          <h2 className="m-0 text-lg font-semibold text-foreground">Jump in</h2>
+          <p className="mt-1 m-0 text-sm text-muted-foreground">Quick paths while this desk stays light.</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {JUMPS.map(({ to, title, blurb, icon: Icon, tone }) => (
             <button
+              key={to}
               type="button"
-              onClick={() => navigate("/agents")}
-              className="border-0 bg-transparent p-0 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:text-sidebar-accent-foreground cursor-pointer"
+              onClick={() => navigate(to)}
+              className="group flex flex-col items-start gap-4 rounded-xl border border-border-subtle bg-card px-5 py-5 text-left transition-colors duration-150 hover:border-brand/35 hover:bg-secondary cursor-pointer"
             >
-              View all
+              <span className={`flex size-9 items-center justify-center rounded-lg bg-muted ${tone}`}>
+                <Icon width={18} height={18} />
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="text-sm font-semibold text-foreground transition-colors group-hover:text-brand-soft">{title}</span>
+                <span className="text-xs leading-relaxed text-muted-foreground">{blurb}</span>
+              </span>
             </button>
-          </div>
-          <div className="rounded-xl border border-border-subtle bg-card p-1.5">
-            {recentAgents.map((agent) => (
-              <AgentRow key={agent.id} agent={agent} onOpen={() => navigate(`/agents/${agent.id}`)} />
-            ))}
-          </div>
-        </section>
-      </RenderIf>
+          ))}
+        </div>
+      </section>
     </PageShell>
   );
 }

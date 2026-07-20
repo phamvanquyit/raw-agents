@@ -1,21 +1,15 @@
 import { AddCircle } from "@solar-icons/react";
+import { Button, Form, Input, Popover, Select } from "antd";
+import type { InputRef } from "antd";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { AgentTeam } from "src/common/types";
+import { ModelPicker } from "src/components/ModelPicker";
 import { genConfig } from "src/components/UserAvatar";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { ModelPicker } from "src/components/ui/model-picker";
-import { Select } from "src/components/ui/options-select";
-import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
-import { Textarea } from "src/components/ui/textarea";
 import { createAgent, fetchAgents } from "src/modules/agents/common/agentsSlice";
 
 import { fetchTeams } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-
-// ─── New Agent Popover ──────────────────────────────────────────────────────
 
 interface NewAgentPopoverProps {
   defaultTeamId?: string | null;
@@ -33,11 +27,10 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
   const [error, setError] = useState("");
 
   const dispatch = useAppDispatch();
-  const nameRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<InputRef>(null);
 
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
 
-  // Reset state when opened
   useEffect(() => {
     if (open) {
       setName("");
@@ -106,62 +99,86 @@ export function NewAgentPopover({ defaultTeamId, children }: NewAgentPopoverProp
   const teamOptions = [{ value: "", label: "No team" }, ...teams.map((t: AgentTeam) => ({ value: t.id, label: t.name }))];
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-[420px] p-0">
-        {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <AddCircle width={16} height={16} className="text-primary shrink-0" />
-          <span className="text-sm font-semibold text-foreground">New Agent</span>
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      trigger="click"
+      placement="bottomRight"
+      arrow={false}
+      styles={{ root: { width: 420 }, container: { width: 420, padding: 0 } }}
+      content={
+        <div className="w-[420px]">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+            <AddCircle width={16} height={16} className="text-primary shrink-0" />
+            <span className="text-sm font-semibold text-foreground">New Agent</span>
+          </div>
+
+          <div className="flex flex-col gap-3.5 p-4">
+            <Form.Item
+              label={
+                <span className="text-muted-foreground">
+                  Agent Name<span className="text-destructive"> *</span>
+                </span>
+              }
+              className="!mb-0"
+              layout="vertical"
+            >
+              <Input
+                ref={nameRef}
+                id="new-agent-name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (error) setError("");
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="e.g. Research Bot, Support Agent…"
+                autoComplete="off"
+              />
+            </Form.Item>
+
+            <Form.Item label={<span className="text-muted-foreground">Description</span>} className="!mb-0" layout="vertical">
+              <Input.TextArea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Short description of what this agent does"
+                rows={2}
+              />
+            </Form.Item>
+
+            <Form.Item label={<span className="text-muted-foreground">Team</span>} className="!mb-0" layout="vertical">
+              <Select value={teamId} onChange={handleTeamChange} options={teamOptions} placeholder="Select team…" className="w-full" />
+            </Form.Item>
+
+            <Form.Item
+              label={
+                <span className="text-muted-foreground">
+                  Model<span className="text-destructive"> *</span>
+                </span>
+              }
+              className="!mb-0"
+              layout="vertical"
+            >
+              <ModelPicker selectedProviderId={selectedProviderId} selectedModel={aiModel} onChange={handleModelChange} />
+            </Form.Item>
+
+            {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
+          </div>
+
+          <div className="flex justify-end gap-2.5 px-4 py-3 border-t border-border">
+            <Button type="text" size="small" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="primary" size="small" loading={saving} onClick={handleCreate}>
+              {saving ? "Creating…" : "Create Agent"}
+            </Button>
+          </div>
         </div>
-
-        {/* Body */}
-        <div className="flex flex-col gap-3.5 p-4">
-          <Field label="Agent Name" required>
-            <Input
-              ref={nameRef}
-              id="new-agent-name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (error) setError("");
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="e.g. Research Bot, Support Agent…"
-              autoComplete="off"
-            />
-          </Field>
-
-          <Field label="Description">
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description of what this agent does" rows={2} />
-          </Field>
-
-          {/* Team selector */}
-          <Field label="Team">
-            <Select value={teamId} onChange={handleTeamChange} options={teamOptions} placeholder="Select team…" />
-          </Field>
-
-          {/* Model (Provider + Model combined) */}
-          <Field label="Model" required>
-            <ModelPicker selectedProviderId={selectedProviderId} selectedModel={aiModel} onChange={handleModelChange} />
-          </Field>
-
-          {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-2.5 px-4 py-3 border-t border-border">
-          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button variant="primary" size="sm" loading={saving} onClick={handleCreate}>
-            {saving ? "Creating…" : "Create Agent"}
-          </Button>
-        </div>
-      </PopoverContent>
+      }
+    >
+      {children}
     </Popover>
   );
 }
 
-// Keep backward-compatible named export
 export { NewAgentPopover as NewAgentDialog };

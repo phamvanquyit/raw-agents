@@ -1,5 +1,7 @@
+import { ConfigProvider } from "antd";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
+import { antdTheme } from "src/common/antdTheme";
 import { initTheme } from "src/common/theme";
 import "./index.css";
 import { store } from "src/store/store";
@@ -14,6 +16,8 @@ if (!rootEl) {
 
 createRoot(rootEl).render(
   <Provider store={store}>
-    <App />
+    <ConfigProvider theme={antdTheme}>
+      <App />
+    </ConfigProvider>
   </Provider>,
 );

@@ -1,10 +1,7 @@
 import { AddCircle, PenNewSquare } from "@solar-icons/react";
+import { Button, Form, Input, Modal, message } from "antd";
+import type { InputRef } from "antd";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "src/components/ui/button";
-import { SimpleDialog } from "src/components/ui/dialog";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { toast } from "src/components/ui/toast";
 import { useAppDispatch } from "src/store/store";
 import { createToolFolder, updateToolFolder } from "../common/toolFoldersSlice";
 import type { ToolFolderWithTools } from "../common/toolFoldersSlice";
@@ -20,7 +17,7 @@ export function FolderDialog({ open, onClose, folder }: FolderDialogProps) {
   const isEdit = !!folder;
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
-  const nameRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<InputRef>(null);
 
   useEffect(() => {
     if (open) {
@@ -36,39 +33,57 @@ export function FolderDialog({ open, onClose, folder }: FolderDialogProps) {
     try {
       if (isEdit && folder) {
         await dispatch(updateToolFolder({ id: folder.id, name: name.trim() })).unwrap();
-        toast.success("Folder updated");
+        message.success("Folder updated");
       } else {
         await dispatch(createToolFolder({ name: name.trim() })).unwrap();
-        toast.success("Folder created");
+        message.success("Folder created");
       }
       onClose();
     } catch {
-      toast.error(isEdit ? "Failed to update folder" : "Failed to create folder");
+      message.error(isEdit ? "Failed to update folder" : "Failed to create folder");
     } finally {
       setSaving(false);
     }
   };
 
+  const icon = isEdit ? <PenNewSquare width={16} height={16} /> : <AddCircle width={16} height={16} />;
+
   return (
-    <SimpleDialog
+    <Modal
       open={open}
-      onClose={onClose}
-      title={isEdit ? "Edit Folder" : "New Folder"}
-      icon={isEdit ? <PenNewSquare width={16} height={16} /> : <AddCircle width={16} height={16} />}
+      onCancel={onClose}
+      title={
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+            <div className="text-[14px] leading-none text-muted-foreground">{icon}</div>
+          </div>
+          <span className="truncate font-semibold text-foreground">{isEdit ? "Edit Folder" : "New Folder"}</span>
+        </div>
+      }
       width={420}
+      centered
+      destroyOnHidden
       footer={
         <div className="flex justify-end gap-2.5">
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button type="text" size="small" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" loading={saving} onClick={handleSubmit} disabled={!name.trim()}>
+          <Button type="primary" size="small" loading={saving} onClick={handleSubmit} disabled={!name.trim()}>
             {saving ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save" : "Create Folder"}
           </Button>
         </div>
       }
     >
       <div className="flex flex-col gap-4 pt-4">
-        <Field label="Folder Name" required>
+        <Form.Item
+          label={
+            <span className="text-muted-foreground">
+              Folder Name<span className="text-destructive"> *</span>
+            </span>
+          }
+          className="!mb-0"
+          layout="vertical"
+        >
           <Input
             ref={nameRef}
             value={name}
@@ -82,8 +97,8 @@ export function FolderDialog({ open, onClose, folder }: FolderDialogProps) {
             placeholder="e.g. Integrations, Scrapers…"
             autoComplete="off"
           />
-        </Field>
+        </Form.Item>
       </div>
-    </SimpleDialog>
+    </Modal>
   );
 }

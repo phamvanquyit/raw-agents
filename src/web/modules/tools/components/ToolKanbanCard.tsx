@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { AgentTool } from "src/common/types";
-import RenderIf from "src/components/ui/RenderIf";
+import RenderIf from "src/components/RenderIf";
 import { cn } from "src/lib/utils";
 
 export function ToolCardView({
@@ -36,9 +37,7 @@ export function ToolCardView({
       {...listeners}
       {...attributes}
     >
-      <p className="m-0 h-[2.75em] text-[13px] font-semibold leading-snug text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-        {tool.label}
-      </p>
+      <p className="m-0 h-[3em] text-[13px] font-medium leading-normal text-foreground line-clamp-2 group-hover:text-primary transition-colors">{tool.label}</p>
 
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground tabular-nums font-medium">
@@ -55,10 +54,6 @@ export function ToolCardView({
   );
 }
 
-export function DropPlaceholder({ height }: { height: number }) {
-  return <div aria-hidden className="shrink-0 rounded-md bg-primary/12 ring-1 ring-inset ring-ring/30 transition-[height] duration-150" style={{ height }} />;
-}
-
 export function ToolKanbanCard({
   tool,
   onClick,
@@ -66,11 +61,15 @@ export function ToolKanbanCard({
   tool: AgentTool;
   onClick?: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tool.id,
     data: { type: "tool", toolId: tool.id, folderId: tool.folderId ?? null },
-    animateLayoutChanges: () => false,
   });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <ToolCardView
@@ -79,7 +78,8 @@ export function ToolKanbanCard({
       innerRef={setNodeRef}
       listeners={listeners}
       attributes={attributes}
-      className={cn("touch-none cursor-grab active:cursor-grabbing", isDragging && "opacity-0 pointer-events-none")}
+      style={style}
+      className={cn("touch-none cursor-grab active:cursor-grabbing", isDragging && "opacity-40 z-10")}
     />
   );
 }

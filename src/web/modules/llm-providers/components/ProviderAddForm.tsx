@@ -1,15 +1,9 @@
+import { Button, Form, Input, Select } from "antd";
 import { useState } from "react";
 
 import type { LlmProvider } from "src/common/types";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { Select, type SelectOption } from "src/components/ui/options-select";
 import { PROVIDER_META, PROVIDER_OPTIONS, createLlmProvider, generateLabel } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-
-// ─── Provider Add Form ────────────────────────────────────────────────────────
-// Game-styled form for adding a new AI provider credential.
 
 interface ProviderAddFormProps {
   onClose: () => void;
@@ -27,7 +21,7 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const providerOptions: SelectOption[] = PROVIDER_OPTIONS.map((o) => ({
+  const providerOptions = PROVIDER_OPTIONS.map((o) => ({
     value: o.value,
     label: o.label,
   }));
@@ -69,7 +63,7 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
     <div className="p-3.5 rounded-lg border border-border bg-muted/60">
       <div className="text-xs font-bold text-muted-foreground mb-3">New Provider</div>
       <div className="flex flex-col gap-3">
-        <Field label="Provider">
+        <Form.Item label={<span className="text-muted-foreground">Provider</span>} className="!mb-0" layout="vertical">
           <Select
             value={provider}
             onChange={(v) => {
@@ -78,9 +72,18 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
               setError("");
             }}
             options={providerOptions}
+            className="w-full"
           />
-        </Field>
-        <Field label="Label" required>
+        </Form.Item>
+        <Form.Item
+          label={
+            <span className="text-muted-foreground">
+              Label<span className="text-destructive"> *</span>
+            </span>
+          }
+          className="!mb-0"
+          layout="vertical"
+        >
           <Input
             id="settings-provider-label"
             value={label}
@@ -90,8 +93,16 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
             }}
             placeholder="e.g. My OpenAI Key"
           />
-        </Field>
-        <Field label="API Key" required>
+        </Form.Item>
+        <Form.Item
+          label={
+            <span className="text-muted-foreground">
+              API Key<span className="text-destructive"> *</span>
+            </span>
+          }
+          className="!mb-0"
+          layout="vertical"
+        >
           <Input
             id="settings-provider-key"
             type="password"
@@ -102,21 +113,29 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
             }}
             placeholder={PROVIDER_META[provider]?.keyPlaceholder ?? "sk-..."}
           />
-        </Field>
-        <Field label="Base URL" optional>
+        </Form.Item>
+        <Form.Item
+          label={
+            <span className="text-muted-foreground">
+              Base URL <span className="font-normal text-muted-foreground">(optional)</span>
+            </span>
+          }
+          className="!mb-0"
+          layout="vertical"
+        >
           <Input
             id="settings-provider-base-url"
             value={customBaseUrl}
             onChange={(e) => setCustomBaseUrl(e.target.value)}
             placeholder={PROVIDER_META[provider]?.defaultBase || "https://…"}
           />
-        </Field>
+        </Form.Item>
         {error && <div className="text-2xs text-destructive font-medium">{error}</div>}
         <div className="flex items-center justify-end gap-2 pt-1">
-          <Button variant="ghost" size="sm" onClick={handleCancel}>
+          <Button type="text" size="small" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" loading={saving} onClick={handleAdd}>
+          <Button type="primary" size="small" loading={saving} onClick={handleAdd}>
             {saving ? "Adding…" : "Add Provider"}
           </Button>
         </div>

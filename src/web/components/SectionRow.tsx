@@ -1,10 +1,3 @@
-/**
- * SectionRow — layout component for profile settings sections.
- *
- * Left: title + description (2/5 width)
- * Right: children (3/5 width)
- */
-
 interface SectionRowProps {
   title: string;
   description: string;

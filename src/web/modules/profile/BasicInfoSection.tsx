@@ -1,14 +1,11 @@
 import { CheckCircle } from "@solar-icons/react";
 import { useForm } from "@tanstack/react-form";
+import { Button, Form, Input, message } from "antd";
 import { apiClient } from "src/common/api";
 import { fetchCurrentUser } from "src/common/authSlice";
 import type { User } from "src/common/types";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { toast } from "src/components/ui/toast";
+import { SectionRow } from "src/components/SectionRow";
 import { useAppDispatch } from "src/store/store";
-import { SectionRow } from "./SectionRow";
 
 interface BasicInfoSectionProps {
   user: User;
@@ -26,9 +23,9 @@ export function BasicInfoSection({ user, avatar }: BasicInfoSectionProps) {
       try {
         await apiClient.patch("/api/auth/update-profile", { name: value.name, avatar });
         await dispatch(fetchCurrentUser()).unwrap();
-        toast.success("Profile updated successfully");
+        message.success("Profile updated successfully");
       } catch (error: any) {
-        toast.error(error.message || "Failed to update profile");
+        message.error(error.message || "Failed to update profile");
       }
     },
   });
@@ -45,15 +42,25 @@ export function BasicInfoSection({ user, avatar }: BasicInfoSectionProps) {
         <div className="max-w-sm">
           <form.Field name="name">
             {(field) => (
-              <Field label="Display Name" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Display Name
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Your full name" />
-              </Field>
+              </Form.Item>
             )}
           </form.Field>
         </div>
         <form.Subscribe selector={(s) => s.isSubmitting}>
           {(isSubmitting) => (
-            <Button type="submit" variant="primary" size="sm" loading={isSubmitting} icon={<CheckCircle size={16} />}>
+            <Button htmlType="submit" type="primary" size="small" loading={isSubmitting} icon={<CheckCircle size={16} />}>
               Save Changes
             </Button>
           )}

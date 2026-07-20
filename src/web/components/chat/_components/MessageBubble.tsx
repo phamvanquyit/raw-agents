@@ -29,7 +29,7 @@ export function MessageBubble({
     const thinking = msg.content;
     const duration = (msg.meta?.thinkingDuration as number) ?? 0;
     return (
-      <div className="ca-fade-in mt-1">
+      <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
         <CompletedThinking thinking={thinking} duration={duration} />
       </div>
     );
@@ -37,7 +37,7 @@ export function MessageBubble({
 
   if (msg.role === "error") {
     return (
-      <div className="px-4 py-1 ca-fade-in">
+      <div className="px-4 py-1 animate-[fadeIn_0.28s_ease-out_both]">
         <div className="text-xs px-3 py-2.5 rounded-md bg-accent border border-destructive/30 text-destructive leading-relaxed">{msg.content}</div>
       </div>
     );

@@ -5,23 +5,24 @@ import {
   type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
-  type DropAnimation,
   PointerSensor,
+  type UniqueIdentifier,
   closestCenter,
-  defaultDropAnimationSideEffects,
+  closestCorners,
+  getFirstCollision,
   pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { useMemo, useRef, useState } from "react";
+import { message } from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentTool } from "src/common/types";
-import { toast } from "src/components/ui/toast";
 import { useAppDispatch } from "src/store/store";
 import type { ToolFolderWithTools } from "../common/toolFoldersSlice";
 import { fetchToolFolders, reorderToolFolders, reorderToolFoldersLocal } from "../common/toolFoldersSlice";
-import { updateTool, upsertToolLocal } from "../common/toolsSlice";
+import { fetchTools, reorderTools, reorderToolsLocal } from "../common/toolsSlice";
 import { ToolCardView } from "./ToolKanbanCard";
 import { AddFolderButton, SortableToolKanbanColumn, ToolKanbanColumn, UNGROUPED_COLUMN_ID } from "./ToolKanbanColumn";
 
@@ -34,67 +35,83 @@ interface ToolsKanbanBoardProps {
   onDeleteFolder: (folderId: string) => void;
 }
 
-type DropTarget = {
-  folderId: string | null;
-  index: number;
-};
+type Items = Record<string, string[]>;
 
-const collisionDetection: CollisionDetection = (args) => {
-  const activeType = args.active.data.current?.type;
-  if (activeType === "folder") {
-    return closestCenter({
-      ...args,
-      droppableContainers: args.droppableContainers.filter((c) => c.data.current?.type === "folder"),
+function sortFolders(folders: ToolFolderWithTools[]) {
+  return [...folders].sort((a, b) => {
+    const byOrder = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    if (byOrder !== 0) return byOrder;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function buildItems(tools: AgentTool[], folders: ToolFolderWithTools[]): Items {
+  const sortedFolders = sortFolders(folders);
+  const folderIds = new Set(sortedFolders.map((f) => f.id));
+  const bySortOrder = (ids: string[], byId: Map<string, AgentTool>) =>
+    [...ids].sort((a, b) => {
+      const byOrder = (byId.get(a)?.sortOrder ?? 0) - (byId.get(b)?.sortOrder ?? 0);
+      if (byOrder !== 0) return byOrder;
+      return (byId.get(a)?.label ?? "").localeCompare(byId.get(b)?.label ?? "");
     });
+
+  const customTools = tools.filter((t) => !t.id.startsWith("builtin:"));
+  const byId = new Map(customTools.map((t) => [t.id, t]));
+
+  const items: Items = { [UNGROUPED_COLUMN_ID]: [] };
+  for (const folder of sortedFolders) {
+    items[folder.id] = [];
   }
 
-  if (activeType === "tool") {
-    const toolContainers = args.droppableContainers.filter((c) => {
-      const type = c.data.current?.type;
-      return type === "tool" || type === "column" || type === "folder";
-    });
-    const pointerHits = pointerWithin({ ...args, droppableContainers: toolContainers });
-    if (pointerHits.length > 0) {
-      const toolHit = pointerHits.find((hit) => {
-        const container = toolContainers.find((c) => c.id === hit.id);
-        return container?.data.current?.type === "tool";
-      });
-      if (toolHit) return [toolHit];
-      return pointerHits;
+  for (const tool of customTools) {
+    if (tool.folderId && folderIds.has(tool.folderId)) {
+      items[tool.folderId].push(tool.id);
+    } else {
+      items[UNGROUPED_COLUMN_ID].push(tool.id);
     }
-    return closestCenter({ ...args, droppableContainers: toolContainers });
   }
 
-  const pointerHits = pointerWithin(args);
-  if (pointerHits.length > 0) return pointerHits;
-  return closestCenter(args);
-};
+  for (const key of Object.keys(items)) {
+    items[key] = bySortOrder(items[key], byId);
+  }
+  return items;
+}
 
-const toolDropAnimation: DropAnimation = {
-  duration: 180,
-  easing: "ease",
-  keyframes({ transform }) {
-    return [
-      { opacity: 1, transform: CSS.Transform.toString(transform.initial) },
-      { opacity: 0, transform: CSS.Transform.toString(transform.initial) },
-    ];
-  },
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: {
-      active: {
-        opacity: "0",
-      },
-    },
-  }),
-};
+function sameOrder(a: string[] = [], b: string[] = []) {
+  if (a.length !== b.length) return false;
+  return a.every((id, i) => id === b[i]);
+}
+
+function containerToFolderId(containerId: string): string | null {
+  return containerId === UNGROUPED_COLUMN_ID ? null : containerId;
+}
 
 export function ToolsKanbanBoard({ tools, folders, onToolClick, onToolCreated, onEditFolder, onDeleteFolder }: ToolsKanbanBoardProps) {
   const dispatch = useAppDispatch();
-  const [activeTool, setActiveTool] = useState<AgentTool | null>(null);
+  const [items, setItems] = useState<Items>(() => buildItems(tools, folders));
+  const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [activeFolder, setActiveFolder] = useState<ToolFolderWithTools | null>(null);
-  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-  const [placeholderHeight, setPlaceholderHeight] = useState(88);
   const didDragRef = useRef(false);
+  const isDraggingRef = useRef(false);
+  const clonedItemsRef = useRef<Items | null>(null);
+  const lastOverId = useRef<UniqueIdentifier | null>(null);
+  const recentlyMovedToNewContainer = useRef(false);
+
+  const toolsById = useMemo(() => {
+    const map = new Map<string, AgentTool>();
+    for (const tool of tools) {
+      if (!tool.id.startsWith("builtin:")) map.set(tool.id, tool);
+    }
+    return map;
+  }, [tools]);
+
+  const sortedFolders = useMemo(() => sortFolders(folders), [folders]);
+  const folderIds = useMemo(() => sortedFolders.map((f) => f.id), [sortedFolders]);
+
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    setItems(buildItems(tools, folders));
+  }, [tools, folders]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -102,159 +119,132 @@ export function ToolsKanbanBoard({ tools, folders, onToolClick, onToolCreated, o
     }),
   );
 
-  const columns = useMemo(() => {
-    const customTools = tools.filter((t) => !t.id.startsWith("builtin:"));
-    const sortedFolders = [...folders].sort((a, b) => {
-      const byOrder = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-      if (byOrder !== 0) return byOrder;
-      return a.name.localeCompare(b.name);
-    });
-    const folderIds = new Set(sortedFolders.map((f) => f.id));
-
-    const byFolder = new Map<string, AgentTool[]>();
-    for (const folder of sortedFolders) {
-      byFolder.set(folder.id, []);
-    }
-    const ungrouped: AgentTool[] = [];
-
-    for (const tool of customTools) {
-      if (tool.folderId && folderIds.has(tool.folderId)) {
-        byFolder.get(tool.folderId)?.push(tool);
-      } else {
-        ungrouped.push(tool);
+  const findContainer = useCallback(
+    (id: UniqueIdentifier): string | undefined => {
+      const sid = String(id);
+      if (sid in items) return sid;
+      if (sid === UNGROUPED_COLUMN_ID) return UNGROUPED_COLUMN_ID;
+      if (sid.startsWith("column:")) {
+        const folderId = sid.slice("column:".length);
+        if (folderId in items) return folderId;
       }
-    }
+      return Object.keys(items).find((key) => items[key].includes(sid));
+    },
+    [items],
+  );
 
-    for (const list of byFolder.values()) {
-      list.sort((a, b) => (a.label ?? "").localeCompare(b.label ?? ""));
-    }
-    ungrouped.sort((a, b) => (a.label ?? "").localeCompare(b.label ?? ""));
+  const collisionDetection: CollisionDetection = useCallback(
+    (args) => {
+      if (activeFolder || args.active.data.current?.type === "folder") {
+        return closestCenter({
+          ...args,
+          droppableContainers: args.droppableContainers.filter((c) => c.data.current?.type === "folder"),
+        });
+      }
 
-    return {
-      folders: sortedFolders.map((folder) => ({
-        folder,
-        tools: byFolder.get(folder.id) ?? [],
-      })),
-      ungrouped,
-    };
-  }, [tools, folders]);
+      if (args.active.data.current?.type === "tool") {
+        const pointerIntersections = pointerWithin(args);
+        const intersections = pointerIntersections.length > 0 ? pointerIntersections : rectIntersection(args);
+        let overId = getFirstCollision(intersections, "id");
 
-  const folderIds = useMemo(() => columns.folders.map(({ folder }) => folder.id), [columns.folders]);
+        if (overId != null) {
+          if (overId in items) {
+            const containerItems = items[overId];
+            if (containerItems.length > 0) {
+              overId = closestCorners({
+                ...args,
+                droppableContainers: args.droppableContainers.filter((c) => c.id !== overId && containerItems.includes(String(c.id))),
+              })[0]?.id;
+            }
+          } else if (String(overId).startsWith("column:")) {
+            const folderId = String(overId).slice("column:".length);
+            const containerItems = items[folderId] ?? [];
+            if (containerItems.length > 0) {
+              overId =
+                closestCorners({
+                  ...args,
+                  droppableContainers: args.droppableContainers.filter((c) => containerItems.includes(String(c.id))),
+                })[0]?.id ?? overId;
+            } else {
+              overId = folderId;
+            }
+          }
 
-  const displayColumns = useMemo(() => {
-    if (!activeTool) return columns;
-    const withoutActive = (list: AgentTool[]) => list.filter((t) => t.id !== activeTool.id);
-    return {
-      folders: columns.folders.map(({ folder, tools: folderTools }) => ({
-        folder,
-        tools: withoutActive(folderTools),
-      })),
-      ungrouped: withoutActive(columns.ungrouped),
-    };
-  }, [columns, activeTool]);
+          lastOverId.current = overId;
+          return [{ id: overId }];
+        }
 
-  const toolsByFolderId = useMemo(() => {
-    const map = new Map<string | null, AgentTool[]>();
-    map.set(null, displayColumns.ungrouped);
-    for (const { folder, tools: folderTools } of displayColumns.folders) {
-      map.set(folder.id, folderTools);
-    }
-    return map;
-  }, [displayColumns]);
+        if (recentlyMovedToNewContainer.current) {
+          lastOverId.current = args.active.id;
+        }
+        return lastOverId.current ? [{ id: lastOverId.current }] : [];
+      }
 
-  const resolveTargetFolderId = (overId: string): string | null | undefined => {
-    if (overId === UNGROUPED_COLUMN_ID) return null;
-    if (folders.some((f) => f.id === overId)) return overId;
-    const overTool = tools.find((t) => t.id === overId);
-    if (!overTool || overTool.id.startsWith("builtin:")) return undefined;
-    return overTool.folderId ?? null;
-  };
+      return closestCenter(args);
+    },
+    [activeFolder, items],
+  );
 
-  const resolveDropTarget = (overId: string, activeId: string, overRect: { top: number; height: number }, activeCenterY: number | null): DropTarget | null => {
-    if (overId === activeId) return null;
-
-    if (overId === UNGROUPED_COLUMN_ID) {
-      return { folderId: null, index: toolsByFolderId.get(null)?.length ?? 0 };
-    }
-
-    if (folders.some((f) => f.id === overId)) {
-      return { folderId: overId, index: toolsByFolderId.get(overId)?.length ?? 0 };
-    }
-
-    const overTool = tools.find((t) => t.id === overId);
-    if (!overTool || overTool.id.startsWith("builtin:")) return null;
-
-    const folderId = overTool.folderId ?? null;
-    const list = toolsByFolderId.get(folderId) ?? [];
-    const idx = list.findIndex((t) => t.id === overId);
-    if (idx < 0) return { folderId, index: list.length };
-
-    if (activeCenterY == null) return { folderId, index: idx };
-    const mid = overRect.top + overRect.height / 2;
-    return { folderId, index: activeCenterY < mid ? idx : idx + 1 };
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
-    const type = event.active.data.current?.type;
-    if (type === "folder") {
-      const folder = folders.find((f) => f.id === event.active.id) ?? null;
-      setActiveFolder(folder);
-      setActiveTool(null);
-      setDropTarget(null);
-      didDragRef.current = true;
-      return;
-    }
-
-    const tool = tools.find((t) => t.id === event.active.id);
-    if (!tool || tool.id.startsWith("builtin:")) return;
+  const handleDragStart = ({ active }: DragStartEvent) => {
     didDragRef.current = true;
-    setActiveTool(tool);
-    setActiveFolder(null);
-    const initial = event.active.rect.current.initial;
-    setPlaceholderHeight(initial?.height ? Math.round(initial.height) : 88);
-
-    const sourceFolderId = tool.folderId ?? null;
-    const sourceList = (sourceFolderId == null ? columns.ungrouped : columns.folders.find((c) => c.folder.id === sourceFolderId)?.tools) ?? [];
-    const sourceIndex = sourceList.findIndex((t) => t.id === tool.id);
-    setDropTarget({
-      folderId: sourceFolderId,
-      index: Math.max(0, sourceIndex),
-    });
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (active.data.current?.type !== "tool") return;
-    if (!over) {
-      setDropTarget(null);
+    isDraggingRef.current = true;
+    if (active.data.current?.type === "folder") {
+      setActiveFolder(folders.find((f) => f.id === active.id) ?? null);
+      setActiveToolId(null);
       return;
     }
+    clonedItemsRef.current = items;
+    setActiveToolId(String(active.id));
+    setActiveFolder(null);
+  };
 
-    const translated = active.rect.current.translated;
-    const activeCenterY = translated ? translated.top + translated.height / 2 : null;
-    const next = resolveDropTarget(String(over.id), String(active.id), over.rect, activeCenterY);
-    if (!next) return;
-    setDropTarget((prev) => {
-      if (prev && prev.folderId === next.folderId && prev.index === next.index) return prev;
-      return next;
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
+    if (active.data.current?.type !== "tool" || !over) return;
+
+    const overId = String(over.id);
+    const activeId = String(active.id);
+    const activeContainer = findContainer(activeId);
+    const overContainer = findContainer(overId);
+
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+
+    setItems((prev) => {
+      const activeItems = prev[activeContainer];
+      const overItems = prev[overContainer];
+      const activeIndex = activeItems.indexOf(activeId);
+      if (activeIndex < 0) return prev;
+
+      let newIndex: number;
+      if (overId in prev || overId.startsWith("column:") || overId === UNGROUPED_COLUMN_ID) {
+        newIndex = overItems.length + 1;
+      } else {
+        const overIndex = overItems.indexOf(overId);
+        const isBelowOverItem = over && active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height;
+        const modifier = isBelowOverItem ? 1 : 0;
+        newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
+      }
+
+      recentlyMovedToNewContainer.current = true;
+
+      return {
+        ...prev,
+        [activeContainer]: activeItems.filter((id) => id !== activeId),
+        [overContainer]: [...overItems.slice(0, newIndex), activeItems[activeIndex], ...overItems.slice(newIndex, overItems.length)],
+      };
     });
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
     const activeType = active.data.current?.type;
-    const currentDrop = dropTarget;
-    setActiveTool(null);
-    setActiveFolder(null);
-    setDropTarget(null);
-
-    if (!over) return;
+    recentlyMovedToNewContainer.current = false;
 
     if (activeType === "folder") {
+      isDraggingRef.current = false;
+      setActiveFolder(null);
+      if (!over) return;
       const activeId = String(active.id);
       const overId = String(over.id);
-      if (activeId === overId) return;
-      if (!folderIds.includes(overId)) return;
+      if (activeId === overId || !folderIds.includes(overId)) return;
 
       const oldIndex = folderIds.indexOf(activeId);
       const newIndex = folderIds.indexOf(overId);
@@ -265,38 +255,87 @@ export function ToolsKanbanBoard({ tools, folders, onToolClick, onToolCreated, o
       try {
         await dispatch(reorderToolFolders(nextIds)).unwrap();
       } catch {
-        toast.error("Failed to reorder folders");
+        message.error("Failed to reorder folders");
         dispatch(fetchToolFolders());
       }
       return;
     }
 
-    const toolId = String(active.id);
-    if (toolId.startsWith("builtin:")) return;
+    const activeId = String(active.id);
+    const cloned = clonedItemsRef.current;
+    // After onDragOver moves, active already lives in the target container
+    const currentContainer = findContainer(activeId);
+    const overContainer = over ? (findContainer(String(over.id)) ?? currentContainer) : currentContainer;
 
-    const tool = tools.find((t) => t.id === toolId);
-    if (!tool) return;
+    if (!currentContainer || !overContainer || !over) {
+      if (cloned) setItems(cloned);
+      clonedItemsRef.current = null;
+      isDraggingRef.current = false;
+      setActiveToolId(null);
+      return;
+    }
 
-    const targetFolderId = currentDrop?.folderId ?? resolveTargetFolderId(String(over.id));
-    if (targetFolderId === undefined) return;
+    let nextItems = items;
+    const overIndex = items[overContainer].indexOf(String(over.id));
+    const activeIndex = items[overContainer].indexOf(activeId);
 
-    const currentFolderId = tool.folderId ?? null;
-    if (currentFolderId === targetFolderId) return;
+    if (activeIndex >= 0 && overIndex >= 0 && activeIndex !== overIndex) {
+      nextItems = {
+        ...items,
+        [overContainer]: arrayMove(items[overContainer], activeIndex, overIndex),
+      };
+      setItems(nextItems);
+    }
 
-    dispatch(upsertToolLocal({ ...tool, folderId: targetFolderId }));
+    const changedContainers = Object.keys(nextItems).filter((key) => !sameOrder(cloned?.[key], nextItems[key]));
+
+    for (const containerId of changedContainers) {
+      dispatch(
+        reorderToolsLocal({
+          folderId: containerToFolderId(containerId),
+          toolIds: nextItems[containerId] ?? [],
+        }),
+      );
+    }
+
+    clonedItemsRef.current = null;
+    isDraggingRef.current = false;
+    setActiveToolId(null);
+
+    if (changedContainers.length === 0) return;
+
     try {
-      await dispatch(updateTool({ id: toolId, folderId: targetFolderId })).unwrap();
+      await Promise.all(
+        changedContainers.map((containerId) =>
+          dispatch(
+            reorderTools({
+              folderId: containerToFolderId(containerId),
+              toolIds: nextItems[containerId] ?? [],
+            }),
+          ).unwrap(),
+        ),
+      );
     } catch {
-      dispatch(upsertToolLocal({ ...tool, folderId: currentFolderId }));
-      toast.error("Failed to move tool");
+      if (cloned) setItems(cloned);
+      dispatch(fetchTools());
+      message.error("Failed to reorder tools");
     }
   };
 
   const handleDragCancel = () => {
-    setActiveTool(null);
+    if (clonedItemsRef.current) setItems(clonedItemsRef.current);
+    clonedItemsRef.current = null;
+    isDraggingRef.current = false;
+    setActiveToolId(null);
     setActiveFolder(null);
-    setDropTarget(null);
+    recentlyMovedToNewContainer.current = false;
   };
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      recentlyMovedToNewContainer.current = false;
+    });
+  }, [items]);
 
   const handleToolClick = (toolId: string) => {
     if (didDragRef.current) {
@@ -306,7 +345,10 @@ export function ToolsKanbanBoard({ tools, folders, onToolClick, onToolCreated, o
     onToolClick(toolId);
   };
 
-  const showUngrouped = displayColumns.ungrouped.length > 0 || activeTool?.folderId === null || dropTarget?.folderId === null;
+  const activeTool = activeToolId ? (toolsById.get(activeToolId) ?? null) : null;
+  const showUngrouped = (items[UNGROUPED_COLUMN_ID]?.length ?? 0) > 0;
+
+  const toolsFor = (containerId: string) => (items[containerId] ?? []).map((id) => toolsById.get(id)).filter((t): t is AgentTool => !!t);
 
   return (
     <DndContext
@@ -322,36 +364,32 @@ export function ToolsKanbanBoard({ tools, folders, onToolClick, onToolCreated, o
           <ToolKanbanColumn
             id={UNGROUPED_COLUMN_ID}
             title="Ungrouped"
-            tools={displayColumns.ungrouped}
+            tools={toolsFor(UNGROUPED_COLUMN_ID)}
             folderId={null}
             onToolClick={handleToolClick}
             onToolCreated={onToolCreated}
             tone="ungrouped"
-            placeholderIndex={dropTarget?.folderId === null ? dropTarget.index : null}
-            placeholderHeight={placeholderHeight}
           />
         ) : null}
         <SortableContext items={folderIds} strategy={horizontalListSortingStrategy}>
-          {displayColumns.folders.map(({ folder, tools: folderTools }) => (
+          {sortedFolders.map((folder) => (
             <SortableToolKanbanColumn
               key={folder.id}
               id={folder.id}
               title={folder.name}
-              tools={folderTools}
+              tools={toolsFor(folder.id)}
               folderId={folder.id}
               onToolClick={handleToolClick}
               onToolCreated={onToolCreated}
               onEdit={() => onEditFolder(folder)}
               onDelete={() => onDeleteFolder(folder.id)}
-              placeholderIndex={dropTarget?.folderId === folder.id ? dropTarget.index : null}
-              placeholderHeight={placeholderHeight}
             />
           ))}
         </SortableContext>
         <AddFolderButton />
       </div>
 
-      <DragOverlay dropAnimation={activeTool ? toolDropAnimation : null}>
+      <DragOverlay dropAnimation={null}>
         {activeTool ? (
           <div className="w-[276px] cursor-grabbing">
             <div className="rotate-[2.5deg] scale-[1.04] origin-center" style={{ filter: "drop-shadow(0 16px 32px rgba(0,0,0,0.5))" }}>
@@ -360,8 +398,8 @@ export function ToolsKanbanBoard({ tools, folders, onToolClick, onToolCreated, o
           </div>
         ) : null}
         {activeFolder ? (
-          <div className="w-[300px] rotate-1 rounded-md bg-muted px-3 py-3 shadow-drop ring-1 ring-ring/35">
-            <p className="m-0 text-[13px] font-semibold text-muted-foreground truncate">{activeFolder.name}</p>
+          <div className="w-[328px] rotate-1 rounded-md bg-muted px-3 py-3 shadow-drop ring-1 ring-ring/35">
+            <p className="m-0 text-[13px] font-medium leading-normal text-muted-foreground truncate">{activeFolder.name}</p>
           </div>
         ) : null}
       </DragOverlay>

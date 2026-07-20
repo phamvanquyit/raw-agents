@@ -14,7 +14,7 @@ import { removeTeamLocal, upsertTeamLocal } from "src/modules/teams/common/teams
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { removeToolFolderLocal, reorderToolFoldersLocal, upsertToolFolderLocal } from "src/modules/tools/common/toolFoldersSlice";
 import type { ToolFolderWithTools } from "src/modules/tools/common/toolFoldersSlice";
-import { removeToolLocal, upsertToolLocal } from "src/modules/tools/common/toolsSlice";
+import { removeToolLocal, reorderToolsLocal, upsertToolLocal } from "src/modules/tools/common/toolsSlice";
 import { store } from "src/store/store";
 import { wsClient } from "../api/wsClient";
 import type { WsEvent } from "../api/wsClient";
@@ -68,6 +68,11 @@ function handleEvent(event: WsEvent) {
     }
     case "tools:deleted": {
       store.dispatch(removeToolLocal((payload as { id: string }).id));
+      break;
+    }
+    case "tools:reordered": {
+      const { folderId, toolIds } = payload as { folderId: string | null; toolIds: string[] };
+      store.dispatch(reorderToolsLocal({ folderId, toolIds }));
       break;
     }
 

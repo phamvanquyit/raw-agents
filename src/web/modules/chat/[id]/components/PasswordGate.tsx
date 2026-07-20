@@ -1,7 +1,7 @@
 import { Lock } from "@solar-icons/react";
+import { Button } from "antd";
 import { useEffect, useRef } from "react";
 import { AppLogo } from "../../../../components/AppLogo";
-import { Button } from "../../../../components/ui/button";
 import { GridBackground } from "./GridBackground";
 
 interface PasswordGateProps {
@@ -46,7 +46,7 @@ export function PasswordGate({ agentName, enteredPassword, onPasswordChange, onS
             />
           </div>
           {authError && <span className="text-[12px] font-medium text-destructive pl-1">{authError}</span>}
-          <Button type="submit" variant="primary" size="md" block disabled={!enteredPassword} loading={verifying}>
+          <Button type="primary" htmlType="submit" block disabled={!enteredPassword} loading={verifying}>
             Unlock
           </Button>
         </form>

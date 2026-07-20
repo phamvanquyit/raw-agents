@@ -14,7 +14,6 @@ type RenderIfProps<T = unknown> =
       fallback?: ReactNode;
     };
 
-/** Conditionally render. Use `value` when you need the non-null value inside children. */
 export default function RenderIf<T = unknown>({ condition, value, children, fallback = null }: RenderIfProps<T>) {
   if (value !== undefined) {
     if (!value) return <>{fallback}</>;

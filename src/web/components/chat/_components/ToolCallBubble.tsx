@@ -1,6 +1,6 @@
 import { CheckCircle, DangerCircle, Restart } from "@solar-icons/react";
 import { useState } from "react";
-import RenderIf from "src/components/ui/RenderIf";
+import RenderIf from "src/components/RenderIf";
 import { useAppSelector } from "src/store/store";
 import type { ChatAgentMessage } from "../common/types";
 import { formatToolName, prettyJson } from "../common/utils";
@@ -24,8 +24,8 @@ function StatusIcon({ hasError, hasOutput, isConvRunning, size = 14 }: { hasErro
     );
   }
   return (
-    <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-      <CheckCircle weight="Bold" size={size - 3} className="text-primary" />
+    <div className="w-4 h-4 rounded-full bg-success/10 flex items-center justify-center shrink-0">
+      <CheckCircle weight="Bold" size={size - 3} className="text-success" />
     </div>
   );
 }
@@ -76,7 +76,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
           <RenderIf condition={hasInput}>
             <div className="px-3 py-2 border-b border-border/60">
               <span className="text-2xs text-muted-foreground uppercase tracking-widest font-sans font-semibold">input</span>
-              <pre className="tool-bubble-pre m-0 mt-1 whitespace-pre-wrap break-all text-muted-foreground leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
+              <pre className="[scrollbar-width:thin] m-0 mt-1 whitespace-pre-wrap break-all text-muted-foreground leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
                 {prettyJson(msg.toolInput)}
               </pre>
             </div>
@@ -91,7 +91,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
             </span>
             <pre
               className={[
-                "tool-bubble-pre m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal",
+                "[scrollbar-width:thin] m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal",
                 hasOutput ? "text-muted-foreground" : "text-muted-foreground italic",
               ].join(" ")}
             >
@@ -132,7 +132,7 @@ export function ToolCallGroup({
 }: { messages: ChatAgentMessage[]; assistantLabel?: string; assistantColor?: string | null; showAvatar?: boolean }) {
   const color = assistantColor ?? "var(--primary)";
   return (
-    <div className="ca-fade-in mt-1">
+    <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
       {showAvatar && (
         <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
           <span
@@ -174,7 +174,7 @@ export function ToolCallBubble({
 
   const color = assistantColor ?? "var(--primary)";
   return (
-    <div className="ca-fade-in mt-1">
+    <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
       {showAvatar && (
         <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
           <span

@@ -1,36 +1,15 @@
+import { Spin } from "antd";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Agent } from "src/common/types";
+import RenderIf from "src/components/RenderIf";
 import { UserAvatar } from "src/components/UserAvatar";
-import RenderIf from "src/components/ui/RenderIf";
-import { Spinner } from "src/components/ui/spinner";
 import { cn } from "src/lib/utils";
 import { useAppSelector } from "src/store/store";
 import { parseCallAgentToolTargetId, prettyJson } from "../../common/utils";
-import { CodeBlock } from "../CodeBlock";
-import { MarkdownTable } from "../MarkdownTable";
-import "../markdown.css";
+import { markdownComponents, markdownRootClass } from "../markdown";
 import type { ToolUIProps } from "./types";
-
-const mdComponents: Components = {
-  code({ className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || "");
-    const lang = match?.[1] ?? "";
-    const codeText = String(children).replace(/\n$/, "");
-    const isBlock = codeText.includes("\n") || !!match;
-    if (isBlock) return <CodeBlock language={lang}>{codeText}</CodeBlock>;
-    return (
-      <code className={className} {...props}>
-        {children}
-      </code>
-    );
-  },
-  table({ children }) {
-    return <MarkdownTable>{children}</MarkdownTable>;
-  },
-};
 
 function parseCallAgentOutput(raw: string | null | undefined): {
   success: boolean;
@@ -135,7 +114,7 @@ export function CallAgentToolUI({ msg, assistantLabel = "Assistant" }: ToolUIPro
   const calleeSeed = calledAgentId ? `agent:${calledAgentId}` : `agent:${calleeName}`;
 
   return (
-    <div className="ca-fade-in mt-1 px-4 py-1">
+    <div className="mt-1 px-4 py-1 animate-[fadeIn_0.28s_ease-out_both]">
       <div className="rounded-lg border border-border bg-card/60 px-3 py-3 flex flex-col gap-3.5">
         <AgentTurn name={callerName} avatarSeed={callerSeed} align="end">
           <div className="rounded-2xl rounded-tr-sm bg-primary/10 border border-primary/15 px-3 py-2 text-left">
@@ -151,7 +130,7 @@ export function CallAgentToolUI({ msg, assistantLabel = "Assistant" }: ToolUIPro
 
             <RenderIf condition={!hasError && !hasOutput}>
               <div className="flex items-center gap-1.5 py-0.5">
-                <Spinner className="size-3 text-muted-foreground" />
+                <Spin size="small" />
                 <span className="text-[11px] text-muted-foreground italic">Replying…</span>
               </div>
             </RenderIf>
@@ -159,8 +138,13 @@ export function CallAgentToolUI({ msg, assistantLabel = "Assistant" }: ToolUIPro
             <RenderIf condition={!hasError && hasOutput && !!parsed}>
               {() => (
                 <ExpandableBody>
-                  <div className="ca-markdown text-[12px] text-foreground leading-[1.55] [&_h1]:text-[14px] [&_h2]:text-[13px] [&_h3]:text-[12px] [&_p]:text-[12px] [&_li]:text-[12px] [&_td]:text-[11px] [&_th]:text-[11px] [&_code]:text-[11px] [&_p]:m-0 [&_p+p]:mt-2">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                  <div
+                    className={cn(
+                      markdownRootClass,
+                      "text-[12px] leading-[1.55] [&_h1]:text-[14px] [&_h2]:text-[13px] [&_h3]:text-[12px] [&_p]:text-[12px] [&_li]:text-[12px] [&_td]:text-[11px] [&_th]:text-[11px] [&_code]:text-[11px] [&_p]:m-0 [&_p+p]:mt-2",
+                    )}
+                  >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {parsed?.response ?? "(no response)"}
                     </ReactMarkdown>
                   </div>

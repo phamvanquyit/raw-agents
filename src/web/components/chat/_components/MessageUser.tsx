@@ -21,7 +21,7 @@ export function MessageUser({ msg }: MessageUserProps) {
   }, [msg.content]);
 
   return (
-    <div className="ca-fade-in mt-5">
+    <div className="animate-[fadeIn_0.28s_ease-out_both] mt-5">
       {/* Message row */}
       <div className="flex items-start gap-3 px-4 pt-3 pb-2">
         {/* Left: tag + message */}

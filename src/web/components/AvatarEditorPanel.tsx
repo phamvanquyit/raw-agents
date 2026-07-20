@@ -1,9 +1,9 @@
 import { Refresh } from "@solar-icons/react";
+import { Button } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Avatar from "react-nice-avatar";
+import { ColorPicker } from "src/components/ColorPicker";
 import { genConfig } from "src/components/UserAvatar";
-import { Button } from "src/components/ui/button";
-import { ColorPicker } from "src/components/ui/color-picker";
 import { cn } from "src/lib/utils";
 
 export type NiceAvatarConfig = {
@@ -214,8 +214,7 @@ export function AvatarEditorPanel({ avatar, name, saving, onChange }: AvatarEdit
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-2">
           <p className="text-xs text-muted-foreground m-0 leading-snug">Customize features or randomize a new look.</p>
-          <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={handleRandomize}>
-            <Refresh size={14} className={saving ? "animate-spin" : ""} />
+          <Button type="default" size="small" disabled={saving} onClick={handleRandomize} icon={<Refresh size={14} className={saving ? "animate-spin" : ""} />}>
             Randomize
           </Button>
         </div>

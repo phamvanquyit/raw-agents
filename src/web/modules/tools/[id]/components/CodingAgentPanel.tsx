@@ -5,6 +5,7 @@
  * Streaming lives in useAssistantStreaming — no Redux dependency.
  */
 
+import { MagicStick } from "@solar-icons/react";
 import { useRef, useState } from "react";
 
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
@@ -18,6 +19,8 @@ export type { ToolActionEvent };
 const PANEL_DEFAULT = 380;
 const PANEL_MIN = 280;
 const PANEL_MAX = 560;
+
+const SUGGESTIONS = ["Add error handling and retries", "Move hardcoded values into @param", "Simplify this script and explain changes"];
 
 interface CodingAgentPanelProps {
   providerId: string | undefined;
@@ -65,22 +68,53 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
     document.addEventListener("mouseup", handleDragMouseUp);
   };
 
+  const sendSuggestion = (text: string) => {
+    if (!providerId || !model || generating) return;
+    scrollToBottom({ force: true });
+    void send(text, { providerId, model });
+  };
+
   return (
     <div className="flex h-full min-h-0 shrink-0">
       <div
         onMouseDown={startDrag}
         className={[
-          "w-[3px] shrink-0 h-full cursor-col-resize z-10 transition-colors duration-150",
-          isDragging ? "bg-primary/50" : "bg-transparent hover:bg-primary/25",
+          "w-px shrink-0 h-full cursor-col-resize z-10 transition-colors duration-150",
+          isDragging ? "bg-brand/60" : "bg-border hover:bg-brand/40",
         ].join(" ")}
       />
 
-      <div className="flex flex-col h-full min-h-0 border-border bg-card overflow-hidden" style={{ width }}>
+      <div className="flex flex-col h-full min-h-0 border-l border-border bg-card overflow-hidden" style={{ width }}>
+        <div className="shrink-0 flex items-center gap-2 h-10 px-3 border-b border-border">
+          <MagicStick size={14} className="text-brand shrink-0" />
+          <span className="text-sm font-medium text-foreground">Assistant</span>
+          <span className="text-xs text-muted-foreground truncate">Edit, test, and fix this tool</span>
+        </div>
+
         <MessageList
           messages={messages}
           generating={generating}
           assistantLabel="AI Assistant"
-          emptyStateContent={<p className="text-xs text-muted-foreground leading-relaxed max-w-50 m-0">Describe your request to get coding assistance.</p>}
+          emptyStateContent={
+            <div className="flex flex-col items-center gap-4 max-w-64 w-full">
+              <p className="text-sm text-muted-foreground leading-relaxed text-center m-0">
+                Ask for a rewrite, fix, or new capability. Changes land as a draft you can accept.
+              </p>
+              <div className="flex flex-col gap-1.5 w-full">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    disabled={!providerId || !model || generating}
+                    onClick={() => sendSuggestion(s)}
+                    className="w-full text-left px-3 py-2 rounded-lg border border-border bg-background text-xs text-tertiary-foreground hover:text-foreground hover:border-brand/30 hover:bg-accent/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          }
           messagesEndRef={messagesEndRef}
           scrollContainerRef={scrollContainerRef}
           className="selectable"
@@ -88,7 +122,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
 
         <InputArea
           generating={generating}
-          placeholder="Describe request... (Enter to send)"
+          placeholder="Describe what to change…"
           onSend={(text) => {
             if (!providerId || !model) return;
             scrollToBottom({ force: true });

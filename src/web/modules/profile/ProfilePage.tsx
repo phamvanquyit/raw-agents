@@ -1,11 +1,10 @@
+import { Form, Input } from "antd";
 import { useState } from "react";
 import { PageShell } from "src/components/PageShell";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
+import { SectionRow } from "src/components/SectionRow";
 import { useAppSelector } from "src/store/store";
 import { AvatarSection } from "./AvatarSection";
 import { BasicInfoSection } from "./BasicInfoSection";
-import { SectionRow } from "./SectionRow";
 import { SecuritySection } from "./SecuritySection";
 
 export default function ProfilePage() {
@@ -27,9 +26,9 @@ export default function ProfilePage() {
 
       <SectionRow title="Account" description="Your account credentials">
         <div className="max-w-sm space-y-1.5">
-          <Field label="Username">
+          <Form.Item label={<span className="text-muted-foreground">Username</span>} layout="vertical" className="!mb-0">
             <Input value={user.username} disabled className="bg-card/50 opacity-60" />
-          </Field>
+          </Form.Item>
           <p className="text-[10px] text-muted-foreground italic">Username cannot be changed.</p>
         </div>
       </SectionRow>

@@ -1,18 +1,12 @@
 import { AltArrowDown, AltArrowUp, Eye, EyeClosed, Refresh } from "@solar-icons/react";
+import { Button, Form, Input, Modal } from "antd";
 
 import { useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
 import type { LlmProvider } from "src/common/types";
-import { DeleteConfirmButton } from "src/components/ui/alert-dialog";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
 import { PROVIDER_META, deleteLlmProvider, refreshModels, updateLlmProvider } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch } from "src/store/store";
 import { ProviderIcon } from "./ProviderIcon";
-
-// ─── Provider List Item ───────────────────────────────────────────────────────
-// Expandable provider card with inline editing.
 
 interface ProviderListItemProps {
   item: LlmProvider;
@@ -43,7 +37,6 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
   const models: string[] = Array.isArray(detail?.models) ? detail.models : [];
   const modelCount = models.length || (item as any).countModels || 0;
 
-  // Fetch full detail on first expand (list API only returns summary)
   useEffect(() => {
     if (expanded && !detail) {
       apiClient.get<LlmProvider>(`/api/providers/${item.id}`).then((res) => {
@@ -92,6 +85,17 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
     }
   };
 
+  const handleDelete = () => {
+    Modal.confirm({
+      title: "Delete this item?",
+      content: `Remove "${item.label}" and all its configuration.`,
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      onOk: () => dispatch(deleteLlmProvider(item.id)),
+    });
+  };
+
   return (
     <div
       className={[
@@ -99,7 +103,6 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
         expanded ? "border-border bg-card" : "border-border bg-card hover:border-border",
       ].join(" ")}
     >
-      {/* ── Row header ─────────────────────────────────────────────── */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -124,16 +127,29 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
         </div>
       </button>
 
-      {/* ── Expanded edit body ─────────────────────────────────────── */}
       {expanded && (
         <div className="flex flex-col gap-3 px-3.5 pb-3.5 pt-3 border-t border-border bg-muted/50">
-          {/* Label */}
-          <Field label="Label" required>
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Label<span className="text-destructive"> *</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
             <Input value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} placeholder={meta.label} />
-          </Field>
+          </Form.Item>
 
-          {/* API Key */}
-          <Field label="API Key" required>
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                API Key<span className="text-destructive"> *</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
             <div className="flex items-center gap-2">
               <Input
                 type={showKey ? "text" : "password"}
@@ -149,22 +165,28 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
                 {showKey ? <EyeClosed className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               </button>
             </div>
-          </Field>
+          </Form.Item>
 
-          {/* Base URL */}
-          <Field label="Base URL" optional>
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Base URL <span className="font-normal text-muted-foreground">(optional)</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
             <Input
               value={draft.customBaseUrl}
               onChange={(e) => setDraft((d) => ({ ...d, customBaseUrl: e.target.value }))}
               placeholder={meta.defaultBase || "https://…"}
             />
-          </Field>
+          </Form.Item>
 
-          {/* ── Models ──────────────────────────────────────────── */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-bold text-muted-foreground">Models{models.length > 0 ? ` (${models.length})` : ""}</span>
-              <Button variant="ghost" size="sm" loading={refreshing} icon={<Refresh size={11} />} onClick={handleRefreshModels}>
+              <Button type="text" size="small" loading={refreshing} icon={<Refresh size={11} />} onClick={handleRefreshModels}>
                 Refresh
               </Button>
             </div>
@@ -185,16 +207,17 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
             </div>
           </div>
 
-          {/* ── Action bar ─────────────────────────────────────── */}
           <div className="flex items-center justify-between pt-1">
-            <DeleteConfirmButton description={`Remove "${item.label}" and all its configuration.`} onConfirm={() => dispatch(deleteLlmProvider(item.id))} />
+            <Button type="primary" danger size="small" onClick={handleDelete}>
+              Delete
+            </Button>
 
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={handleDiscard}>
+              <Button type="text" size="small" onClick={handleDiscard}>
                 Cancel
               </Button>
 
-              <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>
+              <Button type="primary" size="small" loading={saving} onClick={handleSave}>
                 {saving ? "Saving…" : "Save"}
               </Button>
             </div>

@@ -6,9 +6,9 @@
 
 import { Background, BackgroundVariant, type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { Modal } from "antd";
 import { useCallback, useMemo, useState } from "react";
 import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
-import { SimpleDialog } from "src/components/ui/dialog";
 import { PromptPage } from "../prompt/PromptPage";
 import { DeletableEdge } from "./edges/DeletableEdge";
 import { AgentConfigNode, type AgentConfigNodeType } from "./nodes/AgentConfigNode";
@@ -603,25 +603,41 @@ function AgentFlowInner({
         @keyframes agentFlowDash { to { stroke-dashoffset: -20 } }
       `}</style>
       {/* ── Prompt Modal ── */}
-      <SimpleDialog
+      <Modal
         open={promptModalOpen}
-        onClose={() => setPromptModalOpen(false)}
-        title="System Prompt"
-        width="90vw"
-        height="85vh"
-        noPadding
-        icon={
-          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <line x1="10" y1="9" x2="8" y2="9" />
-          </svg>
+        onCancel={() => setPromptModalOpen(false)}
+        title={
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+              <div className="text-[14px] leading-none text-muted-foreground">
+                <svg
+                  width={14}
+                  height={14}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--primary)"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <line x1="10" y1="9" x2="8" y2="9" />
+                </svg>
+              </div>
+            </div>
+            <span className="truncate font-semibold text-foreground">System Prompt</span>
+          </div>
         }
+        footer={null}
+        width="90vw"
+        destroyOnHidden
+        styles={{ body: { padding: 0, height: "85vh", overflow: "auto" } }}
       >
         <PromptPage />
-      </SimpleDialog>
+      </Modal>
 
       <ReactFlow
         nodes={nodes}

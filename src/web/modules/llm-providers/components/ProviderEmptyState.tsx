@@ -1,8 +1,5 @@
 import { Key } from "@solar-icons/react";
-import { Button } from "src/components/ui/button";
-
-// ─── Provider Empty State ─────────────────────────────────────────────────────
-// Shown when no AI providers have been configured yet.
+import { Button } from "antd";
 
 interface ProviderEmptyStateProps {
   onAdd: () => void;
@@ -18,7 +15,7 @@ export function ProviderEmptyState({ onAdd }: ProviderEmptyStateProps) {
         <p className="text-sm font-semibold text-foreground">No providers yet</p>
         <p className="text-xs text-muted-foreground mt-1">Add an AI provider to power your agents</p>
       </div>
-      <Button variant="primary" size="sm" icon={<Key width={11} height={11} />} onClick={onAdd}>
+      <Button type="primary" size="small" icon={<Key width={11} height={11} />} onClick={onAdd}>
         Add Your First Provider
       </Button>
     </div>

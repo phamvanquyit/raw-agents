@@ -1,11 +1,7 @@
-import { PenNewSquare } from "@solar-icons/react";
+import { PenNewSquare, TrashBinTrash } from "@solar-icons/react";
+import { Button, Form, Input, Modal, message } from "antd";
+import type { InputRef } from "antd";
 import { useEffect, useRef, useState } from "react";
-import { DeleteConfirmButton } from "src/components/ui/alert-dialog";
-import { Button } from "src/components/ui/button";
-import { SimpleDialog } from "src/components/ui/dialog";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { toast } from "src/components/ui/toast";
 import { deleteTeam, updateTeam } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch } from "src/store/store";
@@ -22,7 +18,7 @@ export function EditTeamDialog({ open, team, onClose }: EditTeamDialogProps) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const dispatch = useAppDispatch();
-  const nameRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<InputRef>(null);
 
   useEffect(() => {
     if (open && team) {
@@ -48,10 +44,10 @@ export function EditTeamDialog({ open, team, onClose }: EditTeamDialogProps) {
     setError("");
     try {
       await dispatch(updateTeam({ id: team.id, name: trimmed })).unwrap();
-      toast.success("Team updated successfully");
+      message.success("Team updated successfully");
       onClose();
     } catch {
-      toast.error("Failed to update team name");
+      message.error("Failed to update team name");
       setError("Failed to update team name");
     } finally {
       setSaving(false);
@@ -64,10 +60,10 @@ export function EditTeamDialog({ open, team, onClose }: EditTeamDialogProps) {
     setError("");
     try {
       await dispatch(deleteTeam(team.id)).unwrap();
-      toast.success("Team deleted successfully");
+      message.success("Team deleted successfully");
       onClose();
     } catch {
-      toast.error("Failed to delete team");
+      message.error("Failed to delete team");
       setError("Failed to delete team");
     } finally {
       setDeleting(false);
@@ -84,35 +80,61 @@ export function EditTeamDialog({ open, team, onClose }: EditTeamDialogProps) {
   if (!open || !team) return null;
 
   return (
-    <SimpleDialog
+    <Modal
       open
-      onClose={onClose}
-      title="Edit Team"
-      icon={<PenNewSquare size={18} />}
-      width={420}
-      top={20}
+      onCancel={onClose}
+      title={
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+            <div className="text-[14px] leading-none text-muted-foreground">
+              <PenNewSquare size={18} />
+            </div>
+          </div>
+          <span className="truncate font-semibold text-foreground">Edit Team</span>
+        </div>
+      }
       footer={
         <div className="flex flex-row gap-3">
           <div className="mr-auto">
-            <DeleteConfirmButton
-              label="Delete team?"
-              description="Are you sure? This cannot be undone."
-              onConfirm={handleDelete}
+            <Button
+              size="small"
+              danger
               disabled={deleting}
-              size="sm"
+              icon={<TrashBinTrash size={12} />}
+              onClick={() => {
+                Modal.confirm({
+                  title: "Delete team?",
+                  content: "Are you sure? This cannot be undone.",
+                  okText: "Delete",
+                  okType: "danger",
+                  onOk: handleDelete,
+                });
+              }}
             />
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button type="text" size="small" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>
+          <Button type="primary" size="small" loading={saving} onClick={handleSave}>
             {saving ? "Saving…" : "Save"}
           </Button>
         </div>
       }
+      width={420}
+      style={{ top: 20 }}
+      centered={false}
+      destroyOnHidden
     >
       <div className="flex flex-col gap-4">
-        <Field label="Team Name" required>
+        <Form.Item
+          label={
+            <span className="text-muted-foreground">
+              Team Name<span className="text-destructive"> *</span>
+            </span>
+          }
+          className="!mb-0"
+          layout="vertical"
+        >
           <Input
             ref={nameRef}
             id="canvas-edit-team-name"
@@ -125,10 +147,10 @@ export function EditTeamDialog({ open, team, onClose }: EditTeamDialogProps) {
             placeholder="e.g. Marketing, Engineering, Research…"
             autoComplete="off"
           />
-        </Field>
+        </Form.Item>
 
         {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
       </div>
-    </SimpleDialog>
+    </Modal>
   );
 }

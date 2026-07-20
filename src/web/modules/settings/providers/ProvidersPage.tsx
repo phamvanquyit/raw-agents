@@ -1,18 +1,9 @@
 import { Eye, EyeClosed, Key, Magnifier, PenNewSquare, Refresh, TrashBinMinimalistic } from "@solar-icons/react";
+import { Button, Empty, Form, Input, Modal, Select, Skeleton, Tag, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "src/common/api";
 import type { LlmProvider } from "src/common/types";
-import RenderIf from "src/components/ui/RenderIf";
-import { Badge } from "src/components/ui/badge";
-import { Button } from "src/components/ui/button";
-import { Card, CardContent } from "src/components/ui/card";
-import { SimpleDialog } from "src/components/ui/dialog";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "src/components/ui/empty";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { Select, type SelectOption } from "src/components/ui/options-select";
-import { Skeleton } from "src/components/ui/skeleton";
-import { toast } from "src/components/ui/toast";
+import RenderIf from "src/components/RenderIf";
 import {
   PROVIDER_META,
   PROVIDER_OPTIONS,
@@ -62,13 +53,13 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
         });
       })
       .catch(() => {
-        toast.error("Failed to load provider details");
+        message.error("Failed to load provider details");
         onClose();
       })
       .finally(() => setLoading(false));
   }, [editId, onClose]);
 
-  const providerOptions: SelectOption[] = PROVIDER_OPTIONS.map((o) => ({
+  const providerOptions = PROVIDER_OPTIONS.map((o) => ({
     value: o.value,
     label: o.label,
   }));
@@ -92,7 +83,7 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
             customBaseUrl: form.customBaseUrl.trim(),
           }),
         ).unwrap();
-        toast.success(`Provider "${form.label}" updated`);
+        message.success(`Provider "${form.label}" updated`);
       } else {
         await dispatch(
           createLlmProvider({
@@ -103,7 +94,7 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
             models: [],
           }),
         ).unwrap();
-        toast.success(`Provider "${form.label}" added`);
+        message.success(`Provider "${form.label}" added`);
       }
       onClose();
     } catch (err: unknown) {
@@ -114,18 +105,26 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
   };
 
   return (
-    <SimpleDialog
+    <Modal
       open
-      onClose={onClose}
-      title={isEdit ? "Edit Provider" : "Add Provider"}
-      icon={isEdit ? <PenNewSquare size={16} /> : <Key size={16} />}
+      onCancel={onClose}
+      title={
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+            <div className="text-[14px] leading-none text-muted-foreground">{isEdit ? <PenNewSquare size={16} /> : <Key size={16} />}</div>
+          </div>
+          <span className="truncate font-semibold text-foreground">{isEdit ? "Edit Provider" : "Add Provider"}</span>
+        </div>
+      }
       width={460}
+      centered
+      destroyOnHidden
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button type="text" size="small" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" loading={saving} disabled={loading} onClick={handleSubmit}>
+          <Button type="primary" size="small" loading={saving} disabled={loading} onClick={handleSubmit}>
             {isEdit ? "Save" : "Add Provider"}
           </Button>
         </div>
@@ -140,7 +139,7 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
       ) : (
         <div className="flex flex-col gap-3.5">
           {!isEdit && (
-            <Field label="Provider">
+            <Form.Item label={<span className="text-muted-foreground">Provider</span>} className="!mb-0" layout="vertical">
               <Select
                 value={form.provider}
                 onChange={(v) => {
@@ -148,11 +147,20 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
                   setError("");
                 }}
                 options={providerOptions}
+                className="w-full"
               />
-            </Field>
+            </Form.Item>
           )}
 
-          <Field label="Label" required>
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Label<span className="text-destructive"> *</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
             <Input
               value={form.label}
               onChange={(e) => {
@@ -161,9 +169,17 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
               }}
               placeholder="e.g. My OpenAI Key"
             />
-          </Field>
+          </Form.Item>
 
-          <Field label="API Key" required>
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                API Key<span className="text-destructive"> *</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
             <div className="flex items-center gap-2">
               <Input
                 type={showKey ? "text" : "password"}
@@ -182,15 +198,23 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
                 {showKey ? <EyeClosed className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               </button>
             </div>
-          </Field>
+          </Form.Item>
 
-          <Field label="Base URL" optional>
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Base URL <span className="font-normal text-muted-foreground">(optional)</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
             <Input
               value={form.customBaseUrl}
               onChange={(e) => setForm((f) => ({ ...f, customBaseUrl: e.target.value }))}
               placeholder={meta.defaultBase || "https://…"}
             />
-          </Field>
+          </Form.Item>
 
           <RenderIf condition={!!error}>
             <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -199,7 +223,7 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
           </RenderIf>
         </div>
       )}
-    </SimpleDialog>
+    </Modal>
   );
 }
 
@@ -218,28 +242,38 @@ function DeleteProviderDialog({ provider, onClose }: DeleteProviderDialogProps) 
     setDeleting(true);
     try {
       await dispatch(deleteLlmProvider(provider.id)).unwrap();
-      toast.success(`Deleted provider "${provider.label}"`);
+      message.success(`Deleted provider "${provider.label}"`);
       onClose();
     } catch (err: any) {
-      toast.error(err?.message || "Failed to delete provider");
+      message.error(err?.message || "Failed to delete provider");
     } finally {
       setDeleting(false);
     }
   };
 
   return (
-    <SimpleDialog
+    <Modal
       open
-      onClose={onClose}
-      title="Delete Provider"
-      icon={<TrashBinMinimalistic size={16} />}
+      onCancel={onClose}
+      title={
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+            <div className="text-[14px] leading-none text-muted-foreground">
+              <TrashBinMinimalistic size={16} />
+            </div>
+          </div>
+          <span className="truncate font-semibold text-foreground">Delete Provider</span>
+        </div>
+      }
       width={380}
+      centered
+      destroyOnHidden
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button type="text" size="small" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="danger" size="sm" onClick={handleDelete} loading={deleting}>
+          <Button type="primary" danger size="small" onClick={handleDelete} loading={deleting}>
             Delete
           </Button>
         </div>
@@ -248,7 +282,7 @@ function DeleteProviderDialog({ provider, onClose }: DeleteProviderDialogProps) 
       <p className="text-sm text-muted-foreground leading-relaxed">
         Remove <strong className="text-foreground">"{provider.label}"</strong> and all its configuration? This action cannot be undone.
       </p>
-    </SimpleDialog>
+    </Modal>
   );
 }
 
@@ -276,7 +310,7 @@ function ModelsDialog({ provider, onClose }: ModelsDialogProps) {
       })
       .catch(() => {
         if (!cancelled) {
-          toast.error("Failed to load models");
+          message.error("Failed to load models");
           setModels([]);
         }
       })
@@ -299,32 +333,42 @@ function ModelsDialog({ provider, onClose }: ModelsDialogProps) {
     try {
       const updated = await dispatch(refreshModels(provider.id)).unwrap();
       setModels(Array.isArray(updated.models) ? updated.models : []);
-      toast.success("Models refreshed");
+      message.success("Models refreshed");
     } catch (err: any) {
-      toast.error(err?.message || "Failed to refresh models");
+      message.error(err?.message || "Failed to refresh models");
     } finally {
       setRefreshing(false);
     }
   };
 
   return (
-    <SimpleDialog
+    <Modal
       open
-      onClose={onClose}
-      title={provider.label}
-      icon={<ProviderIcon provider={provider.provider} size={16} />}
+      onCancel={onClose}
+      title={
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+            <div className="text-[14px] leading-none text-muted-foreground">
+              <ProviderIcon provider={provider.provider} size={16} />
+            </div>
+          </div>
+          <span className="truncate font-semibold text-foreground">{provider.label}</span>
+        </div>
+      }
       width={480}
-      noPadding
+      centered
+      destroyOnHidden
+      styles={{ body: { padding: 0 } }}
       footer={
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground tabular-nums">
             {loading ? "…" : `${filtered.length}${search.trim() ? ` / ${models.length}` : ""} model${filtered.length !== 1 ? "s" : ""}`}
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button type="text" size="small" onClick={onClose}>
               Close
             </Button>
-            <Button variant="secondary" size="sm" loading={refreshing} icon={<Refresh />} onClick={handleRefresh}>
+            <Button type="default" size="small" loading={refreshing} icon={<Refresh />} onClick={handleRefresh}>
               Sync
             </Button>
           </div>
@@ -341,7 +385,7 @@ function ModelsDialog({ provider, onClose }: ModelsDialogProps) {
           <RenderIf condition={loading}>
             <div className="flex flex-col gap-2 p-3">
               {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-7 w-full" />
+                <Skeleton.Input key={i} active block className="!h-7" />
               ))}
             </div>
           </RenderIf>
@@ -365,7 +409,7 @@ function ModelsDialog({ provider, onClose }: ModelsDialogProps) {
           </RenderIf>
         </div>
       </div>
-    </SimpleDialog>
+    </Modal>
   );
 }
 
@@ -386,7 +430,7 @@ function ProviderCard({ provider, refreshing, onRefresh, onViewModels, onEdit, o
   const masked = (provider as any).maskedApiKey || "••••••••";
 
   return (
-    <Card className="group relative overflow-hidden border border-border-subtle transition-colors hover:border-border">
+    <div className="group relative flex flex-col gap-4 overflow-hidden rounded-xl border border-border-subtle bg-card p-4 text-card-foreground transition-colors hover:border-border">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/40 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
       <div className="flex items-center gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -397,7 +441,7 @@ function ProviderCard({ provider, refreshing, onRefresh, onViewModels, onEdit, o
           <p className="m-0 mt-0.5 text-sm text-muted-foreground">{meta.label}</p>
         </div>
       </div>
-      <CardContent className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-2">
           <Key width={12} height={12} className="shrink-0 text-muted-foreground" />
           <code className="min-w-0 truncate font-mono text-xs text-tertiary-foreground">{masked}</code>
@@ -405,28 +449,28 @@ function ProviderCard({ provider, refreshing, onRefresh, onViewModels, onEdit, o
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             <button type="button" onClick={onViewModels} className="cursor-pointer border-0 bg-transparent p-0">
-              <Badge variant="secondary" className="rounded-md tabular-nums hover:bg-secondary/80 transition-colors">
+              <Tag className="!m-0 rounded-md tabular-nums hover:opacity-80 transition-opacity">
                 {modelCount} model{modelCount !== 1 ? "s" : ""}
-              </Badge>
+              </Tag>
             </button>
-            <Button variant="ghost" size="sm" loading={refreshing} icon={<Refresh />} onClick={onRefresh}>
+            <Button type="text" size="small" loading={refreshing} icon={<Refresh />} onClick={onRefresh}>
               Sync
             </Button>
           </div>
           <div className="flex items-center gap-0.5">
-            <Button variant="ghost" size="icon-sm" icon={<PenNewSquare />} onClick={onEdit} aria-label="Edit provider" />
+            <Button type="text" size="small" icon={<PenNewSquare />} onClick={onEdit} aria-label="Edit provider" />
             <Button
-              variant="ghost"
-              size="icon-sm"
+              type="text"
+              size="small"
               icon={<TrashBinMinimalistic />}
               onClick={onDelete}
               aria-label="Delete provider"
-              className="text-destructive hover:text-destructive"
+              className="!text-destructive hover:!text-destructive"
             />
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -451,9 +495,9 @@ export function ProvidersPage() {
     setRefreshingId(id);
     try {
       await dispatch(refreshModels(id)).unwrap();
-      toast.success("Models refreshed");
+      message.success("Models refreshed");
     } catch (err: any) {
-      toast.error(err?.message || "Failed to refresh models");
+      message.error(err?.message || "Failed to refresh models");
     } finally {
       setRefreshingId(null);
     }
@@ -467,25 +511,29 @@ export function ProvidersPage() {
           <span className="text-border">·</span>
           <span className="tabular-nums">{totalModels} models</span>
         </div>
-        <Button id="settings-add-provider" variant="primary" icon={<Key width={14} height={14} />} onClick={() => setShowAddDialog(true)}>
+        <Button id="settings-add-provider" type="primary" icon={<Key width={14} height={14} />} onClick={() => setShowAddDialog(true)}>
           Add Provider
         </Button>
       </div>
 
       <RenderIf condition={providers.length === 0}>
-        <Empty className="rounded-xl border border-dashed border-border bg-card">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
+        <Empty
+          className="rounded-xl border border-dashed border-border bg-card py-10"
+          image={
+            <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
               <Key />
-            </EmptyMedia>
-            <EmptyTitle>No providers yet</EmptyTitle>
-            <EmptyDescription>Add an AI provider to power your agents with models and API keys.</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button variant="primary" size="sm" icon={<Key width={12} height={12} />} onClick={() => setShowAddDialog(true)}>
-              Add Your First Provider
-            </Button>
-          </EmptyContent>
+            </div>
+          }
+          description={
+            <div className="flex flex-col gap-1">
+              <span className="text-lg font-medium tracking-tight text-foreground">No providers yet</span>
+              <span className="text-sm text-muted-foreground">Add an AI provider to power your agents with models and API keys.</span>
+            </div>
+          }
+        >
+          <Button type="primary" size="small" icon={<Key width={12} height={12} />} onClick={() => setShowAddDialog(true)}>
+            Add Your First Provider
+          </Button>
         </Empty>
       </RenderIf>
 

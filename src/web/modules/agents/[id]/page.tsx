@@ -2,21 +2,11 @@
 // Route: /agents/:id/* — Full-screen agent detail with Chat / Editor tabs.
 
 import { AltArrowLeft, MenuDots, TrashBinTrash } from "@solar-icons/react";
+import { Modal, Popover } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
 import { UserAvatar } from "src/components/UserAvatar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "src/components/ui/alert-dialog";
-import { Button } from "src/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { fetchMcpServers } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { fetchTools } from "src/modules/tools/common/toolsSlice";
@@ -142,6 +132,19 @@ export default function AgentDetailPage() {
     await dispatch(deleteAgent(id));
     navigate("/agents");
   };
+
+  const confirmDelete = useCallback(() => {
+    const ag = agents.find((a) => a.id === id);
+    if (!ag) return;
+    Modal.confirm({
+      title: `Delete "${ag.name}"?`,
+      content: "This action cannot be undone. All conversations and tasks will be lost.",
+      okText: "Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      onOk: handleDelete,
+    });
+  }, [agents, id, handleDelete]);
 
   // ── Flow interaction handlers ──────────────────────────────────────────────
 
@@ -365,46 +368,28 @@ export default function AgentDetailPage() {
 
           <div className="flex items-center gap-0.5">
             {/* ── Kebab menu ── */}
-            <Popover>
-              <PopoverTrigger asChild>
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              arrow={false}
+              styles={{ root: { width: 180 }, container: { width: 180, padding: 4 } }}
+              content={
                 <button
                   type="button"
-                  className="flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-muted-foreground cursor-pointer transition-all duration-150 hover:bg-muted hover:text-foreground hover:border-border"
+                  className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-destructive cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-destructive/10"
+                  onClick={confirmDelete}
                 >
-                  <MenuDots width={15} height={15} />
+                  <TrashBinTrash width={13} height={13} />
+                  <span>Delete Agent</span>
                 </button>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="end" className="w-[180px] p-1">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-destructive cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-destructive/10"
-                    >
-                      <TrashBinTrash width={13} height={13} />
-                      <span>Delete Agent</span>
-                    </button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <div className="flex flex-col gap-2.5">
-                      <AlertDialogTitle>Delete "{agent.name}"?</AlertDialogTitle>
-                      <AlertDialogDescription>This action cannot be undone. All conversations and tasks will be lost.</AlertDialogDescription>
-                      <div className="flex flex-row justify-end gap-2">
-                        <AlertDialogCancel asChild>
-                          <Button size="sm" variant="secondary">
-                            Cancel
-                          </Button>
-                        </AlertDialogCancel>
-                        <AlertDialogAction asChild>
-                          <Button size="sm" variant="danger" onClick={handleDelete}>
-                            Delete
-                          </Button>
-                        </AlertDialogAction>
-                      </div>
-                    </div>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </PopoverContent>
+              }
+            >
+              <button
+                type="button"
+                className="flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-muted-foreground cursor-pointer transition-all duration-150 hover:bg-muted hover:text-foreground hover:border-border"
+              >
+                <MenuDots width={15} height={15} />
+              </button>
             </Popover>
           </div>
         </div>

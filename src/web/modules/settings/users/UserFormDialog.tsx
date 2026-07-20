@@ -1,16 +1,10 @@
-import { PenNewSquare, UserPlus } from "@solar-icons/react";
+import { PenNewSquare, Restart, TrashBinMinimalistic, UserPlus } from "@solar-icons/react";
 import { useForm } from "@tanstack/react-form";
+import { Button, Form, Input, Modal, Select, message } from "antd";
+import { useState } from "react";
 import { apiClient } from "src/common/api";
 import type { User } from "src/common/types";
-import RenderIf from "src/components/ui/RenderIf";
-import { Button } from "src/components/ui/button";
-import { SimpleDialog } from "src/components/ui/dialog";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { Select } from "src/components/ui/options-select";
-import { toast } from "src/components/ui/toast";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+import RenderIf from "src/components/RenderIf";
 
 interface UserFormProps {
   user?: User | null;
@@ -23,10 +17,12 @@ const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
 ] as const;
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
 export function UserFormDialog({ user, onClose, onSaved }: UserFormProps) {
   const isEdit = !!user;
+  const [deleting, setDeleting] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   const form = useForm({
     defaultValues: {
@@ -43,7 +39,7 @@ export function UserFormDialog({ user, onClose, onSaved }: UserFormProps) {
             name: value.name,
             role: value.role,
           });
-          toast.success(`User ${value.username} updated`);
+          message.success(`User ${value.username} updated`);
         } else {
           await apiClient.post("/api/users", {
             username: value.username,
@@ -51,37 +47,102 @@ export function UserFormDialog({ user, onClose, onSaved }: UserFormProps) {
             password: value.password,
             role: value.role,
           });
-          toast.success(`User ${value.username} created`);
+          message.success(`User ${value.username} created`);
         }
         onSaved();
         onClose();
       } catch (err: any) {
-        toast.error(err.message || "Failed to save user");
+        message.error(err.message || "Failed to save user");
       }
     },
   });
 
+  const handleDelete = async () => {
+    if (!user) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/users/${user.id}`);
+      message.success(`Deleted user ${user.username}`);
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      message.error(err.message || "Failed to delete user");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!user) return;
+    setResetting(true);
+    try {
+      const result = await apiClient.post<{ password: string }>(`/api/users/${user.id}/reset-password`, {
+        password: resetPassword || undefined,
+      });
+      setGeneratedPassword(result.password);
+      message.success(`Password reset for ${user.username}`);
+    } catch (err: any) {
+      message.error(err.message || "Failed to reset password");
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const icon = isEdit ? <PenNewSquare size={16} /> : <UserPlus size={16} />;
+
   return (
-    <SimpleDialog
+    <Modal
       open
-      onClose={onClose}
-      title={isEdit ? "Edit User" : "Add User"}
-      icon={isEdit ? <PenNewSquare size={16} /> : <UserPlus size={16} />}
-      width={440}
+      onCancel={onClose}
+      title={
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+            <div className="text-[14px] leading-none text-muted-foreground">{icon}</div>
+          </div>
+          <span className="truncate font-semibold text-foreground">{isEdit ? "Edit User" : "Add User"}</span>
+        </div>
+      }
       footer={
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose}>
+        <div className="flex items-center gap-2">
+          <RenderIf condition={isEdit}>
+            <div className="mr-auto">
+              <Button
+                size="small"
+                danger
+                disabled={deleting}
+                icon={<TrashBinMinimalistic size={12} />}
+                onClick={() => {
+                  Modal.confirm({
+                    title: "Delete user?",
+                    content: (
+                      <p>
+                        Are you sure you want to delete user <strong>{user?.username}</strong>? This action cannot be undone.
+                      </p>
+                    ),
+                    okText: "Delete",
+                    okType: "danger",
+                    onOk: handleDelete,
+                  });
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </RenderIf>
+          <Button type="text" size="small" onClick={onClose}>
             Cancel
           </Button>
           <form.Subscribe selector={(s) => s.isSubmitting}>
             {(isSubmitting) => (
-              <Button variant="primary" size="sm" onClick={() => form.handleSubmit()} loading={isSubmitting}>
+              <Button type="primary" size="small" onClick={() => form.handleSubmit()} loading={isSubmitting}>
                 {isEdit ? "Save" : "Create"}
               </Button>
             )}
           </form.Subscribe>
         </div>
       }
+      width={440}
+      destroyOnHidden
     >
       <form
         onSubmit={(e) => {
@@ -97,9 +158,19 @@ export function UserFormDialog({ user, onClose, onSaved }: UserFormProps) {
           }}
         >
           {(field) => (
-            <Field label="Username" required error={field.state.meta.errors[0]?.toString()}>
+            <Form.Item
+              label={
+                <span className="text-muted-foreground">
+                  Username<span className="text-destructive"> *</span>
+                </span>
+              }
+              validateStatus={field.state.meta.errors[0] ? "error" : undefined}
+              help={field.state.meta.errors[0]?.toString()}
+              className="!mb-0"
+              layout="vertical"
+            >
               <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="john_doe" />
-            </Field>
+            </Form.Item>
           )}
         </form.Field>
 
@@ -110,9 +181,19 @@ export function UserFormDialog({ user, onClose, onSaved }: UserFormProps) {
           }}
         >
           {(field) => (
-            <Field label="Name" required error={field.state.meta.errors[0]?.toString()}>
+            <Form.Item
+              label={
+                <span className="text-muted-foreground">
+                  Name<span className="text-destructive"> *</span>
+                </span>
+              }
+              validateStatus={field.state.meta.errors[0] ? "error" : undefined}
+              help={field.state.meta.errors[0]?.toString()}
+              className="!mb-0"
+              layout="vertical"
+            >
               <Input value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="John Doe" />
-            </Field>
+            </Form.Item>
           )}
         </form.Field>
 
@@ -128,7 +209,17 @@ export function UserFormDialog({ user, onClose, onSaved }: UserFormProps) {
             }}
           >
             {(field) => (
-              <Field label="Password" required error={field.state.meta.errors[0]?.toString()}>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Password<span className="text-destructive"> *</span>
+                  </span>
+                }
+                validateStatus={field.state.meta.errors[0] ? "error" : undefined}
+                help={field.state.meta.errors[0]?.toString()}
+                className="!mb-0"
+                layout="vertical"
+              >
                 <Input
                   type="password"
                   value={field.state.value}
@@ -136,19 +227,74 @@ export function UserFormDialog({ user, onClose, onSaved }: UserFormProps) {
                   onBlur={field.handleBlur}
                   placeholder="Min 8 characters"
                 />
-              </Field>
+              </Form.Item>
             )}
           </form.Field>
         </RenderIf>
 
         <form.Field name="role">
           {(field) => (
-            <Field label="Role" required>
-              <Select value={field.state.value} onChange={(val) => field.handleChange(val as "admin" | "member")} options={[...ROLE_OPTIONS]} />
-            </Field>
+            <Form.Item
+              label={
+                <span className="text-muted-foreground">
+                  Role<span className="text-destructive"> *</span>
+                </span>
+              }
+              className="!mb-0"
+              layout="vertical"
+            >
+              <Select
+                value={field.state.value}
+                onChange={(val) => field.handleChange(val as "admin" | "member")}
+                options={[...ROLE_OPTIONS]}
+                className="w-full"
+              />
+            </Form.Item>
           )}
         </form.Field>
+
+        <RenderIf condition={isEdit}>
+          <div className="flex flex-col gap-2 border-t border-border-subtle pt-3.5">
+            <span className="text-sm text-muted-foreground">Reset Password</span>
+            <RenderIf condition={!generatedPassword}>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  placeholder="Leave blank to auto-generate"
+                  className="flex-1"
+                />
+                <Button size="small" icon={<Restart size={12} />} onClick={handleResetPassword} loading={resetting}>
+                  Reset
+                </Button>
+              </div>
+            </RenderIf>
+            <RenderIf condition={!!generatedPassword}>
+              {() => (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 select-all rounded-lg border border-border bg-muted px-3 py-2 font-mono text-sm text-foreground">
+                      {generatedPassword}
+                    </code>
+                    <Button
+                      type="text"
+                      size="small"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedPassword);
+                        message.success("Password copied to clipboard");
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Save this password now — it won't be shown again.</p>
+                </div>
+              )}
+            </RenderIf>
+          </div>
+        </RenderIf>
       </form>
-    </SimpleDialog>
+    </Modal>
   );
 }

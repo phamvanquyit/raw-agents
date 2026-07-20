@@ -2,28 +2,17 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AddCircle, Folder, MenuDots, PenNewSquare, TrashBinTrash } from "@solar-icons/react";
+import { Button, Form, Input, Modal, Popover, message } from "antd";
+import type { InputRef } from "antd";
 import type { CSSProperties, HTMLAttributes } from "react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgentTool } from "src/common/types";
-import RenderIf from "src/components/ui/RenderIf";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogTitle,
-} from "src/components/ui/alert-dialog";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
-import { toast } from "src/components/ui/toast";
+import RenderIf from "src/components/RenderIf";
 import { cn } from "src/lib/utils";
 import { useAppDispatch } from "src/store/store";
 import { createToolFolder } from "../common/toolFoldersSlice";
 import { AddToolPopover } from "./AddToolDialog";
-import { DropPlaceholder, ToolKanbanCard } from "./ToolKanbanCard";
+import { ToolKanbanCard } from "./ToolKanbanCard";
 
 export const UNGROUPED_COLUMN_ID = "ungrouped";
 
@@ -34,28 +23,30 @@ const TONE_ICON: Record<ColumnTone, string> = {
   ungrouped: "text-muted-foreground",
 };
 
-const TONE_COUNT: Record<ColumnTone, string> = {
-  folder: "bg-edge-tool/15 text-edge-tool",
-  ungrouped: "bg-card text-muted-foreground",
-};
-
 function FolderColumnMenu({ title, onEdit, onDelete }: { title: string; onEdit?: () => void; onDelete?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const handleDelete = () => {
+    setMenuOpen(false);
+    Modal.confirm({
+      title: "Delete folder?",
+      content: `Delete "${title}"? Tools in this folder will move to Ungrouped.`,
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      onOk: () => onDelete?.(),
+    });
+  };
 
   return (
-    <>
-      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-muted-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            aria-label="Folder actions"
-          >
-            <MenuDots width={14} height={14} />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent side="bottom" align="end" className="w-[160px] p-1">
+    <Popover
+      open={menuOpen}
+      onOpenChange={setMenuOpen}
+      trigger="click"
+      placement="bottomRight"
+      arrow={false}
+      content={
+        <div className="w-[160px] p-1">
           <button
             type="button"
             onClick={() => {
@@ -69,46 +60,23 @@ function FolderColumnMenu({ title, onEdit, onDelete }: { title: string; onEdit?:
           </button>
           <button
             type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              setDeleteOpen(true);
-            }}
+            onClick={handleDelete}
             className="flex w-full items-center gap-2 rounded-md border-none bg-transparent px-2.5 py-2 text-left text-[12px] font-medium text-destructive cursor-pointer transition-colors hover:bg-destructive/10"
           >
             <TrashBinTrash width={13} height={13} className="shrink-0" />
             Delete
           </button>
-        </PopoverContent>
-      </Popover>
-
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <div className="flex flex-col gap-2.5">
-            <AlertDialogTitle>Delete folder?</AlertDialogTitle>
-            <AlertDialogDescription>{`Delete "${title}"? Tools in this folder will move to Ungrouped.`}</AlertDialogDescription>
-            <div className="flex flex-row justify-end gap-2">
-              <AlertDialogCancel asChild>
-                <Button size="sm" variant="secondary">
-                  Cancel
-                </Button>
-              </AlertDialogCancel>
-              <AlertDialogAction asChild>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  onClick={() => {
-                    setDeleteOpen(false);
-                    onDelete?.();
-                  }}
-                >
-                  Delete
-                </Button>
-              </AlertDialogAction>
-            </div>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+        </div>
+      }
+    >
+      <button
+        type="button"
+        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-muted-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        aria-label="Folder actions"
+      >
+        <MenuDots width={14} height={14} />
+      </button>
+    </Popover>
   );
 }
 
@@ -130,8 +98,6 @@ type ColumnBodyProps = {
   className?: string;
   headerListeners?: HTMLAttributes<HTMLDivElement>;
   headerAttributes?: HTMLAttributes<HTMLDivElement>;
-  placeholderIndex?: number | null;
-  placeholderHeight?: number;
 };
 
 function ColumnBody({
@@ -151,19 +117,16 @@ function ColumnBody({
   className,
   headerListeners,
   headerAttributes,
-  placeholderIndex = null,
-  placeholderHeight = 88,
 }: ColumnBodyProps) {
   const toolIds = tools.map((t) => t.id);
-  const showPlaceholder = placeholderIndex != null;
 
   return (
     <div
       ref={columnRef}
       style={{ maxHeight: "calc(100% - 1.5rem)", ...style }}
       className={cn(
-        "relative flex w-[300px] shrink-0 flex-col rounded-xl bg-muted overflow-hidden",
-        (isOver || showPlaceholder) && "ring-1 ring-inset ring-ring/40 bg-accent",
+        "relative flex w-[328px] shrink-0 flex-col rounded-xl bg-muted overflow-hidden",
+        isOver && "ring-1 ring-inset ring-ring/40 bg-accent",
         className,
       )}
     >
@@ -173,8 +136,7 @@ function ColumnBody({
         {...headerAttributes}
       >
         <Folder width={14} height={14} className={cn("shrink-0", TONE_ICON[tone])} />
-        <h3 className="m-0 flex-1 min-w-0 text-[13px] font-semibold text-muted-foreground truncate">{title}</h3>
-        <span className={cn("text-[10px] font-semibold py-0.5 px-1.5 rounded-full tabular-nums", TONE_COUNT[tone])}>{tools.length}</span>
+        <h3 className="m-0 flex-1 min-w-0 text-[13px] font-medium leading-normal text-muted-foreground truncate">{title}</h3>
         <RenderIf condition={editable}>
           <div className="shrink-0" onPointerDown={(e) => e.stopPropagation()}>
             <FolderColumnMenu title={title} onEdit={onEdit} onDelete={onDelete} />
@@ -184,13 +146,9 @@ function ColumnBody({
 
       <div ref={droppableRef} className="flex-1 min-h-0 overflow-y-auto px-2.5 py-px flex flex-col gap-2">
         <SortableContext items={toolIds} strategy={verticalListSortingStrategy}>
-          {tools.map((tool, index) => (
-            <Fragment key={tool.id}>
-              {placeholderIndex === index ? <DropPlaceholder height={placeholderHeight} /> : null}
-              <ToolKanbanCard tool={tool} onClick={onToolClick ? () => onToolClick(tool.id) : undefined} />
-            </Fragment>
+          {tools.map((tool) => (
+            <ToolKanbanCard key={tool.id} tool={tool} onClick={onToolClick ? () => onToolClick(tool.id) : undefined} />
           ))}
-          {placeholderIndex === tools.length ? <DropPlaceholder height={placeholderHeight} /> : null}
         </SortableContext>
       </div>
 
@@ -220,8 +178,6 @@ export function ToolKanbanColumn({
   tone = "folder",
   onEdit,
   onDelete,
-  placeholderIndex = null,
-  placeholderHeight = 88,
 }: {
   id: string;
   title: string;
@@ -233,8 +189,6 @@ export function ToolKanbanColumn({
   tone?: ColumnTone;
   onEdit?: () => void;
   onDelete?: () => void;
-  placeholderIndex?: number | null;
-  placeholderHeight?: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id,
@@ -255,10 +209,12 @@ export function ToolKanbanColumn({
       onDelete={onDelete}
       droppableRef={setNodeRef}
       isOver={isOver}
-      placeholderIndex={placeholderIndex}
-      placeholderHeight={placeholderHeight}
     />
   );
+}
+
+export function columnDroppableId(folderId: string): string {
+  return `column:${folderId}`;
 }
 
 export function SortableToolKanbanColumn({
@@ -270,8 +226,6 @@ export function SortableToolKanbanColumn({
   onToolCreated,
   onEdit,
   onDelete,
-  placeholderIndex = null,
-  placeholderHeight = 88,
 }: {
   id: string;
   title: string;
@@ -281,10 +235,21 @@ export function SortableToolKanbanColumn({
   onToolCreated: (toolId: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
-  placeholderIndex?: number | null;
-  placeholderHeight?: number;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
+  const { setNodeRef: setDroppableRef, isOver: isDroppableOver } = useDroppable({
+    id: columnDroppableId(folderId),
+    data: { type: "column", folderId },
+  });
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableRef,
+    transform,
+    transition,
+    isDragging,
+    isOver: isSortableOver,
+  } = useSortable({
     id,
     data: { type: "folder", folderId },
   });
@@ -306,21 +271,20 @@ export function SortableToolKanbanColumn({
       tone="folder"
       onEdit={onEdit}
       onDelete={onDelete}
-      columnRef={setNodeRef}
-      isOver={isOver}
+      columnRef={setSortableRef}
+      droppableRef={setDroppableRef}
+      isOver={isDroppableOver || isSortableOver}
       style={style}
       className={isDragging ? "opacity-40 z-50" : undefined}
       headerListeners={listeners}
       headerAttributes={attributes}
-      placeholderIndex={placeholderIndex}
-      placeholderHeight={placeholderHeight}
     />
   );
 }
 
 export function AddFolderButton() {
   const dispatch = useAppDispatch();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<InputRef>(null);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -345,7 +309,7 @@ export function AddFolderButton() {
     setLoading(true);
     try {
       await dispatch(createToolFolder({ name: trimmed })).unwrap();
-      toast.success("Folder created");
+      message.success("Folder created");
       setOpen(false);
     } catch {
       setError("Failed to create folder");
@@ -354,17 +318,14 @@ export function AddFolderButton() {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex h-8 w-[300px] shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-dashed border-border bg-transparent px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted/50 hover:text-muted-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-        >
-          <AddCircle width={14} height={14} className="shrink-0" />
-          Add folder
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" side="bottom" sideOffset={8} className="w-[300px] p-0">
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      trigger="click"
+      placement="bottomLeft"
+      arrow={false}
+      styles={{ root: { width: 300 }, container: { width: 300, padding: 0 } }}
+      content={
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -376,7 +337,15 @@ export function AddFolderButton() {
             <h3 className="text-sm font-semibold text-foreground m-0">New Folder</h3>
           </div>
           <div className="flex flex-col gap-3.5 px-4 pb-4">
-            <Field label="Folder Name" required>
+            <Form.Item
+              label={
+                <span className="text-muted-foreground">
+                  Folder Name<span className="text-destructive"> *</span>
+                </span>
+              }
+              className="!mb-0"
+              layout="vertical"
+            >
               <Input
                 ref={inputRef}
                 placeholder="e.g. Integrations, Scrapers…"
@@ -387,19 +356,27 @@ export function AddFolderButton() {
                 }}
                 autoComplete="off"
               />
-            </Field>
+            </Form.Item>
             {error ? <div className="text-[11px] font-medium text-destructive">{error}</div> : null}
           </div>
           <div className="flex flex-row gap-2.5 justify-end px-4 py-3 border-t border-border/40">
-            <Button variant="secondary" size="sm" type="button" onClick={() => setOpen(false)}>
+            <Button type="default" size="small" htmlType="button" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" type="submit" loading={loading} disabled={!name.trim()}>
+            <Button type="primary" size="small" htmlType="submit" loading={loading} disabled={!name.trim()}>
               {loading ? "Creating…" : "Create Folder"}
             </Button>
           </div>
         </form>
-      </PopoverContent>
+      }
+    >
+      <button
+        type="button"
+        className="inline-flex h-8 w-[328px] shrink-0 items-center justify-center gap-1.5 self-start rounded-md border border-dashed border-border bg-transparent px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted/50 hover:text-muted-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+      >
+        <AddCircle width={14} height={14} className="shrink-0" />
+        Add folder
+      </button>
     </Popover>
   );
 }

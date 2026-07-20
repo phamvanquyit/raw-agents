@@ -1,12 +1,10 @@
 import { Suspense, lazy, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import RenderIf from "src/components/ui/RenderIf";
+import RenderIf from "src/components/RenderIf";
 import { getAuthToken } from "./common/api";
 import { fetchCurrentUser } from "./common/authSlice";
 import { useSocket } from "./common/hooks/useSocket";
 import { AppLayout } from "./components/AppLayout";
-import { Toaster } from "./components/ui/sonner";
-import { TooltipProvider } from "./components/ui/tooltip";
 
 import { useAppDispatch, useAppSelector } from "./store/store";
 import "./index.css";
@@ -141,10 +139,7 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <TooltipProvider>
-        <AppContent />
-        <Toaster />
-      </TooltipProvider>
+      <AppContent />
     </BrowserRouter>
   );
 }

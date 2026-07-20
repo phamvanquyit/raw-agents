@@ -2,12 +2,12 @@
 // Route: /mcp-servers/edit — Full-page Cursor-format JSON config editor.
 
 import { AltArrowLeft, Diskette, PlugCircle } from "@solar-icons/react";
+import { Button } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "src/common/api";
-import { MonacoEditor } from "src/components/ui/MonacoEditor";
-import RenderIf from "src/components/ui/RenderIf";
-import { Button } from "src/components/ui/button";
+import { MonacoEditor } from "src/components/MonacoEditor";
+import RenderIf from "src/components/RenderIf";
 import { useAppDispatch } from "src/store/store";
 import { fetchMcpServers } from "./common/mcpServersSlice";
 
@@ -149,8 +149,8 @@ export default function McpServersEditPage() {
         </div>
 
         <Button
-          variant="primary"
-          size="sm"
+          type="primary"
+          size="small"
           icon={<Diskette width={14} height={14} />}
           loading={saving}
           disabled={(!dirty && !saving) || loading || !!preview.error}

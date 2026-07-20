@@ -1,10 +1,11 @@
 import { AltArrowLeft, FaceScanSquare, HomeAngle, Logout2, MenuDots, PlugCircle, Programming, Settings, User as UserIcon } from "@solar-icons/react";
+import { Dropdown } from "antd";
+import type { MenuProps } from "antd";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { clearAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import { UserAvatar } from "src/components/UserAvatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "src/components/ui/dropdown-menu";
 import { cn } from "src/lib/utils";
 import { SETTINGS_TABS } from "src/modules/settings/common/constants";
 import { useAppSelector } from "src/store/store";
@@ -13,7 +14,7 @@ function roleLabel(role: User["role"]) {
   return role === "admin" ? "Admin" : "Member";
 }
 
-const SIDEBAR_W = 280;
+const SIDEBAR_W = 220;
 
 interface NavItem {
   to: string;
@@ -71,6 +72,43 @@ function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: (
   const displayName = user.name || user.username;
   const role = roleLabel(user.role);
 
+  const menuItems: MenuProps["items"] = [
+    {
+      key: "header",
+      label: (
+        <div className="px-2 pt-1 pb-1.5">
+          <div className="truncate text-base font-medium text-foreground">{displayName}</div>
+          <div className="truncate text-sm text-muted-foreground">@{user.username}</div>
+          <div className="truncate text-sm text-muted-foreground">{role}</div>
+        </div>
+      ),
+      disabled: true,
+      style: { cursor: "default", opacity: 1 },
+    },
+    { type: "divider" },
+    {
+      key: "profile",
+      label: (
+        <div className="flex min-h-8 items-center gap-2 rounded-md px-2 py-0 text-base text-foreground">
+          <UserIcon width={16} height={16} weight="BoldDuotone" />
+          Profile Settings
+        </div>
+      ),
+      onClick: () => navigate("/profile"),
+    },
+    { type: "divider" },
+    {
+      key: "logout",
+      label: (
+        <div className="flex min-h-8 items-center gap-2 rounded-md px-2 py-0 text-base text-foreground">
+          <Logout2 width={16} height={16} weight="BoldDuotone" />
+          Log Out
+        </div>
+      ),
+      onClick: onLogout,
+    },
+  ];
+
   return (
     <div className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground">
       <UserAvatar avatar={user.avatar} name={displayName} size={32} className="shrink-0 self-center rounded-full" />
@@ -78,37 +116,19 @@ function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: (
         <span className="w-full truncate text-base font-medium text-sidebar-foreground">{displayName}</span>
         <span className="block w-full min-w-0 truncate text-left text-xs text-muted-foreground">{role}</span>
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label="User menu"
-            className="inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md border-0 bg-transparent text-tertiary-foreground outline-none transition-colors hover:bg-muted hover:text-sidebar-foreground cursor-pointer data-[state=open]:bg-muted data-[state=open]:text-sidebar-foreground"
-          >
-            <MenuDots width={16} height={16} weight="BoldDuotone" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="top" align="end" sideOffset={8} className="w-[220px] rounded-lg border-sidebar-border bg-popover p-1 shadow-panel">
-          <div className="px-2 pt-1 pb-1.5">
-            <div className="truncate text-base font-medium text-foreground">{displayName}</div>
-            <div className="truncate text-sm text-muted-foreground">@{user.username}</div>
-            <div className="truncate text-sm text-muted-foreground">{role}</div>
-          </div>
-          <DropdownMenuSeparator className="-mx-1 my-1 bg-sidebar-border" />
-          <DropdownMenuItem
-            className="min-h-8 gap-2 rounded-md px-2 py-0 text-base text-foreground focus:bg-muted focus:text-foreground"
-            onSelect={() => navigate("/profile")}
-          >
-            <UserIcon width={16} height={16} weight="BoldDuotone" />
-            Profile Settings
-          </DropdownMenuItem>
-          <DropdownMenuSeparator className="-mx-1 my-1 bg-sidebar-border" />
-          <DropdownMenuItem className="min-h-8 gap-2 rounded-md px-2 py-0 text-base text-foreground focus:bg-muted focus:text-foreground" onSelect={onLogout}>
-            <Logout2 width={16} height={16} weight="BoldDuotone" />
-            Log Out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Dropdown
+        trigger={["click"]}
+        placement="topRight"
+        menu={{ items: menuItems, className: "w-[220px] rounded-lg border-sidebar-border bg-popover p-1 shadow-panel" }}
+      >
+        <button
+          type="button"
+          aria-label="User menu"
+          className="inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md border-0 bg-transparent text-tertiary-foreground outline-none transition-colors hover:bg-muted hover:text-sidebar-foreground cursor-pointer data-[state=open]:bg-muted data-[state=open]:text-sidebar-foreground"
+        >
+          <MenuDots width={16} height={16} weight="BoldDuotone" />
+        </button>
+      </Dropdown>
     </div>
   );
 }

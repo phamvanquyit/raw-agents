@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
-import { type EditorInstance, MonacoEditor } from "src/components/ui/MonacoEditor";
+import { type EditorInstance, MonacoEditor } from "src/components/MonacoEditor";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { getSettingValues } from "src/modules/settings/common/settingsApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";

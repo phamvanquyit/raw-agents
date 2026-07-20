@@ -1,15 +1,7 @@
-// ─── Publish Node ─────────────────────────────────────────────────────────────
-// make.com-style action node — circular icon with label below.
-// Positioned below-left of the AgentConfigNode on the flow canvas.
-// Clicking opens a popover with public link & password settings.
-
 import { Link } from "@solar-icons/react";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import { Button, Input, Popover, message } from "antd";
 import { useEffect, useState } from "react";
-import { Button } from "src/components/ui/button";
-import { Input } from "src/components/ui/input";
-import { Popover, PopoverArrow, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
-import { toast } from "src/components/ui/toast";
 
 export type PublishNodeData = {
   isPublic: boolean;
@@ -25,7 +17,6 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Sync when parent data changes
   useEffect(() => {
     setLocalPassword(data.publicPassword || "");
   }, [data.publicPassword]);
@@ -35,7 +26,7 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(publicLink);
-    toast.success("Link copied!");
+    message.success("Link copied!");
   };
 
   const handleSave = async () => {
@@ -49,7 +40,6 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
 
   return (
     <div className="nodrag nopan relative flex flex-col items-center gap-2">
-      {/* Handle — right side (connects to config node) */}
       <Handle
         type="source"
         position={Position.Right}
@@ -57,46 +47,13 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
         className="!w-2 !h-2 !bg-edge-call-agent/20 !border-2 !border-edge-call-agent/35 transition-all duration-150"
       />
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="relative flex flex-col items-center gap-2 bg-transparent border-none cursor-pointer group font-[inherit] p-0 outline-none"
-          >
-            {/* Circular icon container */}
-            <div
-              className={`w-14 h-14 rounded-full bg-card border-2 flex items-center justify-center transition-all duration-200 group-hover:scale-[1.08] group-active:scale-[0.95] ${data.isPublic ? "border-chart-2/40" : "border-border group-hover:border-chart-2/40"}`}
-            >
-              <svg
-                width={22}
-                height={22}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={`transition-all duration-200 ${data.isPublic ? "opacity-100 text-chart-2" : "opacity-50 text-muted-foreground group-hover:opacity-80 group-hover:text-chart-2"}`}
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-            </div>
-
-            {/* Label below */}
-            <span
-              className={`text-[11px] font-semibold leading-[1] tracking-wide transition-colors duration-200 ${data.isPublic ? "text-chart-2" : "text-muted-foreground group-hover:text-chart-2"}`}
-            >
-              Publish
-            </span>
-          </button>
-        </PopoverTrigger>
-
-        <PopoverContent side="top" align="center" sideOffset={12} className="w-[420px]">
-          <PopoverArrow className="fill-border" width={12} height={6} />
+      <Popover
+        trigger="click"
+        placement="top"
+        arrow
+        styles={{ root: { width: 420 }, container: { width: 420 } }}
+        content={
           <div className="flex flex-col gap-3 p-4">
-            {/* Link display */}
             <div className="flex items-center gap-2 bg-muted px-2.5 py-1.5 rounded-lg border border-border">
               <Link size={13} className="text-primary shrink-0" />
               <a
@@ -107,12 +64,11 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
               >
                 {publicLink}
               </a>
-              <Button size="sm" variant="secondary" onClick={handleCopyLink} className="shrink-0">
+              <Button size="small" onClick={handleCopyLink} className="shrink-0">
                 Copy
               </Button>
             </div>
 
-            {/* Password */}
             <div className="flex flex-col gap-1">
               <span className="text-[11px] font-medium text-muted-foreground">Access Password</span>
               <div className="relative">
@@ -164,12 +120,43 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
             </div>
 
             <div className="flex justify-end">
-              <Button size="sm" disabled={!dirty} loading={saving} onClick={handleSave}>
+              <Button size="small" type="primary" disabled={!dirty} loading={saving} onClick={handleSave}>
                 Save
               </Button>
             </div>
           </div>
-        </PopoverContent>
+        }
+      >
+        <button
+          type="button"
+          className="relative flex flex-col items-center gap-2 bg-transparent border-none cursor-pointer group font-[inherit] p-0 outline-none"
+        >
+          <div
+            className={`w-14 h-14 rounded-full bg-card border-2 flex items-center justify-center transition-all duration-200 group-hover:scale-[1.08] group-active:scale-[0.95] ${data.isPublic ? "border-chart-2/40" : "border-border group-hover:border-chart-2/40"}`}
+          >
+            <svg
+              width={22}
+              height={22}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`transition-all duration-200 ${data.isPublic ? "opacity-100 text-chart-2" : "opacity-50 text-muted-foreground group-hover:opacity-80 group-hover:text-chart-2"}`}
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          </div>
+
+          <span
+            className={`text-[11px] font-semibold leading-[1] tracking-wide transition-colors duration-200 ${data.isPublic ? "text-chart-2" : "text-muted-foreground group-hover:text-chart-2"}`}
+          >
+            Publish
+          </span>
+        </button>
       </Popover>
     </div>
   );

@@ -60,10 +60,10 @@ export function ToolTableRow({
           <span
             className={[
               "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold",
-              isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+              isActive ? "bg-success/10 text-success" : "bg-muted text-muted-foreground",
             ].join(" ")}
           >
-            <span className={["w-1.5 h-1.5 rounded-full", isActive ? "bg-primary" : "bg-muted"].join(" ")} />
+            <span className={["w-1.5 h-1.5 rounded-full", isActive ? "bg-success" : "bg-muted"].join(" ")} />
             {isActive ? "Active" : "Inactive"}
           </span>
         )}

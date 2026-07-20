@@ -18,24 +18,55 @@ export interface UseAssistantStreamingOptions {
   onToolAction?: (event: ToolActionEvent) => void;
 }
 
+const OMITTED_GENERATE_CODE = "[omitted — see <current_code> for the latest draft]";
+
+/** Keep full generate_code payload only for the latest call; redact older drafts. */
+function compactGenerateCodeInput(messages: ChatAgentMessage[]): ChatAgentMessage[] {
+  let lastGenerateIdx = -1;
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.role === "tool-call" && m.toolName === "generate_code") {
+      lastGenerateIdx = i;
+    }
+  }
+  if (lastGenerateIdx < 0) return messages;
+
+  return messages.map((m, i) => {
+    if (m.role !== "tool-call" || m.toolName !== "generate_code" || i >= lastGenerateIdx) {
+      return m;
+    }
+    const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
+    if (!("code" in input)) return m;
+    const { code: _code, ...rest } = input;
+    return {
+      ...m,
+      toolInput: {
+        ...rest,
+        code: OMITTED_GENERATE_CODE,
+      },
+    };
+  });
+}
+
 function buildAiHistory(messages: ChatAgentMessage[]) {
-  return messages
+  const history = messages
     .filter((m) => ["user", "assistant", "tool-call"].includes(m.role))
     .filter((m) => m.role === "tool-call" || m.content.trim() !== "")
-    .slice(-20)
-    .map((m) => {
-      if (m.role === "tool-call") {
-        return {
-          role: "tool-call" as const,
-          content: "",
-          toolCallId: m.toolCallId,
-          toolName: m.toolName,
-          toolInput: m.toolInput,
-          toolOutput: m.toolOutput,
-        };
-      }
-      return { role: m.role as "user" | "assistant", content: m.content };
-    });
+    .slice(-20);
+
+  return compactGenerateCodeInput(history).map((m) => {
+    if (m.role === "tool-call") {
+      return {
+        role: "tool-call" as const,
+        content: "",
+        toolCallId: m.toolCallId,
+        toolName: m.toolName,
+        toolInput: m.toolInput,
+        toolOutput: m.toolOutput,
+      };
+    }
+    return { role: m.role as "user" | "assistant", content: m.content };
+  });
 }
 
 function finalizeStreamingMessages(prev: ChatAgentMessage[]) {

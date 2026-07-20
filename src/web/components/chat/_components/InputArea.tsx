@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "src/common/lib/cn";
-import RenderIf from "src/components/ui/RenderIf";
+import RenderIf from "src/components/RenderIf";
 import { SelectModel } from "./SelectModel";
 
 interface InputAreaProps {
@@ -22,11 +22,7 @@ function isEditableTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
   const tag = el.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) return true;
-  return Boolean(
-    el.closest(
-      "input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu'], [data-radix-popper-content-wrapper]",
-    ),
-  );
+  return Boolean(el.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu']"));
 }
 
 export function InputArea({
@@ -129,7 +125,7 @@ export function InputArea({
         disabled={generating || noModel}
         placeholder={noModel ? "Select a model to start chatting" : placeholder}
         className={cn(
-          "w-full px-3 pt-3 pb-2 border-none outline-none resize-none text-[14px] leading-relaxed min-h-[22px] max-h-[120px] overflow-auto block chat-input-textarea transition-colors bg-transparent",
+          "w-full px-3 pt-3 pb-2 border-none outline-none resize-none text-[14px] leading-relaxed min-h-[22px] max-h-[120px] overflow-auto block placeholder:text-muted-foreground transition-colors bg-transparent",
           noModel
             ? "text-muted-foreground cursor-not-allowed placeholder:text-border-hover"
             : "text-foreground placeholder:text-muted-foreground placeholder:font-normal",

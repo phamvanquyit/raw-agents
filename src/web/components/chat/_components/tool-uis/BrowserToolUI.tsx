@@ -1,6 +1,6 @@
+import { Spin } from "antd";
 import { useState } from "react";
-import RenderIf from "src/components/ui/RenderIf";
-import { Spinner } from "src/components/ui/spinner";
+import RenderIf from "src/components/RenderIf";
 import { cn } from "src/lib/utils";
 import { useAppSelector } from "src/store/store";
 import { prettyJson } from "../../common/utils";
@@ -97,7 +97,7 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
     .join(" → ");
 
   return (
-    <div className="ca-fade-in mt-1">
+    <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
       <RenderIf condition={showAvatar}>
         <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
           <span
@@ -138,7 +138,7 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                 <span className="text-[11px] text-tertiary-foreground truncate font-mono">{url}</span>
               </div>
               <RenderIf condition={running}>
-                <Spinner className="size-3 text-muted-foreground shrink-0" />
+                <Spin size="small" className="shrink-0" />
               </RenderIf>
               <RenderIf condition={!running && hasOutput && !failed}>
                 <span className="text-[10px] text-chart-2 shrink-0">Done</span>
@@ -210,7 +210,7 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                 <p className="text-[11px] text-destructive m-0 mt-1.5">{output?.error ?? "Tool execution failed"}</p>
               </RenderIf>
               <RenderIf condition={hasOutput}>
-                <pre className="tool-bubble-pre m-0 mt-1.5 whitespace-pre-wrap break-all text-[10px] text-tertiary-foreground leading-[1.5] max-h-40 overflow-y-auto font-mono">
+                <pre className="[scrollbar-width:thin] m-0 mt-1.5 whitespace-pre-wrap break-all text-[10px] text-tertiary-foreground leading-[1.5] max-h-40 overflow-y-auto font-mono">
                   {prettyJson(msg.toolOutput)}
                 </pre>
               </RenderIf>

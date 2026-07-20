@@ -2,30 +2,31 @@
 // Route: /tools/:id — Full-page editor for a single tool.
 // Layout: Header → [ Editor(top) + RunPanel(bottom, collapsible) | CodingAgentPanel(right) ]
 
-import { CheckCircle, CloseCircle, Play, Programming, TestTube } from "@solar-icons/react";
-
+import { CheckCircle, CloseCircle, Programming } from "@solar-icons/react";
+import { Button } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
 import { wsClient } from "src/common/api/wsClient";
 import { SettingKey } from "src/common/enum";
 import type { AgentTool } from "src/common/types";
-import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/ui/MonacoEditor";
+import { type EditorInstance, MonacoDiffEditor, MonacoEditor } from "src/components/MonacoEditor";
 import { getSettingValues } from "src/modules/settings/common/settingsApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import type { ToolActionEvent } from "./components/CodingAgentPanel";
 
 import { deleteTool, fetchTools, updateTool } from "../common/toolsSlice";
-import { injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams } from "../common/utils";
+import { injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams, parseParamsFromCode } from "../common/utils";
 
 import { CodingAgentPanel } from "./components/CodingAgentPanel";
 import { EditToolHeader } from "./components/EditToolHeader";
+import { EditorStatusRail } from "./components/EditorStatusRail";
 import { RunPanel, type RunPanelHandle } from "./components/RunPanel";
 import { ValidationBanner } from "./components/ValidationBanner";
 
-const BOTTOM_PANEL_DEFAULT = 280;
-const BOTTOM_PANEL_MIN = 120;
-const BOTTOM_PANEL_MAX = 600;
+const BOTTOM_PANEL_DEFAULT = 360;
+const BOTTOM_PANEL_MIN = 200;
+const BOTTOM_PANEL_MAX = 720;
 
 export default function EditToolPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,7 +51,6 @@ export default function EditToolPage() {
   // ── Code state ──
   const [localCode, setLocalCode] = useState("");
   const [savedCode, setSavedCode] = useState("");
-  const [sharedCode, setSharedCode] = useState("");
   const [codeDraft, setCodeDraft] = useState<string | null>(null);
   const editorRef = useRef<EditorInstance | null>(null);
   const codeRef = useRef(localCode);
@@ -67,7 +67,6 @@ export default function EditToolPage() {
     });
     setLocalCode(code);
     setSavedCode(code);
-    setSharedCode(code);
     currentLoadedToolIdRef.current = tool.id;
 
     // If there's a pending AI draft that differs from saved code, show diff
@@ -94,7 +93,6 @@ export default function EditToolPage() {
         const code = payload.codeContent;
         setSavedCode(code);
         setLocalCode(code);
-        setSharedCode(code);
         // If codeContent now matches the current draft, draft was accepted — clear diff
         setCodeDraft((prev) => (prev !== null && prev === code ? null : prev));
       }
@@ -120,15 +118,17 @@ export default function EditToolPage() {
 
   // ── Annotation validation ──
   const codeMeta = useMemo(() => parseMetaFromCode(localCode), [localCode]);
+  const codeParams = useMemo(() => parseParamsFromCode(localCode), [localCode]);
+  const hasReturn = useMemo(() => /\breturn\b/.test(localCode), [localCode]);
   const codeValidationErrors = useMemo(() => {
     const errors: string[] = [];
     if (!codeMeta.label) errors.push("@name");
     if (!codeMeta.description) errors.push("@description");
     const codeLines = localCode.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
     if (codeLines.length === 0) errors.push("code body");
-    if (!/\breturn\b/.test(localCode)) errors.push("return statement");
+    if (!hasReturn) errors.push("return statement");
     return errors;
-  }, [codeMeta, localCode]);
+  }, [codeMeta, localCode, hasReturn]);
   const hasValidationErrors = codeValidationErrors.length > 0;
   const [showValidationError, setShowValidationError] = useState(false);
 
@@ -170,12 +170,12 @@ export default function EditToolPage() {
         }
       }
     } else if (event.toolName === "run_current_script") {
-      // Auto-open the test panel when AI runs a script
       setBottomOpen(true);
       if (event.type === "tool-call") {
-        runPanelRef.current?.setRunning(true);
+        const input = event.input as { testInput?: unknown };
+        runPanelRef.current?.setRunning(true, input?.testInput);
       } else if (event.type === "tool-result") {
-        const out = event.output as any;
+        const out = event.output as { success?: boolean; output?: unknown; error?: string; console?: string };
         runPanelRef.current?.setExternalResult({
           ok: out?.success ?? false,
           output: out?.output,
@@ -343,7 +343,9 @@ export default function EditToolPage() {
       {/* Body: [Editor + RunPanel] | CodingAgentPanel */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left: Editor (top) + RunPanel (bottom) */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative bg-background">
+          <EditorStatusRail name={codeMeta.label} description={codeMeta.description} params={codeParams} hasReturn={hasReturn} />
+
           {showValidationError && (saveError || hasValidationErrors) && (
             <ValidationBanner
               errors={saveError ? [saveError] : codeValidationErrors}
@@ -367,34 +369,33 @@ export default function EditToolPage() {
                     editor.getOriginalEditor().updateOptions({ lineNumbers: "off" });
                   }}
                 />
-                {/* Accept / Reject floating bar */}
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border/60 bg-muted">
-                  <span className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase mr-1">AI Draft</span>
-                  <button
-                    type="button"
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-card shadow-lg">
+                  <span className="text-xs font-medium text-brand-soft tracking-wide mr-1">AI draft</span>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<CheckCircle size={14} />}
                     onClick={() => {
                       const draft = codeDraft;
                       setLocalCode(draft);
-                      setSharedCode(draft);
                       setSavedCode(draft);
                       if (id) void apiClient.put(`/api/tools/${id}`, { codeContent: draft });
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary cursor-pointer bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-sm px-3 py-1 transition-all duration-150"
+                    className="!bg-success hover:!bg-success/90 !border-success"
                   >
-                    <CheckCircle size={14} />
                     Accept
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    icon={<CloseCircle size={14} />}
                     onClick={() => {
                       setCodeDraft(localCode);
                       if (id) void apiClient.put(`/api/tools/${id}`, { draftCode: localCode });
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-destructive hover:text-destructive-hover cursor-pointer bg-destructive/10 hover:bg-destructive/20 border border-destructive/30 rounded-sm px-3 py-1 transition-all duration-150"
                   >
-                    <CloseCircle size={14} />
                     Reject
-                  </button>
+                  </Button>
                 </div>
               </>
             ) : (
@@ -402,9 +403,7 @@ export default function EditToolPage() {
                 language="python"
                 value={localCode}
                 onChange={(v) => {
-                  const next = v ?? "";
-                  setLocalCode(next);
-                  setSharedCode(next);
+                  setLocalCode(v ?? "");
                 }}
                 onMount={(editor) => {
                   editorRef.current = editor;
@@ -415,50 +414,19 @@ export default function EditToolPage() {
             )}
           </div>
 
-          {/* Bottom panel toggle bar + RunPanel */}
-          {bottomOpen ? (
+          {bottomOpen && (
             <>
-              {/* Drag handle */}
               <div
                 onMouseDown={startBottomDrag}
                 className={[
-                  "h-[3px] shrink-0 w-full cursor-row-resize z-10 transition-colors duration-150",
-                  isDraggingBottom ? "bg-primary/50" : "bg-transparent hover:bg-primary/25",
+                  "h-px shrink-0 w-full cursor-row-resize z-10 transition-colors duration-150",
+                  isDraggingBottom ? "bg-brand/60" : "bg-border hover:bg-brand/40",
                 ].join(" ")}
               />
-
-              {/* Panel header */}
-              <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-border bg-card">
-                <div className="flex items-center gap-1.5">
-                  <TestTube size={12} className="text-primary" />
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Test</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setBottomOpen(false)}
-                  className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer bg-transparent border-0 px-1.5 py-0.5 rounded hover:bg-muted transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* RunPanel */}
-              <div className="shrink-0 border-t border-border overflow-hidden" style={{ height: bottomHeight }}>
-                <RunPanel ref={runPanelRef} code={sharedCode} />
+              <div className="shrink-0 overflow-hidden border-t border-border" style={{ height: bottomHeight }}>
+                <RunPanel ref={runPanelRef} onClose={() => setBottomOpen(false)} />
               </div>
             </>
-          ) : (
-            /* Collapsed: small bottom bar with open button */
-            <div className="shrink-0 flex items-center px-3 py-1 border-t border-border bg-card">
-              <button
-                type="button"
-                onClick={() => setBottomOpen(true)}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary cursor-pointer bg-transparent border-0 px-1.5 py-1 rounded hover:bg-muted transition-colors"
-              >
-                <Play size={10} />
-                Test
-              </button>
-            </div>
           )}
         </div>
 

@@ -3,7 +3,7 @@ import { AppLogo } from "src/components/AppLogo"; // used in empty state
 import { MessageBubble } from "./MessageBubble";
 import { ToolCallBubble } from "./ToolCallBubble";
 
-import RenderIf from "src/components/ui/RenderIf";
+import RenderIf from "src/components/RenderIf";
 import type { ChatAgentMessage } from "../common/types";
 import { isCallAgentToolName } from "../common/utils";
 
@@ -144,7 +144,7 @@ export function MessageList({
 
             {/* Thinking / generating indicator */}
             <RenderIf condition={generating}>
-              <div className="ca-fade-in mt-1">
+              <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
                 <RenderIf condition={!lastIsAgent}>
                   <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
                     <span

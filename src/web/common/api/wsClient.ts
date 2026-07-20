@@ -30,6 +30,7 @@ export type WsEventType =
   | "tools:created"
   | "tools:updated"
   | "tools:deleted"
+  | "tools:reordered"
   | "tool-folders:created"
   | "tool-folders:updated"
   | "tool-folders:deleted"

@@ -121,6 +121,7 @@ export interface AgentTool {
   codeContent: string;
   draftCode?: string | null;
   folderId?: string | null;
+  sortOrder?: number;
   isActive: boolean;
   createdAt: Date;
 }

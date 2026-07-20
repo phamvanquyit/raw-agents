@@ -1,49 +1,15 @@
 import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
-import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatAgentMessage } from "../common/types";
-import { CodeBlock } from "./CodeBlock";
-import { MarkdownTable } from "./MarkdownTable";
-import "./markdown.css";
 import { UserAvatar } from "src/components/UserAvatar";
+import type { ChatAgentMessage } from "../common/types";
+import { markdownComponents, markdownRootClass } from "./markdown";
 
 interface MessageAgentProps {
   msg: ChatAgentMessage;
   isFirstInGroup?: boolean;
   isLastInGroup?: boolean;
 }
-
-// Custom ReactMarkdown components — plugs in our decorated CodeBlock + MarkdownTable
-const markdownComponents: Components = {
-  code({ className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || "");
-    const lang = match?.[1] ?? "";
-    const codeText = String(children).replace(/\n$/, "");
-    const isBlock = codeText.includes("\n") || !!match;
-
-    if (isBlock) {
-      return <CodeBlock language={lang}>{codeText}</CodeBlock>;
-    }
-
-    // Inline code
-    return (
-      <code className={className} {...props}>
-        {children}
-      </code>
-    );
-  },
-  table({ children }) {
-    return <MarkdownTable>{children}</MarkdownTable>;
-  },
-  a({ href, children, ...props }) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-        {children}
-      </a>
-    );
-  },
-};
 
 const DEFAULT_AGENT_COLOR = "#71717a";
 
@@ -116,13 +82,13 @@ export function MessageAgent({ msg }: MessageAgentProps) {
   const isThinkingDone = thinkingDuration != null;
 
   return (
-    <div className="ca-fade-in mt-1">
+    <div className="mt-1 animate-[fadeIn_0.28s_ease-out_both]">
       {/* Thinking / reasoning content */}
       {thinking && !isThinkingDone && <ActiveThinking thinking={thinking} />}
       {thinking && isThinkingDone && <CompletedThinking thinking={thinking} duration={thinkingDuration} />}
       {/* Markdown content */}
       <div className="px-4 pb-0.5">
-        <div className="ca-markdown text-sm leading-relaxed">
+        <div className={markdownRootClass}>
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {msg.content}
           </ReactMarkdown>

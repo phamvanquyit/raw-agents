@@ -1,11 +1,8 @@
 import { Key } from "@solar-icons/react";
 import { useForm } from "@tanstack/react-form";
+import { Button, Form, Input, message } from "antd";
 import { apiClient } from "src/common/api";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { toast } from "src/components/ui/toast";
-import { SectionRow } from "./SectionRow";
+import { SectionRow } from "src/components/SectionRow";
 
 export function SecuritySection() {
   const form = useForm({
@@ -20,10 +17,10 @@ export function SecuritySection() {
           oldPassword: value.oldPassword,
           newPassword: value.newPassword,
         });
-        toast.success("Password changed successfully");
+        message.success("Password changed successfully");
         form.reset();
       } catch (error: any) {
-        toast.error(error.message || "Failed to change password");
+        message.error(error.message || "Failed to change password");
       }
     },
   });
@@ -43,11 +40,26 @@ export function SecuritySection() {
             onSubmit: ({ value }) => (!value ? "Current password is required" : undefined),
           }}
         >
-          {(field) => (
-            <Field label="Current Password" required error={field.state.meta.errors[0]?.toString()}>
-              <Input type="password" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
-            </Field>
-          )}
+          {(field) => {
+            const error = field.state.meta.errors[0]?.toString();
+            return (
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Current Password
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                validateStatus={error ? "error" : undefined}
+                help={error}
+                className="!mb-0"
+              >
+                <Input type="password" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
+              </Form.Item>
+            );
+          }}
         </form.Field>
         <form.Field
           name="newPassword"
@@ -59,11 +71,26 @@ export function SecuritySection() {
             },
           }}
         >
-          {(field) => (
-            <Field label="New Password" required error={field.state.meta.errors[0]?.toString()}>
-              <Input type="password" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
-            </Field>
-          )}
+          {(field) => {
+            const error = field.state.meta.errors[0]?.toString();
+            return (
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    New Password
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                validateStatus={error ? "error" : undefined}
+                help={error}
+                className="!mb-0"
+              >
+                <Input type="password" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
+              </Form.Item>
+            );
+          }}
         </form.Field>
         <form.Field
           name="confirmPassword"
@@ -75,15 +102,30 @@ export function SecuritySection() {
             },
           }}
         >
-          {(field) => (
-            <Field label="Confirm New Password" required error={field.state.meta.errors[0]?.toString()}>
-              <Input type="password" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
-            </Field>
-          )}
+          {(field) => {
+            const error = field.state.meta.errors[0]?.toString();
+            return (
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Confirm New Password
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                validateStatus={error ? "error" : undefined}
+                help={error}
+                className="!mb-0"
+              >
+                <Input type="password" value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />
+              </Form.Item>
+            );
+          }}
         </form.Field>
         <form.Subscribe selector={(s) => s.isSubmitting}>
           {(isSubmitting) => (
-            <Button type="submit" variant="secondary" size="sm" loading={isSubmitting} icon={<Key size={16} />}>
+            <Button htmlType="submit" type="default" size="small" loading={isSubmitting} icon={<Key size={16} />}>
               Update Password
             </Button>
           )}

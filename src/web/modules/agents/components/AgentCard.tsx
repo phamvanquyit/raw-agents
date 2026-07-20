@@ -1,6 +1,6 @@
 import type { Agent } from "src/common/types";
+import RenderIf from "src/components/RenderIf";
 import { UserAvatar } from "src/components/UserAvatar";
-import RenderIf from "src/components/ui/RenderIf";
 
 export interface AgentCardProps {
   agent: Agent;

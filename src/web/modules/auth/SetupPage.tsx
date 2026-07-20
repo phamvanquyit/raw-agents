@@ -5,27 +5,27 @@
  * Creates the first admin account + sets system timezone.
  */
 
+import { Button, Form, Input, Select, message } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
-import RenderIf from "src/components/ui/RenderIf";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { Select, type SelectOption } from "src/components/ui/options-select";
-import { toast } from "src/components/ui/toast";
+import RenderIf from "src/components/RenderIf";
 
 interface TimezoneItem {
   tz: string;
   offset: string;
 }
 
+interface TimezoneOption {
+  value: string;
+  label: string;
+}
+
 export default function SetupPage() {
   const navigate = useNavigate();
 
-  // Form state
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -34,11 +34,9 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Timezone options
-  const [timezoneOptions, setTimezoneOptions] = useState<SelectOption[]>([]);
+  const [timezoneOptions, setTimezoneOptions] = useState<TimezoneOption[]>([]);
   const [checking, setChecking] = useState(true);
 
-  // Check if setup is needed; redirect if already done
   useEffect(() => {
     apiClient
       .get<{ needsSetup: boolean }>("/api/auth/setup-status")
@@ -48,12 +46,11 @@ export default function SetupPage() {
         }
       })
       .catch(() => {
-        // If API fails, still show setup page
+        /* still show setup page */
       })
       .finally(() => setChecking(false));
   }, [navigate]);
 
-  // Fetch timezone list
   useEffect(() => {
     apiClient
       .get<TimezoneItem[]>("/api/settings/timezones")
@@ -64,14 +61,13 @@ export default function SetupPage() {
         }));
         setTimezoneOptions(options);
 
-        // Auto-detect timezone
         const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
         if (detected && items.some((i) => i.tz === detected)) {
           setTimezone(detected);
         }
       })
       .catch(() => {
-        // Silently fail — user can still type timezone
+        /* user can still select timezone */
       });
   }, []);
 
@@ -79,7 +75,6 @@ export default function SetupPage() {
     e.preventDefault();
     setError("");
 
-    // Validate
     if (!username || !name || !password) {
       setError("Please fill in all fields");
       return;
@@ -109,7 +104,7 @@ export default function SetupPage() {
         timezone,
       });
       setAuthToken(result.token);
-      toast.success(`Welcome, ${result.user.name}! Setup complete.`);
+      message.success(`Welcome, ${result.user.name}! Setup complete.`);
       navigate("/", { replace: true });
     } catch (err: any) {
       setError(err.message || "Setup failed");
@@ -118,7 +113,6 @@ export default function SetupPage() {
     }
   };
 
-  // Don't render until we've checked setup status
   if (checking) return null;
 
   return (
@@ -141,7 +135,17 @@ export default function SetupPage() {
                 <div className="h-px flex-1 bg-border" />
               </div>
 
-              <Field label="Name" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Name
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Input
                   type="text"
                   value={name}
@@ -151,9 +155,19 @@ export default function SetupPage() {
                   autoFocus
                   disabled={loading}
                 />
-              </Field>
+              </Form.Item>
 
-              <Field label="Username" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Username
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Input
                   type="text"
                   value={username}
@@ -162,9 +176,19 @@ export default function SetupPage() {
                   autoComplete="username"
                   disabled={loading}
                 />
-              </Field>
+              </Form.Item>
 
-              <Field label="Password" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Password
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Input
                   type="password"
                   value={password}
@@ -173,9 +197,19 @@ export default function SetupPage() {
                   autoComplete="new-password"
                   disabled={loading}
                 />
-              </Field>
+              </Form.Item>
 
-              <Field label="Confirm Password" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Confirm Password
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Input
                   type="password"
                   value={confirmPassword}
@@ -184,7 +218,7 @@ export default function SetupPage() {
                   autoComplete="new-password"
                   disabled={loading}
                 />
-              </Field>
+              </Form.Item>
 
               <div className="flex items-center gap-2 mt-2 mb-1">
                 <div className="h-px flex-1 bg-border" />
@@ -192,17 +226,28 @@ export default function SetupPage() {
                 <div className="h-px flex-1 bg-border" />
               </div>
 
-              <Field label="Timezone" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Timezone
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Select
-                  value={timezone}
+                  value={timezone || undefined}
                   onChange={(val) => setTimezone(val)}
                   options={timezoneOptions}
                   placeholder="Select timezone..."
-                  searchable
-                  searchPlaceholder="Search timezones..."
+                  showSearch
+                  optionFilterProp="label"
+                  className="w-full"
                   disabled={loading}
                 />
-              </Field>
+              </Form.Item>
 
               <RenderIf condition={!!error}>
                 <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -210,7 +255,7 @@ export default function SetupPage() {
                 </div>
               </RenderIf>
 
-              <Button type="submit" variant="primary" size="lg" block loading={loading} className="mt-1">
+              <Button htmlType="submit" type="primary" size="large" block loading={loading} className="mt-1">
                 Complete Setup
               </Button>
             </div>

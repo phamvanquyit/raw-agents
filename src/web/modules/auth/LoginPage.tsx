@@ -1,13 +1,10 @@
+import { Button, Form, Input, message } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, clearAuthToken, getAuthToken, setAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
-import RenderIf from "src/components/ui/RenderIf";
-import { Button } from "src/components/ui/button";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
-import { toast } from "src/components/ui/toast";
+import RenderIf from "src/components/RenderIf";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -17,18 +14,15 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
 
-  // Check if initial setup is needed, or if already logged in
   useEffect(() => {
     const check = async () => {
       try {
-        // Check setup status first
         const status = await apiClient.get<{ needsSetup: boolean }>("/api/auth/setup-status");
         if (status.needsSetup) {
           navigate("/setup", { replace: true });
           return;
         }
 
-        // If user already has a valid token, redirect to dashboard
         const token = getAuthToken();
         if (token) {
           try {
@@ -36,12 +30,11 @@ export default function LoginPage() {
             navigate("/", { replace: true });
             return;
           } catch {
-            // Token invalid — clear it and show login form
             clearAuthToken();
           }
         }
       } catch {
-        // If API fails, show login form anyway
+        /* show login form */
       } finally {
         setChecking(false);
       }
@@ -62,7 +55,7 @@ export default function LoginPage() {
     try {
       const result = await apiClient.post<{ token: string; user: User }>("/api/auth/login", { username, password });
       setAuthToken(result.token);
-      toast.success(`Welcome back, ${result.user.name || result.user.username}!`);
+      message.success(`Welcome back, ${result.user.name || result.user.username}!`);
       navigate("/", { replace: true });
     } catch (err: any) {
       setError(err.message || "Login failed");
@@ -87,7 +80,17 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="px-6 pb-6 pt-2">
             <div className="flex flex-col gap-4">
-              <Field label="Username or Email" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Username or Email
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Input
                   type="text"
                   value={username}
@@ -97,9 +100,19 @@ export default function LoginPage() {
                   autoFocus
                   disabled={loading}
                 />
-              </Field>
+              </Form.Item>
 
-              <Field label="Password" required>
+              <Form.Item
+                label={
+                  <span className="text-muted-foreground">
+                    Password
+                    <span className="text-destructive"> *</span>
+                  </span>
+                }
+                layout="vertical"
+                required
+                className="!mb-0"
+              >
                 <Input
                   type="password"
                   value={password}
@@ -108,7 +121,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   disabled={loading}
                 />
-              </Field>
+              </Form.Item>
 
               <RenderIf condition={!!error}>
                 <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -116,7 +129,7 @@ export default function LoginPage() {
                 </div>
               </RenderIf>
 
-              <Button type="submit" variant="primary" size="lg" block loading={loading} className="mt-1">
+              <Button htmlType="submit" type="primary" size="large" block loading={loading} className="mt-1">
                 Sign In
               </Button>
             </div>

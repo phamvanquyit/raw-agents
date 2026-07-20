@@ -4,13 +4,12 @@
 // Receives edges from tools (right-top) and callable agents (right-bottom).
 
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import { Popover, Switch } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AvatarEditorPanel } from "src/components/AvatarEditorPanel";
+import { ModelPicker } from "src/components/ModelPicker";
 import { UserAvatar } from "src/components/UserAvatar";
-import { ModelPicker } from "src/components/ui/model-picker";
-import { Popover, PopoverContent, PopoverTrigger } from "src/components/ui/popover";
-import { Switch } from "src/components/ui/switch";
 
 export type AgentConfigNodeData = {
   name: string;
@@ -149,19 +148,21 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
               setAvatarOpen(open);
               if (!open) void flushAvatarSave();
             }}
+            trigger="click"
+            placement="bottom"
+            content={
+              <div className="w-80 p-4">
+                <AvatarEditorPanel avatar={localAvatar} name={localName || data.name} saving={avatarSaving} onChange={handleAvatarDraftChange} />
+              </div>
+            }
           >
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="rounded-full ring-2 ring-transparent hover:ring-primary/30 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-primary/40"
-                title="Edit avatar"
-              >
-                <UserAvatar avatar={localAvatar} name={localName || data.name} size={80} />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="center" className="w-80 p-4" onOpenAutoFocus={(e) => e.preventDefault()}>
-              <AvatarEditorPanel avatar={localAvatar} name={localName || data.name} saving={avatarSaving} onChange={handleAvatarDraftChange} />
-            </PopoverContent>
+            <button
+              type="button"
+              className="rounded-full ring-2 ring-transparent hover:ring-primary/30 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-primary/40"
+              title="Edit avatar"
+            >
+              <UserAvatar avatar={localAvatar} name={localName || data.name} size={80} />
+            </button>
           </Popover>
         </div>
       </div>
@@ -300,7 +301,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
                 </div>
               </div>
               <div onClick={(e) => e.stopPropagation()}>
-                <Switch checked={data.isPublic} onCheckedChange={data.onTogglePublish} />
+                <Switch checked={data.isPublic} onChange={data.onTogglePublish} />
               </div>
             </div>
           </div>

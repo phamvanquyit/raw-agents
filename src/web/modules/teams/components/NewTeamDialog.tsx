@@ -1,9 +1,7 @@
 import { ArrowRight, UsersGroupTwoRounded } from "@solar-icons/react";
+import { Button, Form, Input, Modal } from "antd";
+import type { InputRef } from "antd";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "src/components/ui/button";
-import { SimpleDialog } from "src/components/ui/dialog";
-import { Field } from "src/components/ui/form-field";
-import { Input } from "src/components/ui/input";
 import { createTeam } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch } from "src/store/store";
 
@@ -13,7 +11,7 @@ export function NewTeamDialog() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dispatch = useAppDispatch();
-  const nameRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<InputRef>(null);
 
   useEffect(() => {
     if (open) {
@@ -56,52 +54,65 @@ export function NewTeamDialog() {
 
   return (
     <>
-      {/* Trigger button */}
-      <Button id="canvas-new-team-btn" variant="primary" size="sm" icon={<UsersGroupTwoRounded width={13} height={13} />} onClick={() => setOpen(true)}>
+      <Button id="canvas-new-team-btn" type="primary" size="small" icon={<UsersGroupTwoRounded width={13} height={13} />} onClick={() => setOpen(true)}>
         New Team
       </Button>
 
-      {/* Dialog */}
-      {open && (
-        <SimpleDialog
-          open
-          onClose={handleClose}
-          title="New Team"
-          icon={<UsersGroupTwoRounded size={18} />}
-          width={420}
-          top={20}
-          footer={
-            <div className="flex flex-row justify-end gap-3">
-              <Button variant="ghost" size="sm" onClick={handleClose}>
-                Cancel
-              </Button>
-
-              <Button variant="primary" size="sm" loading={saving} onClick={handleCreate} icon={!saving ? <ArrowRight size={13} /> : undefined}>
-                {saving ? "Creating…" : "Create Team"}
-              </Button>
+      <Modal
+        open={open}
+        onCancel={handleClose}
+        title={
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+              <div className="text-[14px] leading-none text-muted-foreground">
+                <UsersGroupTwoRounded size={18} />
+              </div>
             </div>
-          }
-        >
-          <div className="flex flex-col gap-4">
-            <Field label="Team Name" required>
-              <Input
-                ref={nameRef}
-                id="canvas-new-team-name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (error) setError("");
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder="e.g. Marketing, Engineering, Research…"
-                autoComplete="off"
-              />
-            </Field>
-
-            {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
+            <span className="truncate font-semibold text-foreground">New Team</span>
           </div>
-        </SimpleDialog>
-      )}
+        }
+        footer={
+          <div className="flex flex-row justify-end gap-3">
+            <Button type="text" size="small" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button type="primary" size="small" loading={saving} onClick={handleCreate} icon={!saving ? <ArrowRight size={13} /> : undefined}>
+              {saving ? "Creating…" : "Create Team"}
+            </Button>
+          </div>
+        }
+        width={420}
+        style={{ top: 20 }}
+        centered={false}
+        destroyOnHidden
+      >
+        <div className="flex flex-col gap-4">
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Team Name<span className="text-destructive"> *</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
+            <Input
+              ref={nameRef}
+              id="canvas-new-team-name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError("");
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. Marketing, Engineering, Research…"
+              autoComplete="off"
+            />
+          </Form.Item>
+
+          {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
+        </div>
+      </Modal>
     </>
   );
 }

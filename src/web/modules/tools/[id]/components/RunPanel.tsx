@@ -1,11 +1,5 @@
 import { CloseCircle } from "@solar-icons/react";
-import { type Ref, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-
-import { MonacoEditor } from "src/components/ui/MonacoEditor";
-import type { Param } from "../../common/constants";
-import { parseParamsFromCode } from "../../common/utils";
-
-// ── Types ──────────────────────────────────────────────────────────────────────
+import { type Ref, forwardRef, useImperativeHandle, useRef, useState } from "react";
 
 type RunStatus = "idle" | "running" | "ok" | "error";
 
@@ -13,9 +7,22 @@ interface RunResult {
   status: RunStatus;
   output: string;
   console?: string;
+  input?: string;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+export interface RunPanelHandle {
+  setExternalResult: (result: {
+    ok: boolean;
+    output?: unknown;
+    error?: string;
+    console?: string;
+  }) => void;
+  setRunning: (running: boolean, testInput?: unknown) => void;
+}
+
+interface RunPanelProps {
+  onClose?: () => void;
+}
 
 function tryPretty(raw: unknown): string {
   if (typeof raw === "string") {
@@ -30,78 +37,34 @@ function tryPretty(raw: unknown): string {
   return String(raw);
 }
 
-function buildDefaultJson(params: Param[]): string {
-  const obj: Record<string, unknown> = {};
-  for (const p of params) {
-    if (p.type === "number") obj[p.name] = 0;
-    else if (p.type === "boolean") obj[p.name] = false;
-    else if (p.type === "array") obj[p.name] = [];
-    else if (p.type === "object") obj[p.name] = {};
-    else obj[p.name] = "";
-  }
-  return JSON.stringify(obj, null, 2);
-}
-
-// ── RunPanel ──────────────────────────────────────────────────────────────────
-// Redesigned for narrow sidebar (280-380px) — Dark neon theme
-
-interface RunPanelProps {
-  code: string;
-}
-
-export interface RunPanelHandle {
-  setExternalResult: (result: {
-    ok: boolean;
-    output?: any;
-    error?: string;
-    console?: string;
-  }) => void;
-  setRunning: (running: boolean) => void;
-}
-
-export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, ref: Ref<RunPanelHandle>) {
+export const RunPanel = forwardRef(function RunPanel({ onClose }: RunPanelProps, ref: Ref<RunPanelHandle>) {
   const [result, setResult] = useState<RunResult | null>(null);
-  const [runPhase, setRunPhase] = useState<"idle" | "installing" | "running">("idle");
-  const [hasJsonError, setHasJsonError] = useState(false);
-
-  const jsonTextRef = useRef("{}");
-  const [jsonText, setJsonText] = useState("{}");
-
-  const params = useMemo(() => parseParamsFromCode(code), [code]);
-  const prevParamKeysRef = useRef<string>("");
-
-  useEffect(() => {
-    const keys = params.map((p) => p.name).join(",");
-    if (keys === prevParamKeysRef.current) return;
-    prevParamKeysRef.current = keys;
-    const defaultJson = params.length > 0 ? buildDefaultJson(params) : "{}";
-    setJsonText(defaultJson);
-    jsonTextRef.current = defaultJson;
-  }, [params]);
+  const [runPhase, setRunPhase] = useState<"idle" | "running">("idle");
+  const [liveInput, setLiveInput] = useState<string | undefined>(undefined);
+  const pendingInputRef = useRef<string | undefined>(undefined);
 
   useImperativeHandle(
     ref,
     () => ({
       setExternalResult: (res) => {
+        const input = pendingInputRef.current;
         setRunPhase("idle");
-        if (res.ok) {
-          setResult({
-            status: "ok",
-            output: tryPretty(res.output),
-            console: res.console?.trim() || undefined,
-          });
-        } else {
-          setResult({
-            status: "error",
-            output: tryPretty(res.error ?? "Unknown error"),
-            console: res.console?.trim() || undefined,
-          });
-        }
+        setResult({
+          status: res.ok ? "ok" : "error",
+          output: tryPretty(res.ok ? res.output : (res.error ?? "Unknown error")),
+          console: res.console?.trim() || undefined,
+          input,
+        });
+        pendingInputRef.current = undefined;
+        setLiveInput(undefined);
       },
-      setRunning: (running) => {
+      setRunning: (running, testInput) => {
         if (running) {
+          const inputStr = testInput !== undefined ? tryPretty(testInput) : undefined;
+          pendingInputRef.current = inputStr;
+          setLiveInput(inputStr);
           setRunPhase("running");
-          setResult({ status: "running", output: "" });
+          setResult({ status: "running", output: "", input: inputStr });
         } else {
           setRunPhase("idle");
         }
@@ -110,134 +73,88 @@ export const RunPanel = forwardRef(function RunPanel({ code }: RunPanelProps, re
     [],
   );
 
-  const isRunning = runPhase !== "idle";
-
-  const phaseLabel = runPhase === "installing" ? "Installing deps…" : runPhase === "running" ? "Running…" : "";
-
-  const editorLineCount = Math.min(12, Math.max(5, (jsonText.match(/\n/g)?.length ?? 0) + 1));
+  const isRunning = runPhase === "running";
+  const displayInput = result?.input ?? liveInput;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* ── Input section ── */}
-      <div className="shrink-0 p-3 border-b border-border">
-        {/* Header + Run button */}
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Input</span>
+    <div className="h-full flex flex-col overflow-hidden bg-card">
+      <div className="shrink-0 flex items-center justify-between gap-2 px-4 h-10 border-b border-border">
+        <span className="text-xs font-medium text-muted-foreground">Agent test</span>
+        <div className="flex items-center gap-1.5">
+          {result && !isRunning && (
+            <span
+              className={[
+                "inline-flex items-center h-5 px-1.5 rounded-sm text-[11px] font-medium",
+                result.status === "ok" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
+              ].join(" ")}
+            >
+              {result.status === "ok" ? "OK" : "Error"}
+            </span>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              title="Close"
+              onClick={onClose}
+              className="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer border-0 bg-transparent"
+            >
+              <CloseCircle size={13} />
+            </button>
+          )}
         </div>
+      </div>
 
-        {/* Param badges */}
-        {params.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {params.map((p) => (
-              <span
-                key={p.name}
-                className={[
-                  "inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-mono",
-                  p.required ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-                ].join(" ")}
-              >
-                {p.name}
-              </span>
-            ))}
+      <div className="flex-1 min-h-0 overflow-auto game-scrollbar">
+        {!result && !isRunning && (
+          <div className="flex items-center justify-center h-full p-4">
+            <p className="text-xs text-muted-foreground m-0">Agent test runs will appear here.</p>
           </div>
         )}
 
-        {/* JSON editor */}
-        <div className="rounded-md overflow-hidden border border-border">
-          <MonacoEditor
-            language="json"
-            value={jsonText}
-            height={editorLineCount * 18}
-            onChange={(v) => {
-              const val = v ?? "{}";
-              setJsonText(val);
-              jsonTextRef.current = val;
-            }}
-            onValidate={(markers) => {
-              setHasJsonError(markers.some((m) => m.severity >= 8));
-            }}
-            options={{
-              fontSize: 11,
-              fontFamily: "var(--font-family-mono)",
-              minimap: { enabled: false },
-              lineNumbers: "off",
-              folding: false,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              wordWrap: "on",
-              scrollbar: { vertical: "hidden", horizontal: "hidden" },
-              overviewRulerLanes: 0,
-              renderLineHighlight: "none",
-              stickyScroll: { enabled: false },
-              padding: { top: 6, bottom: 6 },
-            }}
-          />
-        </div>
+        {isRunning && !displayInput && (
+          <div className="flex items-center justify-center h-full p-4">
+            <p className="text-xs text-muted-foreground m-0">Agent is running a test…</p>
+          </div>
+        )}
 
-        {hasJsonError && <span className="text-[10px] text-destructive mt-1 block">Invalid JSON — fix before running</span>}
-      </div>
-
-      {/* ── Output section ── */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
-          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Output</span>
-          {result && !isRunning && (
-            <div className="flex items-center gap-1">
-              <span
-                className={[
-                  "inline-flex items-center px-1.5 py-0.5 rounded text-2xs font-semibold",
-                  result.status === "ok" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive",
-                ].join(" ")}
-              >
-                {result.status === "ok" ? "✓ OK" : "✗ Error"}
-              </span>
-              <button
-                type="button"
-                title="Clear"
-                onClick={() => setResult(null)}
-                className="p-0.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer border-0 bg-transparent"
-              >
-                <CloseCircle size={11} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-y-auto game-scrollbar p-3">
-          {!result && !isRunning && (
-            <div className="flex items-center justify-center h-full">
-              <span className="text-[11px] text-muted-foreground italic">Run to see output</span>
-            </div>
-          )}
-
-          {isRunning && (
-            <div className="flex items-center justify-center h-full">
-              <span className="text-[11px] text-muted-foreground italic">{phaseLabel}</span>
-            </div>
-          )}
-
-          {result && !isRunning && (
-            <div className="flex flex-col gap-2">
-              {result.console && (
-                <div>
-                  <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Console</span>
-                  <pre className="bg-muted text-muted-foreground text-[10px] font-mono leading-relaxed px-2.5 py-2 rounded-md overflow-x-auto whitespace-pre-wrap break-all m-0">
-                    {result.console}
-                  </pre>
-                </div>
-              )}
-              <div
-                className={[
-                  "rounded-md border px-2.5 py-2",
-                  result.status === "ok" ? "bg-primary/5 border-primary/15 text-primary" : "bg-destructive/5 border-destructive/15 text-destructive",
-                ].join(" ")}
-              >
-                <pre className="font-mono text-[10px] leading-relaxed whitespace-pre-wrap break-all m-0">{result.output || "(empty output)"}</pre>
+        {(displayInput || (result && !isRunning) || (isRunning && displayInput)) && (
+          <div className="flex flex-col gap-4 p-4 min-w-0">
+            {displayInput && (
+              <div className="min-w-0">
+                <span className="text-xs font-medium text-muted-foreground mb-2 block">Input</span>
+                <pre className="bg-background border border-border-subtle text-foreground text-xs font-mono leading-relaxed px-3 py-2.5 rounded-lg overflow-x-auto whitespace-pre m-0">
+                  {displayInput}
+                </pre>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+
+            {isRunning && displayInput && <p className="text-xs text-muted-foreground m-0">Running…</p>}
+
+            {result && !isRunning && (
+              <>
+                {result.console && (
+                  <div className="min-w-0">
+                    <span className="text-xs font-medium text-muted-foreground mb-2 block">Console</span>
+                    <pre className="bg-background border border-border-subtle text-tertiary-foreground text-xs font-mono leading-relaxed px-3 py-2.5 rounded-lg overflow-x-auto whitespace-pre m-0">
+                      {result.console}
+                    </pre>
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <span className="text-xs font-medium text-muted-foreground mb-2 block">Output</span>
+                  <div
+                    className={[
+                      "rounded-lg border px-3 py-2.5 overflow-x-auto",
+                      result.status === "ok" ? "bg-success/5 border-success/20 text-success" : "bg-destructive/5 border-destructive/20 text-destructive",
+                    ].join(" ")}
+                  >
+                    <pre className="font-mono text-xs leading-relaxed whitespace-pre m-0">{result.output || "(empty output)"}</pre>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

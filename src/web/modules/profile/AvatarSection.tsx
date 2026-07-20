@@ -1,11 +1,11 @@
 import { Refresh } from "@solar-icons/react";
+import { message } from "antd";
 import { useState } from "react";
 import { apiClient } from "src/common/api";
 import { fetchCurrentUser } from "src/common/authSlice";
+import { SectionRow } from "src/components/SectionRow";
 import { UserAvatar, genConfig } from "src/components/UserAvatar";
-import { toast } from "src/components/ui/toast";
 import { useAppDispatch } from "src/store/store";
-import { SectionRow } from "./SectionRow";
 
 interface AvatarSectionProps {
   avatar: string;
@@ -26,9 +26,9 @@ export function AvatarSection({ avatar, name, onAvatarChange }: AvatarSectionPro
     try {
       await apiClient.patch("/api/auth/update-profile", { avatar: newAvatar });
       await dispatch(fetchCurrentUser()).unwrap();
-      toast.success("Avatar updated");
+      message.success("Avatar updated");
     } catch (error: any) {
-      toast.error(error.message || "Failed to update avatar");
+      message.error(error.message || "Failed to update avatar");
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,6 @@
 import { AltArrowDown } from "@solar-icons/react";
 import { cn } from "src/common/lib/cn";
-import { ModelPicker, shortModelName } from "src/components/ui/model-picker";
+import { ModelPicker, shortModelName } from "src/components/ModelPicker";
 import { ProviderIcon } from "src/modules/llm-providers/components/ProviderIcon";
 
 interface SelectModelProps {
