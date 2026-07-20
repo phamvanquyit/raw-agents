@@ -8,13 +8,13 @@ Self-hosted AI Agent Manager with a beautiful web UI. Create, manage and schedul
 
 ## Features
 
-- 🤖 **Multi-Agent Management** — Create and configure multiple AI agents with different personas and tools
+- 🤖 **Multi-Agent Management** — Create and configure multiple AI agents with personas, tools, and avatars
 - 🧠 **Multi-Provider** — OpenAI, Anthropic, Google Gemini, OpenRouter and more via LangChain
-- 🛠️ **Custom Tools** — Give agents custom tools (JavaScript / Python) to interact with the world
-- 🔌 **MCP Servers** — Connect remote MCP servers (SSE / Streamable HTTP) and attach synced tools to agents
+- 🛠️ **Custom Tools** — JavaScript / Python tools, organized in folders on a kanban-style Tools page
+- 🔌 **MCP Servers** — Connect remote MCP servers (SSE / Streamable HTTP), sync catalogs, and attach tools to agents
 - 🌐 **Browser Tool** — Builtin stealth headless browser for navigate, click, fill, snapshot, and screenshots
 - ⏰ **Scheduled Tasks** — Cron-based task scheduling for automated agent runs
-- 💬 **Real-time Chat** — WebSocket-powered live streaming chat with agents
+- 💬 **Real-time Chat** — Live streaming chat with agents; refresh (F5) resumes an in-progress reply
 - 🔗 **Public Sharing** — Share agents via public links with optional password protection
 
 ## Installation
