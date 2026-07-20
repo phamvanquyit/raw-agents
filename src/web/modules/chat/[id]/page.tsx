@@ -447,7 +447,7 @@ export default function PublicChatPage() {
         <button
           type="button"
           onClick={() => setSidebarOpen((v) => !v)}
-          className="md:hidden absolute top-4 left-4 z-20 text-muted hover:text-soft transition-colors p-2 rounded-lg hover:bg-white/5 bg-surface/80 backdrop-blur-sm border border-border/20"
+          className="md:hidden absolute top-4 left-4 z-20 text-muted-foreground hover:text-muted-foreground transition-colors p-2 rounded-lg hover:bg-accent bg-card border border-border/20"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <title>Menu</title>
@@ -464,7 +464,7 @@ export default function PublicChatPage() {
             emptyStateContent={
               <div className="flex flex-col items-center gap-2">
                 <AppLogo size={32} />
-                <span className="text-[12px] text-muted">Ask me anything to get started</span>
+                <span className="text-[12px] text-muted-foreground">Ask me anything to get started</span>
               </div>
             }
             messagesEndRef={messagesEndRef}
@@ -474,7 +474,7 @@ export default function PublicChatPage() {
             <button
               type="button"
               onClick={() => scrollToBottom({ force: true })}
-              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-surface text-soft hover:text-foreground hover:bg-surface-raised transition-colors"
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               aria-label="Scroll to bottom"
             >
               <AltArrowDown width={14} height={14} />

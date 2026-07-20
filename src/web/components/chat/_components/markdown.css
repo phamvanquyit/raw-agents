@@ -6,6 +6,7 @@
   font-size: 14px;
   line-height: 1.75;
   word-break: break-word;
+  color: var(--foreground);
 }
 
 /* ── Paragraphs ─────────────────────────────────────────────────────────── */
@@ -47,18 +48,18 @@
 
 /* ── Bold / Italic ──────────────────────────────────────────────────────── */
 .ca-markdown strong {
-  font-weight: 400;
+  font-weight: 600;
 }
 .ca-markdown em {
   font-style: italic;
-  color: var(--color-soft);
+  color: var(--tertiary-foreground);
 }
 
 /* ── Inline code ────────────────────────────────────────────────────────── */
 .ca-markdown code {
-  font-family: var(--font-family-mono, "Geist Mono Variable", "Geist Mono", "SFMono-Regular", Menlo, monospace);
+  font-family: var(--font-family-mono, "JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace);
   font-size: 13px;
-  background: var(--color-surface-raised);
+  background: var(--muted);
   padding: 1px 6px;
   border-radius: 5px;
 }
@@ -82,9 +83,9 @@
 .ca-markdown blockquote {
   margin: 12px 0;
   padding: 4px 10px;
-  border-left: 2px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--primary) 40%, transparent);
   border-radius: 0 8px 8px 0;
-  color: var(--color-soft);
+  color: var(--tertiary-foreground);
   font-style: italic;
 }
 
@@ -117,20 +118,20 @@
 .ca-markdown hr {
   margin: 16px 0;
   border: none;
-  /* border-top: 1px solid var(--color-border); */
+  /* border-top: 1px solid var(--border); */
 }
 
 /* ── Links ──────────────────────────────────────────────────────────────── */
 .ca-markdown a {
-  color: var(--color-primary);
+  color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--primary) 40%, transparent);
   transition: color 0.15s, text-decoration-color 0.15s;
 }
 .ca-markdown a:hover {
-  color: var(--color-primary-hover);
-  text-decoration-color: color-mix(in srgb, var(--color-primary-hover) 70%, transparent);
+  color: var(--primary);
+  text-decoration-color: color-mix(in srgb, var(--primary) 70%, transparent);
 }
 
 /* ── Tables ─────────────────────────────────────────────────────────────── */
@@ -141,26 +142,26 @@
   min-width: 100%;
 }
 .ca-markdown th {
-  background: color-mix(in srgb, var(--color-white) 7%, transparent);
-  color: var(--color-main);
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--foreground);
   font-weight: 600;
   padding: 7px 12px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border);
   text-align: left;
   white-space: nowrap;
 }
 .ca-markdown td {
   padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  color: var(--color-main);
+  border: 1px solid var(--border);
+  color: var(--foreground);
 }
 .ca-markdown tr:nth-child(even) td {
-  background: color-mix(in srgb, var(--color-background) 70%, transparent);
+  background: color-mix(in srgb, var(--background) 70%, transparent);
 }
 
 /* ── Textarea placeholder ───────────────────────────────────────────────── */
 .chat-input-textarea::placeholder {
-  color: var(--color-muted);
+  color: var(--muted-foreground);
 }
 
 /* ── ToolCallBubble scrollable pre ─────────────────────────────────────── */
@@ -183,7 +184,7 @@
   background: var(--color-scrollbar-thumb-hover);
 }
 
-/* ── Compact markdown — for embedded conversations (CallAgentBubble) ─── */
+/* ── Compact markdown — for embedded conversations (CallAgentToolUI) ─── */
 .ca-markdown-compact {
   font-size: 13px;
   line-height: 1.65;

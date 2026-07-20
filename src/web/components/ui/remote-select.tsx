@@ -132,22 +132,22 @@ export function RemoteSelect<T extends string | number = string>({
         onClick={handleToggle}
         className={cn(
           "w-full h-field-md px-3 rounded-md text-sm text-left",
-          "bg-surface border border-border",
+          "bg-card border border-border",
           "flex items-center justify-between gap-2",
           "transition-all duration-150 cursor-pointer outline-none",
-          isOpen ? "border-primary" : "hover:border-border-hover",
-          disabled && "bg-surface-raised text-muted border-border cursor-not-allowed",
+          isOpen ? "border-primary" : "hover:border-border",
+          disabled && "bg-muted text-muted-foreground border-border cursor-not-allowed",
         )}
       >
-        <span className={displayLabel ? "text-main truncate" : "text-muted truncate"}>{displayLabel ?? placeholder}</span>
-        <AltArrowDown width={13} height={13} className={cn("shrink-0 text-muted transition-transform duration-150", isOpen && "rotate-180")} />
+        <span className={displayLabel ? "text-foreground truncate" : "text-muted-foreground truncate"}>{displayLabel ?? placeholder}</span>
+        <AltArrowDown width={13} height={13} className={cn("shrink-0 text-muted-foreground transition-transform duration-150", isOpen && "rotate-180")} />
       </button>
 
       {createPortal(
         isOpen && (
           <div
             ref={dropdownRef}
-            className="fixed z-[9999] rounded-xl border border-border bg-surface shadow-drop overflow-hidden animate-in fade-in-0 zoom-in-95"
+            className="fixed z-[9999] rounded-md border border-border bg-card shadow-drop overflow-hidden animate-in fade-in-0 zoom-in-95"
             style={{
               ...(flipUp ? { bottom: window.innerHeight - dropdownPos.top } : { top: dropdownPos.top }),
               left: dropdownPos.left,
@@ -161,7 +161,7 @@ export function RemoteSelect<T extends string | number = string>({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full h-field-sm px-2.5 rounded-md text-xs text-main bg-background border border-border placeholder:text-muted focus:outline-none focus:border-primary transition-all duration-150"
+                className="w-full h-field-sm px-2.5 rounded-md text-xs text-foreground bg-background border border-border placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all duration-150"
               />
             </div>
             <div className="max-h-44 overflow-y-auto py-1">
@@ -172,7 +172,7 @@ export function RemoteSelect<T extends string | number = string>({
                   ))}
                 </div>
               ) : options.length === 0 ? (
-                <div className="px-3 py-4 text-xs text-muted text-center">{search ? "No results found" : "No options available"}</div>
+                <div className="px-3 py-4 text-xs text-muted-foreground text-center">{search ? "No results found" : "No options available"}</div>
               ) : (
                 options.map((opt) => (
                   <button
@@ -182,7 +182,7 @@ export function RemoteSelect<T extends string | number = string>({
                     onClick={() => handleSelect(opt)}
                     className={cn(
                       "w-full px-3 py-2 text-sm text-left truncate transition-colors duration-100 cursor-pointer",
-                      opt.value === value ? "bg-primary-50 text-primary font-medium" : "text-soft hover:bg-surface-raised",
+                      opt.value === value ? "bg-accent text-primary font-medium" : "text-muted-foreground hover:bg-muted",
                       opt.disabled && "opacity-40 cursor-not-allowed",
                     )}
                     title={typeof opt.label === "string" ? opt.label : undefined}

@@ -3,10 +3,11 @@
 // edges to the central agent config node.
 
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
-import { AppLogo } from "src/components/AppLogo";
+import { UserAvatar } from "src/components/UserAvatar";
 
 export type CallableAgentNodeData = {
   name: string;
+  avatar?: string | null;
   aiModel: string | null;
   isConnected: boolean; // whether this agent is in callableAgentIds
   width?: number; // uniform width for all agent nodes (measured via Canvas API)
@@ -17,10 +18,8 @@ export type CallableAgentNodeType = Node<CallableAgentNodeData, "callableAgent">
 export function CallableAgentNode({ data }: NodeProps<CallableAgentNodeType>) {
   return (
     <div
-      className={`relative flex items-center gap-2 px-3 py-2 rounded-md border bg-surface transition-all duration-200 cursor-default ${
-        data.isConnected
-          ? "border-[#38D9C8]/30 hover:border-[#38D9C8]/50 hover:shadow-[0_0_16px_rgba(56,217,200,0.12)]"
-          : "border-border hover:border-border-hover"
+      className={`relative flex items-center gap-2 px-3 py-2 rounded-md border bg-card transition-all duration-200 cursor-default ${
+        data.isConnected ? "border-edge-call-agent/30 hover:border-edge-call-agent/50" : "border-border hover:border-border"
       }`}
       style={data.width ? { width: data.width } : undefined}
     >
@@ -28,14 +27,12 @@ export function CallableAgentNode({ data }: NodeProps<CallableAgentNodeType>) {
       <Handle
         type="source"
         position={Position.Left}
-        className="!w-2 !h-2 !bg-surface-raised !border-2 !border-white/20 transition-all duration-150 hover:!bg-[#38D9C8] hover:!border-[#38D9C8] hover:!w-3 hover:!h-3"
+        className="!w-2 !h-2 !bg-muted !border-2 !border-white/20 transition-all duration-150 hover:!bg-edge-call-agent hover:!border-edge-call-agent hover:!w-3 hover:!h-3"
       />
 
-      <div className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0 bg-[rgba(56,217,200,0.12)]">
-        <AppLogo size={14} fill={data.isConnected ? "#38D9C8" : "#8b8d94"} strokeWidth={1} />
-      </div>
+      <UserAvatar avatar={data.avatar} name={data.name} size={24} className="shrink-0 ring-1 ring-border" />
 
-      <div className="text-xs font-semibold text-main leading-[1.3]">{data.name}</div>
+      <div className="text-xs font-semibold text-foreground leading-[1.3]">{data.name}</div>
     </div>
   );
 }

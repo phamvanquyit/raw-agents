@@ -5,8 +5,8 @@ import type { User } from "src/common/types";
 import RenderIf from "src/components/ui/RenderIf";
 import { Button } from "src/components/ui/button";
 import { SimpleDialog } from "src/components/ui/dialog";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
 import { toast } from "src/components/ui/toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -70,11 +70,11 @@ export function ResetPasswordDialog({ user, onClose }: ResetPasswordDialogProps)
         <RenderIf condition={!!generatedPassword}>
           {() => (
             <div className="flex flex-col gap-2">
-              <p className="text-xs text-soft">
+              <p className="text-xs text-muted-foreground">
                 New password for <strong>{user.username}</strong>:
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-3 py-2 rounded-lg bg-surface-raised border border-border font-mono text-sm text-main select-all">
+                <code className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border font-mono text-sm text-foreground select-all">
                   {generatedPassword}
                 </code>
                 <Button
@@ -88,14 +88,14 @@ export function ResetPasswordDialog({ user, onClose }: ResetPasswordDialogProps)
                   Copy
                 </Button>
               </div>
-              <p className="text-[10px] text-muted mt-1">Make sure to save this password. It won't be shown again.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Make sure to save this password. It won't be shown again.</p>
             </div>
           )}
         </RenderIf>
 
         <RenderIf condition={!!error}>
-          <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20">
-            <p className="text-xs text-danger font-medium">{error}</p>
+          <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
+            <p className="text-xs text-destructive font-medium">{error}</p>
           </div>
         </RenderIf>
       </div>

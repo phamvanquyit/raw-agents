@@ -30,7 +30,7 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
       mermaid.initialize({
         startOnLoad: false,
         theme: "default",
-        fontFamily: '"Geist Variable", "Geist", ui-sans-serif, -apple-system, "system-ui", "Segoe UI", Helvetica, Arial, sans-serif',
+        fontFamily: '"Inter Variable", Inter, ui-sans-serif, -apple-system, "system-ui", "Segoe UI", Helvetica, Arial, sans-serif',
       });
 
       const raw = children.trim();
@@ -149,7 +149,7 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
 
   if (error) {
     return (
-      <div className="my-3.5 rounded-xl bg-primary-50 border border-danger/30 p-4 text-xs text-danger">
+      <div className="my-3.5 rounded-md bg-accent border border-destructive/30 p-4 text-xs text-destructive">
         <p className="font-medium mb-1">Mermaid render error</p>
         <pre className="whitespace-pre-wrap text-[11px] opacity-70">{error}</pre>
       </div>
@@ -158,12 +158,12 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
 
   return (
     <>
-      <div className="my-3.5 last:mb-0 group relative rounded-xl border border-border/60 bg-surface overflow-hidden">
+      <div className="my-3.5 last:mb-0 group relative rounded-md border border-border/60 bg-card overflow-hidden">
         {/* Fullscreen button — top right */}
         <button
           type="button"
           onClick={openFullscreen}
-          className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-lg bg-surface border border-border text-muted text-xs cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary hover:border-primary/30"
+          className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-lg bg-card border border-border text-muted-foreground text-xs cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary hover:border-primary/30"
           title="Fullscreen"
         >
           <FullScreen size={14} />
@@ -179,7 +179,7 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
       {/* Fullscreen dialog */}
       <dialog
         ref={dialogRef}
-        className="m-0 p-0 w-screen h-screen max-w-none max-h-none bg-surface backdrop:bg-black/40 open:flex open:flex-col"
+        className="m-0 p-0 w-screen h-screen max-w-none max-h-none bg-card backdrop:bg-black/40 open:flex open:flex-col"
         onKeyDown={(e) => {
           if (e.key === "Escape") closeFullscreen();
         }}
@@ -187,7 +187,7 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
         <button
           type="button"
           onClick={closeFullscreen}
-          className="fixed top-5 right-5 z-50 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface border border-border text-soft text-sm cursor-pointer shadow-md hover:text-primary hover:border-primary/30 transition-colors"
+          className="fixed top-5 right-5 z-50 flex items-center gap-1.5 px-3 py-2 rounded-md bg-card border border-border text-muted-foreground text-sm cursor-pointer shadow-md hover:text-primary hover:border-primary/30 transition-colors"
           title="Exit fullscreen"
         >
           <QuitFullScreen size={16} />
@@ -195,10 +195,10 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
         </button>
 
         {/* Zoom indicator */}
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-border text-xs text-soft shadow-md select-none">
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border text-xs text-muted-foreground shadow-md select-none">
           <span>{Math.round(zoom * 100)}%</span>
           {!isDefaultView && (
-            <button type="button" onClick={resetView} className="text-muted hover:text-primary cursor-pointer transition-colors">
+            <button type="button" onClick={resetView} className="text-muted-foreground hover:text-primary cursor-pointer transition-colors">
               Reset
             </button>
           )}

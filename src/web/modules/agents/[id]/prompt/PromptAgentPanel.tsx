@@ -28,12 +28,12 @@ export function PromptAgentPanel({ providerId, model, streamUrl, maxSteps = 6, o
   const { scrollRef: scrollContainerRef, scrollToBottom } = useAutoScroll();
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-surface overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 bg-card overflow-hidden">
       <MessageList
         messages={messages}
         generating={generating}
         assistantLabel="Prompt AI"
-        emptyStateContent={<p className="text-xs text-muted leading-relaxed max-w-50 m-0">Describe your request to refine the prompt.</p>}
+        emptyStateContent={<p className="text-xs text-muted-foreground leading-relaxed max-w-50 m-0">Describe your request to refine the prompt.</p>}
         messagesEndRef={messagesEndRef}
         scrollContainerRef={scrollContainerRef}
         className="selectable"

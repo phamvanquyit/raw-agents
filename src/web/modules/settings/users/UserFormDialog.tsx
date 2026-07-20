@@ -5,9 +5,9 @@ import type { User } from "src/common/types";
 import RenderIf from "src/components/ui/RenderIf";
 import { Button } from "src/components/ui/button";
 import { SimpleDialog } from "src/components/ui/dialog";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
-import { Select } from "src/components/ui/select";
+import { Select } from "src/components/ui/options-select";
 import { toast } from "src/components/ui/toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────

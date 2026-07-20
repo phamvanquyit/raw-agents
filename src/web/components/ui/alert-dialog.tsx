@@ -5,7 +5,7 @@ import { Button } from "src/components/ui/button";
 import { cn } from "src/lib/utils";
 
 // ─── AlertDialog ──────────────────────────────────────────────────────────────
-// Dark neon — Radix AlertDialog primitives.
+// AlertDialog — Radix AlertDialog primitives.
 
 const AlertDialog = AlertDialogPrimitive.Root;
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
@@ -16,12 +16,12 @@ const AlertDialogContent = forwardRef<
 >(function AlertDialogContent({ className, ...props }, ref) {
   return (
     <AlertDialogPrimitive.Portal>
-      <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+      <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
       <AlertDialogPrimitive.Content
         ref={ref}
         className={cn(
           "fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]",
-          "w-full max-w-[280px] rounded-xl border border-border bg-surface p-4 shadow-panel",
+          "w-full max-w-[280px] rounded-md border border-border bg-card p-4 shadow-panel",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className,
@@ -34,7 +34,7 @@ const AlertDialogContent = forwardRef<
 
 const AlertDialogTitle = forwardRef<React.ComponentRef<typeof AlertDialogPrimitive.Title>, React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>>(
   function AlertDialogTitle({ className, ...props }, ref) {
-    return <AlertDialogPrimitive.Title ref={ref} className={cn("text-xs font-semibold text-main", className)} {...props} />;
+    return <AlertDialogPrimitive.Title ref={ref} className={cn("text-xs font-semibold text-foreground", className)} {...props} />;
   },
 );
 
@@ -42,7 +42,7 @@ const AlertDialogDescription = forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
 >(function AlertDialogDescription({ className, ...props }, ref) {
-  return <AlertDialogPrimitive.Description ref={ref} className={cn("text-2xs text-soft leading-snug", className)} {...props} />;
+  return <AlertDialogPrimitive.Description ref={ref} className={cn("text-2xs text-muted-foreground leading-snug", className)} {...props} />;
 });
 
 const AlertDialogAction = AlertDialogPrimitive.Action;

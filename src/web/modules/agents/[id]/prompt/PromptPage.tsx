@@ -170,10 +170,7 @@ export function PromptPage() {
         {/* Placeholder overlay */}
         {isEmpty && (
           <div className="absolute inset-0 pointer-events-none select-none" style={{ padding: "14px 0", paddingLeft: 20 }}>
-            <span
-              className="text-muted/50"
-              style={{ fontSize: 14, fontFamily: "'Geist Mono Variable', 'Geist Mono', monospace", lineHeight: "1.7", whiteSpace: "pre-wrap" }}
-            >
+            <span className="text-muted-foreground" style={{ fontSize: 14, fontFamily: "var(--font-family-mono)", lineHeight: "1.7", whiteSpace: "pre-wrap" }}>
               {PLACEHOLDER}
             </span>
           </div>

@@ -5,8 +5,8 @@ import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import RenderIf from "src/components/ui/RenderIf";
 import { Button } from "src/components/ui/button";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
 import { toast } from "src/components/ui/toast";
 
 export default function LoginPage() {
@@ -75,33 +75,16 @@ export default function LoginPage() {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-background">
-      {/* Decorative subtle pattern */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
-        <div
-          className="w-full h-full"
-          style={{
-            backgroundImage: "radial-gradient(circle at 25px 25px, #87867f 1px, transparent 0)",
-            backgroundSize: "50px 50px",
-          }}
-        />
-      </div>
-
       <div className="relative w-full max-w-[400px] mx-4">
-        {/* Card */}
-        <div className="rounded-xl border border-border bg-surface shadow-panel overflow-hidden">
-          {/* Top highlight */}
-          <div className="h-px bg-linear-to-r from-transparent via-primary/30 to-transparent" />
-
-          {/* Header */}
+        <div className="rounded-md border border-border bg-card overflow-hidden">
           <div className="flex flex-col items-center pt-8 pb-4 px-6">
             <div className="mb-4">
               <AppLogo size={48} />
             </div>
-            <h1 className="font-display text-xl font-medium text-main mb-1">Welcome Back</h1>
-            <p className="text-sm text-muted">Sign in to continue to Raw Agents</p>
+            <h1 className="font-display text-xl font-medium text-foreground mb-1">Welcome Back</h1>
+            <p className="text-sm text-muted-foreground">Sign in to continue to Raw Agents</p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="px-6 pb-6 pt-2">
             <div className="flex flex-col gap-4">
               <Field label="Username or Email" required>
@@ -127,10 +110,9 @@ export default function LoginPage() {
                 />
               </Field>
 
-              {/* Error message */}
               <RenderIf condition={!!error}>
-                <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20">
-                  <p className="text-xs text-danger font-medium">{error}</p>
+                <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <p className="text-xs text-destructive font-medium">{error}</p>
                 </div>
               </RenderIf>
 
@@ -139,15 +121,11 @@ export default function LoginPage() {
               </Button>
             </div>
           </form>
-
-          {/* Bottom accent */}
-          <div className="h-1 bg-linear-to-r from-primary/20 via-primary/40 to-primary/20" />
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-center mt-4 gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-          <span className="text-[10px] text-muted font-mono">Raw Agents</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Raw Agents</span>
         </div>
       </div>
     </div>

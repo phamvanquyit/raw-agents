@@ -110,8 +110,8 @@ export function InputArea({
   return (
     <div
       className={cn(
-        "shrink-0 mx-2 mb-2 rounded-xl border overflow-hidden flex flex-col transition-all duration-150",
-        noModel ? "bg-surface/60 border-border" : "bg-surface border-border",
+        "shrink-0 mx-2 mb-2 rounded-md border overflow-hidden flex flex-col transition-all duration-150",
+        noModel ? "bg-card/60 border-border" : "bg-card border-border",
       )}
     >
       {/* Textarea */}
@@ -130,7 +130,9 @@ export function InputArea({
         placeholder={noModel ? "Select a model to start chatting" : placeholder}
         className={cn(
           "w-full px-3 pt-3 pb-2 border-none outline-none resize-none text-[14px] leading-relaxed min-h-[22px] max-h-[120px] overflow-auto block chat-input-textarea transition-colors bg-transparent",
-          noModel ? "text-muted cursor-not-allowed placeholder:text-border-hover" : "text-main placeholder:text-muted placeholder:font-normal",
+          noModel
+            ? "text-muted-foreground cursor-not-allowed placeholder:text-border-hover"
+            : "text-foreground placeholder:text-muted-foreground placeholder:font-normal",
         )}
       />
 
@@ -155,7 +157,7 @@ export function InputArea({
               className={[
                 "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-100",
                 sendEnabled
-                  ? "bg-primary border border-primary-600 cursor-pointer hover:bg-primary-hover active:scale-95"
+                  ? "bg-primary border border-primary-600 cursor-pointer hover:bg-primary/90 active:scale-95"
                   : "bg-border cursor-not-allowed opacity-50",
               ].join(" ")}
             >
@@ -176,7 +178,7 @@ export function InputArea({
             type="button"
             onClick={onCancel}
             title="Stop"
-            className="w-7 h-7 rounded-lg bg-surface-raised border border-border-hover flex items-center justify-center shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-100"
+            className="w-7 h-7 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-100"
           >
             <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
               <title>Stop</title>

@@ -16,7 +16,7 @@ export type DashedGroupNodeType = Node<DashedGroupNodeData, "dashedGroup">;
 export function DashedGroupNode({ data }: NodeProps<DashedGroupNodeType>) {
   return (
     <div
-      className="rounded-xl pointer-events-none"
+      className="rounded-md pointer-events-none"
       style={{
         width: data.width,
         height: data.height,

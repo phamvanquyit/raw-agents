@@ -1,49 +1,26 @@
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
-import { forwardRef } from "react";
+"use client";
+
+import { CheckIcon } from "lucide-react";
+import { Checkbox as CheckboxPrimitive } from "radix-ui";
+import type * as React from "react";
+
 import { cn } from "src/lib/utils";
 
-// ─── Checkbox ─────────────────────────────────────────────────────────────────
-// Dark neon — unchecked: dark surface, checked: electric lime.
-
-interface CheckboxProps extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> {
-  label?: string;
-}
-
-const Checkbox = forwardRef<React.ComponentRef<typeof CheckboxPrimitive.Root>, CheckboxProps>(function Checkbox({ className, label, ...props }, ref) {
-  const checkboxEl = (
+function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+  return (
     <CheckboxPrimitive.Root
-      ref={ref}
+      data-slot="checkbox"
       className={cn(
-        "peer h-4.5 w-4.5 shrink-0 rounded-sm border-2 cursor-pointer transition-all duration-150",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        "data-[state=checked]:bg-primary data-[state=checked]:border-primary/60 data-[state=checked]:text-secondary",
-        "data-[state=unchecked]:bg-surface data-[state=unchecked]:border-border hover:data-[state=unchecked]:border-border-hover",
+        "peer size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:data-[state=checked]:bg-primary",
         className,
       )}
       {...props}
     >
-      <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
-        <svg width={12} height={12} viewBox="0 0 12 12" fill="none" className="text-secondary" aria-hidden="true">
-          <title>Checked</title>
-          <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <CheckboxPrimitive.Indicator data-slot="checkbox-indicator" className="grid place-content-center text-current transition-none">
+        <CheckIcon className="size-3.5" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );
-
-  if (!label) return checkboxEl;
-
-  return (
-    // biome-ignore lint/a11y/noLabelWithoutControl: Radix Checkbox renders a button child inside the label
-    <label
-      className={cn("inline-flex items-center gap-2.5 select-none cursor-pointer group", props.disabled && "opacity-50 cursor-not-allowed pointer-events-none")}
-    >
-      {checkboxEl}
-      <span className="text-sm font-medium text-soft">{label}</span>
-    </label>
-  );
-});
+}
 
 export { Checkbox };
-export type { CheckboxProps };

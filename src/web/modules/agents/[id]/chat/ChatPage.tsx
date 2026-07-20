@@ -333,7 +333,7 @@ export function ChatPage() {
         {/* Messages area */}
         {loading ? (
           <div className="flex-1 flex items-center justify-center min-h-0">
-            <span className="text-[12px] text-[#8a7a5a] animate-pulse">Loading...</span>
+            <span className="text-[12px] text-muted-foreground animate-pulse">Loading...</span>
           </div>
         ) : (
           <div className="relative flex-1 min-h-0 flex flex-col">
@@ -344,8 +344,8 @@ export function ChatPage() {
               assistantLabel={agent.name}
               emptyStateContent={
                 <div className="flex flex-col items-center gap-2">
-                  <Plain3 width={28} height={28} className="text-[#5a5040] opacity-40" />
-                  <span className="text-[12px] text-[#8a7a5a]">Start a conversation with {agent.name}</span>
+                  <Plain3 width={28} height={28} className="text-muted-foreground opacity-50" />
+                  <span className="text-[12px] text-muted-foreground">Start a conversation with {agent.name}</span>
                 </div>
               }
               messagesEndRef={messagesEndRef}
@@ -355,7 +355,7 @@ export function ChatPage() {
               <button
                 type="button"
                 onClick={() => scrollToBottom({ force: true })}
-                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-surface text-soft hover:text-foreground hover:bg-surface-raised transition-colors"
+                className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center size-8 rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 aria-label="Scroll to bottom"
               >
                 <AltArrowDown width={14} height={14} />

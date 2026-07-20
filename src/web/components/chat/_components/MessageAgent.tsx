@@ -6,7 +6,7 @@ import type { ChatAgentMessage } from "../common/types";
 import { CodeBlock } from "./CodeBlock";
 import { MarkdownTable } from "./MarkdownTable";
 import "./markdown.css";
-import { AppLogo } from "src/components/AppLogo";
+import { UserAvatar } from "src/components/UserAvatar";
 
 interface MessageAgentProps {
   msg: ChatAgentMessage;
@@ -45,19 +45,26 @@ const markdownComponents: Components = {
   },
 };
 
-const DEFAULT_AGENT_COLOR = "#6b9a4a";
+const DEFAULT_AGENT_COLOR = "#71717a";
 
-/** AI assistant avatar — exported for reuse in ToolCallBubble & CallAgentBubble */
-export function AgentAvatar({ color }: { color?: string | null }) {
+/** AI assistant avatar — exported for reuse in ToolCallBubble & tool UIs */
+export function AgentAvatar({
+  color,
+  avatar,
+  name,
+}: {
+  color?: string | null;
+  avatar?: string | null;
+  name?: string | null;
+}) {
   const c = color ?? DEFAULT_AGENT_COLOR;
-  // Derive a very light bg from the color (10% opacity overlay on white)
   const bgStyle = {
     background: `${c}18`,
     border: `1px solid ${c}40`,
   };
   return (
     <div className="w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center overflow-hidden" style={bgStyle} aria-label="Assistant avatar">
-      <AppLogo size={28} />
+      <UserAvatar avatar={avatar} name={name} size={28} />
     </div>
   );
 }
@@ -76,10 +83,10 @@ function ActiveThinking({ thinking }: { thinking: string }) {
     <div className="px-4 pb-1">
       <div className="flex items-center gap-1.5 py-0.5">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
-        <span className="text-[10px] text-muted/70 select-none">Thinking…</span>
+        <span className="text-xs text-tertiary-foreground select-none">Thinking…</span>
       </div>
-      <div ref={scrollRef} className="mt-1 px-3 py-2 rounded-lg border border-border bg-surface-raised/50 max-h-40 overflow-y-auto [scrollbar-width:thin]">
-        <p className="text-xs text-muted leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
+      <div ref={scrollRef} className="mt-1 px-3 py-2 rounded-lg border border-border bg-muted/50 max-h-40 overflow-y-auto [scrollbar-width:thin]">
+        <p className="text-xs text-tertiary-foreground leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
       </div>
     </div>
   );
@@ -90,14 +97,14 @@ export function CompletedThinking({ thinking, duration }: { thinking: string; du
   const label = duration < 1 ? "Thought for <1s" : `Thought for ${duration}s`;
   return (
     <details className="px-4 pb-2 group/thinking">
-      <summary className="cursor-pointer select-none text-[13px] text-muted hover:text-muted flex items-center gap-1 py-0.5 list-none [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer select-none text-[13px] text-tertiary-foreground hover:text-foreground flex items-center gap-1 py-0.5 list-none [&::-webkit-details-marker]:hidden">
         <svg className="w-3 h-3 transition-transform group-open/thinking:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
         <span>{label}</span>
       </summary>
       <div className="mt-1 pl-4 max-h-40 overflow-y-auto [scrollbar-width:thin]">
-        <p className="text-[13px] text-muted leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
+        <p className="text-[13px] text-tertiary-foreground leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
       </div>
     </details>
   );

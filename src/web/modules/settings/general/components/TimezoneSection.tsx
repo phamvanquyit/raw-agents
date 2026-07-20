@@ -2,7 +2,7 @@ import { MapPoint } from "@solar-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
-import { Select, type SelectOption } from "src/components/ui/select";
+import { Select, type SelectOption } from "src/components/ui/options-select";
 import { toast } from "src/components/ui/toast";
 import { getSettingValues, saveSettingValues } from "src/modules/settings/common/settingsApi";
 
@@ -49,7 +49,7 @@ export function TimezoneSection() {
     <div>
       <div className="flex items-center gap-2 mb-3">
         <MapPoint width={13} height={13} className="text-primary" />
-        <span className="text-xs font-bold text-soft">Timezone</span>
+        <span className="text-xs font-bold text-muted-foreground">Timezone</span>
       </div>
 
       <Select
@@ -61,7 +61,7 @@ export function TimezoneSection() {
         searchable
         searchPlaceholder="Search timezone…"
       />
-      <p className="text-xs text-muted mt-2 ml-3">Used for scheduled tasks &amp; time display in agent system prompts.</p>
+      <p className="text-xs text-muted-foreground mt-2 ml-3">Used for scheduled tasks &amp; time display in agent system prompts.</p>
     </div>
   );
 }

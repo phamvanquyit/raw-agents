@@ -1,28 +1,72 @@
 /**
  * UsersSection — user management panel in Settings.
- *
- * Table-based layout for listing users with create/edit/delete/reset-password.
- * Data fetched locally per coding rules.
  */
 
-import { PenNewSquare, Restart, TrashBinMinimalistic, UserPlus } from "@solar-icons/react";
+import { PenNewSquare, Restart, TrashBinMinimalistic, UserPlus, UsersGroupTwoRounded } from "@solar-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
 import type { User } from "src/common/types";
 import RenderIf from "src/components/ui/RenderIf";
+import { Avatar, AvatarFallback, AvatarImage } from "src/components/ui/avatar";
 import { Button } from "src/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "src/components/ui/empty";
+import { Skeleton } from "src/components/ui/skeleton";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { RoleBadge } from "./RoleBadge";
 import { UserFormDialog } from "./UserFormDialog";
 
-// ─── Main Section ────────────────────────────────────────────────────────────
+function userInitials(user: User) {
+  const source = user.name?.trim() || user.username;
+  return source.charAt(0).toUpperCase();
+}
+
+function UserRow({
+  user,
+  onEdit,
+  onReset,
+  onDelete,
+}: {
+  user: User;
+  onEdit: () => void;
+  onReset: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40">
+      <Avatar size="default" className="size-9">
+        {user.avatar ? <AvatarImage src={user.avatar} alt={user.name || user.username} /> : null}
+        <AvatarFallback className="bg-accent text-sm font-medium text-accent-foreground">{userInitials(user)}</AvatarFallback>
+      </Avatar>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-medium text-foreground">{user.name || user.username}</span>
+          <RoleBadge role={user.role} />
+        </div>
+        <span className="mt-0.5 block truncate text-xs text-tertiary-foreground">@{user.username}</span>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-0.5">
+        <Button variant="ghost" size="icon-sm" icon={<PenNewSquare />} onClick={onEdit} aria-label={`Edit ${user.username}`} />
+        <Button variant="ghost" size="icon-sm" icon={<Restart />} onClick={onReset} aria-label={`Reset password for ${user.username}`} />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          icon={<TrashBinMinimalistic />}
+          onClick={onDelete}
+          aria-label={`Delete ${user.username}`}
+          className="text-destructive hover:text-destructive"
+        />
+      </div>
+    </div>
+  );
+}
 
 export function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dialog states
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [resetUser, setResetUser] = useState<User | null>(null);
@@ -44,99 +88,69 @@ export function UsersPage() {
     fetchUsers();
   }, [fetchUsers]);
 
+  const adminCount = users.filter((u) => u.role === "admin").length;
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-main">User Management</h3>
-          <p className="text-[11px] text-muted mt-0.5">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="tabular-nums">
             {users.length} user{users.length !== 1 ? "s" : ""}
-          </p>
+          </span>
+          <RenderIf condition={!loading && users.length > 0}>
+            <>
+              <span className="text-border">·</span>
+              <span className="tabular-nums">{adminCount} admin</span>
+            </>
+          </RenderIf>
         </div>
-        <Button id="settings-add-user" variant="primary" size="sm" icon={<UserPlus width={11} height={11} />} onClick={() => setShowCreate(true)}>
+        <Button id="settings-add-user" variant="primary" icon={<UserPlus width={14} height={14} />} onClick={() => setShowCreate(true)}>
           Add User
         </Button>
       </div>
 
-      {/* Loading */}
       <RenderIf condition={loading}>
-        <div className="flex items-center justify-center h-32 gap-1.5">
+        <div className="overflow-hidden rounded-xl border border-border-subtle bg-card">
           {[0, 1, 2].map((i) => (
-            <span key={i} className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+            <div key={i} className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 last:border-b-0">
+              <Skeleton className="size-9 rounded-full" />
+              <div className="flex flex-1 flex-col gap-2">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-7 w-16 rounded-md" />
+            </div>
           ))}
         </div>
       </RenderIf>
 
-      {/* Table */}
       <RenderIf condition={!loading && users.length > 0}>
         {() => (
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-surface-raised/50">
-                  <th className="text-[11px] font-medium text-muted uppercase tracking-wider px-4 py-2.5">User</th>
-
-                  <th className="text-[11px] font-medium text-muted uppercase tracking-wider px-4 py-2.5">Role</th>
-                  <th className="text-[11px] font-medium text-muted uppercase tracking-wider px-4 py-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {users.map((user) => (
-                  <tr key={user.id} className="group hover:bg-white/[0.02] transition-colors">
-                    {/* User */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                          <span className="text-[10px] font-bold text-primary uppercase">{user.name?.charAt(0) || user.username.charAt(0)}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <span className="text-[13px] font-medium text-main block truncate">{user.name || user.username}</span>
-                          <span className="text-[11px] text-muted block truncate">@{user.username}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Role */}
-                    <td className="px-4 py-3">
-                      <RoleBadge role={user.role} />
-                    </td>
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<PenNewSquare width={13} height={13} />}
-                          onClick={() => setEditUser(user)}
-                          className="!px-1.5"
-                        />
-                        <Button variant="ghost" size="sm" icon={<Restart width={13} height={13} />} onClick={() => setResetUser(user)} className="!px-1.5" />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<TrashBinMinimalistic width={13} height={13} />}
-                          onClick={() => setDeleteUser(user)}
-                          className="!px-1.5 text-danger hover:text-danger"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="overflow-hidden rounded-xl border border-border-subtle bg-card divide-y divide-border-subtle">
+            {users.map((user) => (
+              <UserRow key={user.id} user={user} onEdit={() => setEditUser(user)} onReset={() => setResetUser(user)} onDelete={() => setDeleteUser(user)} />
+            ))}
           </div>
         )}
       </RenderIf>
 
-      {/* Empty state */}
       <RenderIf condition={!loading && users.length === 0}>
-        <div className="flex flex-col items-center justify-center py-12 gap-2 rounded-lg border border-border">
-          <p className="text-sm text-muted">No users found</p>
-        </div>
+        <Empty className="rounded-xl border border-dashed border-border bg-card">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <UsersGroupTwoRounded />
+            </EmptyMedia>
+            <EmptyTitle>No users yet</EmptyTitle>
+            <EmptyDescription>Invite teammates and assign roles to share this workspace.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="primary" size="sm" icon={<UserPlus width={12} height={12} />} onClick={() => setShowCreate(true)}>
+              Add User
+            </Button>
+          </EmptyContent>
+        </Empty>
       </RenderIf>
 
-      {/* Dialogs */}
       <RenderIf condition={showCreate}>
         <UserFormDialog onClose={() => setShowCreate(false)} onSaved={fetchUsers} />
       </RenderIf>

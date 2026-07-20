@@ -49,10 +49,10 @@ const MCP_PARENT_GAP_Y = 56; // vertical spacing between MCP server cards
 
 // ─── Edge Colors ─────────────────────────────────────────────────────────────
 
-const TOOL_EDGE_COLOR = "#a8ff53";
-const MCP_EDGE_COLOR = "#FF8A3D";
-const AGENT_EDGE_COLOR = "#38D9C8";
-const PUBLISH_EDGE_COLOR = "#9c9af2";
+const TOOL_EDGE_COLOR = "var(--edge-tool)";
+const MCP_EDGE_COLOR = "var(--edge-mcp)";
+const AGENT_EDGE_COLOR = "var(--edge-call-agent)";
+const PUBLISH_EDGE_COLOR = "var(--edge-call-agent)";
 
 // ─── Canvas Text Measurement ─────────────────────────────────────────────────
 
@@ -84,9 +84,11 @@ interface AgentFlowViewProps {
   systemPrompt: string;
   name: string;
   description: string;
+  avatar: string | null;
   onModelChange: (providerId: string, model: string) => void;
   onNameChange: (name: string) => void;
   onDescriptionChange: (desc: string) => void;
+  onAvatarChange: (avatar: string) => void | Promise<void>;
   // Publish
   isPublic: boolean;
   onTogglePublish: (checked: boolean) => void;
@@ -113,9 +115,11 @@ function AgentFlowInner({
   systemPrompt,
   name,
   description,
+  avatar,
   onModelChange,
   onNameChange,
   onDescriptionChange,
+  onAvatarChange,
   isPublic,
   onTogglePublish,
   publicPassword,
@@ -216,11 +220,13 @@ function AgentFlowInner({
       data: {
         name,
         description,
+        avatar,
         selectedProviderId,
         aiModel,
         systemPrompt,
         onNameChange,
         onDescriptionChange,
+        onAvatarChange,
         onModelChange,
         onOpenPrompt: () => setPromptModalOpen(true),
         isPublic,
@@ -257,7 +263,7 @@ function AgentFlowInner({
         zIndex: -1,
         selectable: false,
         draggable: false,
-        data: { label: "Builtin Tools", color: "#a8ff53", width: groupWidth, height: builtinGroupHeight },
+        data: { label: "Builtin Tools", color: "var(--edge-tool)", width: groupWidth, height: builtinGroupHeight },
       };
       result.push(builtinBackdrop);
 
@@ -288,7 +294,7 @@ function AgentFlowInner({
         zIndex: -1,
         selectable: false,
         draggable: false,
-        data: { label: "Custom Tools", color: "#9c9af2", width: groupWidth, height: customGroupHeight },
+        data: { label: "Custom Tools", color: "var(--edge-call-agent)", width: groupWidth, height: customGroupHeight },
       };
       result.push(customBackdrop);
 
@@ -319,7 +325,7 @@ function AgentFlowInner({
         zIndex: -1,
         selectable: false,
         draggable: false,
-        data: { label: "MCP", color: "#FF8A3D", width: groupWidth, height: mcpSectionHeight },
+        data: { label: "MCP", color: "var(--edge-mcp)", width: groupWidth, height: mcpSectionHeight },
       };
       result.push(mcpBackdrop);
 
@@ -358,7 +364,7 @@ function AgentFlowInner({
         zIndex: -1,
         selectable: false,
         draggable: false,
-        data: { label: "Call Agent", color: "#38D9C8", width: groupWidth, height: agentsGroupHeight },
+        data: { label: "Call Agent", color: "var(--edge-call-agent)", width: groupWidth, height: agentsGroupHeight },
       };
       result.push(agentsBackdrop);
 
@@ -369,6 +375,7 @@ function AgentFlowInner({
           position: { x: ITEMS_COL_X, y: agentsGroupY + GROUP_PADDING_TOP + i * ITEM_GAP_Y },
           data: {
             name: ag.name,
+            avatar: ag.avatar,
             aiModel: ag.aiModel,
             isConnected: callableSet.has(ag.id),
             width: groupInnerWidth,
@@ -395,9 +402,11 @@ function AgentFlowInner({
     systemPrompt,
     name,
     description,
+    avatar,
     onModelChange,
     onNameChange,
     onDescriptionChange,
+    onAvatarChange,
     isPublic,
     onTogglePublish,
     publicPassword,
@@ -583,14 +592,14 @@ function AgentFlowInner({
   return (
     <div className="flex-1 agent-detail-flow">
       <style>{`
-        .agent-detail-flow .react-flow__renderer { background: var(--color-background) !important }
+        .agent-detail-flow .react-flow__renderer { background: var(--background) !important }
         .agent-detail-flow .react-flow__background pattern line { stroke: rgba(255,255,255,0.03) !important }
         .agent-detail-flow .react-flow__background pattern circle { fill: rgba(255,255,255,0.06) !important }
         .agent-detail-flow .react-flow__edge-path { stroke-width: 2 }
         .agent-detail-flow .react-flow__edge.animated .react-flow__edge-path { stroke-dasharray: 6 4; animation: agentFlowDash 1.2s linear infinite }
         .agent-detail-flow .react-flow__edge { cursor: pointer }
         .agent-detail-flow .react-flow__edge:hover .react-flow__edge-path { stroke-width: 3; opacity: 1 !important }
-        .agent-detail-flow .react-flow__selection { background: rgba(168,255,83,0.08); border: 1px solid rgba(168,255,83,0.25) }
+        .agent-detail-flow .react-flow__selection { background: color-mix(in srgb, var(--primary) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent) }
         @keyframes agentFlowDash { to { stroke-dashoffset: -20 } }
       `}</style>
       {/* ── Prompt Modal ── */}
@@ -602,7 +611,7 @@ function AgentFlowInner({
         height="85vh"
         noPadding
         icon={
-          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#a8ff53" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
             <polyline points="14 2 14 8 20 8" />
             <line x1="16" y1="13" x2="8" y2="13" />

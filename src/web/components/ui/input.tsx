@@ -1,39 +1,21 @@
-import { forwardRef } from "react";
+import * as React from "react";
 import { cn } from "src/lib/utils";
 
-// ─── Input ────────────────────────────────────────────────────────────────────
-// Dark neon — dark surface, neon lime focus border, rounded-md.
-
-type InputSize = "sm" | "md" | "lg";
-
-interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
-  inputSize?: InputSize;
-}
-
-const sizeClasses: Record<InputSize, string> = {
-  sm: "h-field-sm px-2.5 text-xs rounded-md",
-  md: "h-field-md px-3 text-sm rounded-md",
-  lg: "h-field-lg px-3.5 text-md rounded-md",
-};
-
-const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ inputSize = "md", className, ...rest }, ref) {
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(function Input({ className, type, ...props }, ref) {
   return (
     <input
       ref={ref}
+      type={type}
+      data-slot="input"
       className={cn(
-        "w-full font-normal border outline-none transition-all duration-150",
-        "bg-surface text-main",
-        "border-border",
-        "placeholder:text-muted",
-        "focus:border-primary focus:bg-surface",
-        "disabled:bg-surface-raised disabled:text-muted disabled:border-border disabled:cursor-not-allowed",
-        sizeClasses[inputSize],
+        "h-8 w-full min-w-0 rounded-md border border-input bg-card px-3 py-1 text-base transition-colors outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-quaternary-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+        "focus-visible:border-border focus-visible:outline-none focus-visible:ring-0",
+        "aria-invalid:border-destructive",
         className,
       )}
-      {...rest}
+      {...props}
     />
   );
 });
 
 export { Input };
-export type { InputProps, InputSize };

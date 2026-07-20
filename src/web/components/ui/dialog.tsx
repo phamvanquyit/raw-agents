@@ -3,7 +3,7 @@ import { type ReactNode, forwardRef } from "react";
 import { cn } from "src/lib/utils";
 
 // ─── Dialog ───────────────────────────────────────────────────────────────────
-// Dark neon — dark panels, subtle borders, flat depth. Radix Dialog primitives.
+// Dialog — Radix Dialog primitives with card surfaces.
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -16,7 +16,7 @@ const DialogOverlay = forwardRef<React.ComponentRef<typeof DialogPrimitive.Overl
       <DialogPrimitive.Overlay
         ref={ref}
         className={cn(
-          "fixed inset-0 z-50 bg-black/60",
+          "fixed inset-0 z-50 bg-black/80 backdrop-blur-sm",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
           className,
@@ -39,7 +39,7 @@ const DialogContent = forwardRef<
         className={cn(
           "fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]",
           "flex flex-col outline-none",
-          "rounded-xl border border-border bg-background shadow-panel",
+          "rounded-md border border-border bg-background shadow-panel",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
           className,
@@ -54,7 +54,7 @@ const DialogContent = forwardRef<
 });
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("px-3 py-2.5 border-b border-border bg-surface-raised shrink-0 flex items-center gap-2.5 min-w-0 rounded-t-xl", className)} {...props} />
+  <div className={cn("px-3 py-2.5 border-b border-border bg-muted shrink-0 flex items-center gap-2.5 min-w-0 rounded-t-md", className)} {...props} />
 );
 
 const DialogBody = ({ className, noPadding, ...props }: React.HTMLAttributes<HTMLDivElement> & { noPadding?: boolean }) =>
@@ -62,17 +62,17 @@ const DialogBody = ({ className, noPadding, ...props }: React.HTMLAttributes<HTM
     <div className={cn("relative flex-1 min-h-0 overflow-hidden", className)} {...props} />
   ) : (
     <div className={cn("relative px-3 py-3 overflow-y-auto min-h-0", className)}>
-      <div className="rounded-xl border border-border bg-surface p-3 shadow-card" {...props} />
+      <div className="rounded-md border border-border bg-card p-3 shadow-card" {...props} />
     </div>
   );
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("px-3 py-2.5 border-t border-border bg-surface-raised shrink-0 gap-3 rounded-b-xl", className)} {...props} />
+  <div className={cn("px-3 py-2.5 border-t border-border bg-muted shrink-0 gap-3 rounded-b-md", className)} {...props} />
 );
 
 const DialogTitle = forwardRef<React.ComponentRef<typeof DialogPrimitive.Title>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>>(
   function DialogTitle({ className, ...props }, ref) {
-    return <DialogPrimitive.Title ref={ref} className={cn("font-display font-semibold text-md text-main truncate", className)} {...props} />;
+    return <DialogPrimitive.Title ref={ref} className={cn("font-display font-semibold text-md text-foreground truncate", className)} {...props} />;
   },
 );
 
@@ -80,7 +80,7 @@ const DialogDescription = forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(function DialogDescription({ className, ...props }, ref) {
-  return <DialogPrimitive.Description ref={ref} className={cn("text-sm text-soft", className)} {...props} />;
+  return <DialogPrimitive.Description ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />;
 });
 
 /* ── SimpleDialog — convenience wrapper ────────────────────────────────────── */
@@ -142,21 +142,21 @@ function SimpleDialog({
           onPointerDownOutside={maskClosable ? undefined : (e) => e.preventDefault()}
           onInteractOutside={maskClosable ? undefined : (e) => e.preventDefault()}
         >
-          <div className="flex-1 rounded-xl border border-border/60 bg-background shadow-panel overflow-hidden flex flex-col max-h-[inherit]">
-            <div className="px-4 py-3 border-b border-border/40 shrink-0 flex items-center gap-2.5 min-w-0 rounded-t-xl">
+          <div className="flex-1 rounded-md border border-border/60 bg-background shadow-panel overflow-hidden flex flex-col max-h-[inherit]">
+            <div className="px-4 py-3 border-b border-border/40 shrink-0 flex items-center gap-2.5 min-w-0 rounded-t-md">
               {icon && (
-                <div className="flex items-center justify-center w-field-sm h-field-sm rounded-lg shrink-0 bg-surface-raised/60">
-                  <div className="text-soft text-[14px] leading-none">{icon}</div>
+                <div className="flex items-center justify-center w-field-sm h-field-sm rounded-lg shrink-0 bg-muted/60">
+                  <div className="text-muted-foreground text-[14px] leading-none">{icon}</div>
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                {title && <DialogPrimitive.Title className="font-display font-semibold text-md text-main truncate">{title}</DialogPrimitive.Title>}
+                {title && <DialogPrimitive.Title className="font-display font-semibold text-md text-foreground truncate">{title}</DialogPrimitive.Title>}
               </div>
               <DialogClose asChild>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 w-field-sm h-field-sm flex items-center justify-center rounded-lg text-muted hover:text-main hover:bg-surface-raised transition-all duration-150 cursor-pointer"
+                  className="shrink-0 w-field-sm h-field-sm flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 cursor-pointer"
                   aria-label="Close"
                 >
                   <svg aria-hidden="true" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -171,7 +171,7 @@ function SimpleDialog({
             ) : (
               <div className="relative px-5 pb-5 overflow-y-auto min-h-0">{children}</div>
             )}
-            {footer && <div className="px-5 py-3 border-t border-border/40 shrink-0 gap-3 rounded-b-xl">{footer}</div>}
+            {footer && <div className="px-5 py-3 border-t border-border/40 shrink-0 gap-3 rounded-b-md">{footer}</div>}
           </div>
         </DialogPrimitive.Content>
       </DialogPortal>

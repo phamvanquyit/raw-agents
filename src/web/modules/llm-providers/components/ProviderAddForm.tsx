@@ -2,9 +2,9 @@ import { useState } from "react";
 
 import type { LlmProvider } from "src/common/types";
 import { Button } from "src/components/ui/button";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
-import { Select, type SelectOption } from "src/components/ui/select";
+import { Select, type SelectOption } from "src/components/ui/options-select";
 import { PROVIDER_META, PROVIDER_OPTIONS, createLlmProvider, generateLabel } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
@@ -66,8 +66,8 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
   };
 
   return (
-    <div className="p-3.5 rounded-lg border border-border bg-surface-raised/60">
-      <div className="text-xs font-bold text-soft mb-3">New Provider</div>
+    <div className="p-3.5 rounded-lg border border-border bg-muted/60">
+      <div className="text-xs font-bold text-muted-foreground mb-3">New Provider</div>
       <div className="flex flex-col gap-3">
         <Field label="Provider">
           <Select
@@ -111,7 +111,7 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
             placeholder={PROVIDER_META[provider]?.defaultBase || "https://…"}
           />
         </Field>
-        {error && <div className="text-2xs text-danger font-medium">{error}</div>}
+        {error && <div className="text-2xs text-destructive font-medium">{error}</div>}
         <div className="flex items-center justify-end gap-2 pt-1">
           <Button variant="ghost" size="sm" onClick={handleCancel}>
             Cancel

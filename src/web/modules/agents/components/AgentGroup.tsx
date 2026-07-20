@@ -12,8 +12,8 @@ export default function AgentGroup({ title, agents, onNavigate }: AgentGroupProp
     <div className="">
       {/* Group header */}
       <div className="flex items-center gap-2.5 mb-3">
-        <h2 className="font-semibold text-main m-0">{title}</h2>
-        <span className="text-sm font-semibold py-px px-2 rounded-[10px] bg-black/6 text-muted">{agents.length}</span>
+        <h2 className="font-semibold text-foreground m-0">{title}</h2>
+        <span className="text-sm font-semibold py-px px-2 rounded-[10px] bg-muted text-muted-foreground">{agents.length}</span>
       </div>
 
       {/* Card Grid */}

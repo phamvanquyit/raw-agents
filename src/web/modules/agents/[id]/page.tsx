@@ -5,7 +5,7 @@ import { AltArrowLeft, MenuDots, TrashBinTrash } from "@solar-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
-import { AppLogo } from "src/components/AppLogo";
+import { UserAvatar } from "src/components/UserAvatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +80,7 @@ export default function AgentDetailPage() {
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [avatar, setAvatar] = useState<string | null>(null);
   const [teamId, setTeamId] = useState<string | null>(null);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [toolAssignments, setToolAssignments] = useState<AgentToolAssignment[]>([]);
@@ -119,6 +120,7 @@ export default function AgentDetailPage() {
 
     setName(ag.name);
     setDescription(ag.description ?? "");
+    setAvatar(ag.avatar ?? null);
     setTeamId((ag as typeof ag & { teamId?: string | null }).teamId ?? null);
     setSystemPrompt(ag.systemPrompt ?? "");
     setAiModel(ag.aiModel ?? "");
@@ -246,6 +248,14 @@ export default function AgentDetailPage() {
     [id, dispatch],
   );
 
+  const handleFlowAvatarChange = useCallback(
+    async (newAvatar: string) => {
+      setAvatar(newAvatar);
+      if (id) await dispatch(updateAgent({ id, avatar: newAvatar })).unwrap();
+    },
+    [id, dispatch],
+  );
+
   const handleTogglePublish = useCallback(
     (checked: boolean) => {
       setIsPublic(checked);
@@ -274,7 +284,7 @@ export default function AgentDetailPage() {
   if (!agent) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-sm text-muted">Loading agent…</div>
+        <div className="text-sm text-muted-foreground">Loading agent…</div>
       </div>
     );
   }
@@ -315,10 +325,10 @@ export default function AgentDetailPage() {
     <AgentDetailCtx.Provider value={ctxValue}>
       <div className="flex flex-col h-screen overflow-hidden">
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="relative flex items-center gap-3 px-5 h-[52px] bg-surface border-b border-border shrink-0">
+        <div className="relative flex items-center gap-3 px-5 h-[52px] bg-card border-b border-border shrink-0">
           <button
             type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border bg-transparent text-soft text-sm font-medium cursor-pointer transition-all duration-150 font-[inherit] hover:bg-surface-raised hover:text-main hover:border-border-hover"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border bg-transparent text-muted-foreground text-sm font-medium cursor-pointer transition-all duration-150 font-[inherit] hover:bg-muted hover:text-foreground hover:border-border"
             onClick={handleBack}
           >
             <AltArrowLeft size={14} />
@@ -326,11 +336,11 @@ export default function AgentDetailPage() {
           </button>
 
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            <AppLogo size={22} fill="#a8ff53" strokeWidth={1} />
+            <UserAvatar avatar={avatar ?? agent.avatar} name={agent.name} size={22} className="shrink-0" />
             <span className="text-base font-bold text-primary whitespace-nowrap overflow-hidden text-ellipsis">{agent.name}</span>
           </div>
 
-          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 p-0.5 rounded-full border border-border bg-surface-raised">
+          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 p-0.5 rounded-full border border-border bg-muted">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const to = tab.path ? `/agents/${id}/${tab.path}` : `/agents/${id}`;
@@ -342,7 +352,7 @@ export default function AgentDetailPage() {
                   className={({ isActive }) =>
                     [
                       "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13px] font-medium no-underline transition-colors duration-150",
-                      isActive ? "bg-white/[0.06] text-main" : "text-muted hover:text-soft",
+                      isActive ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
                     ].join(" ")
                   }
                 >
@@ -359,7 +369,7 @@ export default function AgentDetailPage() {
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-muted cursor-pointer transition-all duration-150 hover:bg-surface-raised hover:text-main hover:border-border"
+                  className="flex items-center justify-center w-7 h-7 rounded-md border border-transparent bg-transparent text-muted-foreground cursor-pointer transition-all duration-150 hover:bg-muted hover:text-foreground hover:border-border"
                 >
                   <MenuDots width={15} height={15} />
                 </button>
@@ -369,7 +379,7 @@ export default function AgentDetailPage() {
                   <AlertDialogTrigger asChild>
                     <button
                       type="button"
-                      className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-danger cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-danger/10"
+                      className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-destructive cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-destructive/10"
                     >
                       <TrashBinTrash width={13} height={13} />
                       <span>Delete Agent</span>
@@ -424,9 +434,11 @@ export default function AgentDetailPage() {
                   systemPrompt={systemPrompt}
                   name={name}
                   description={description}
+                  avatar={avatar}
                   onModelChange={handleFlowModelChange}
                   onNameChange={handleFlowNameChange}
                   onDescriptionChange={handleFlowDescriptionChange}
+                  onAvatarChange={handleFlowAvatarChange}
                   isPublic={isPublic}
                   onTogglePublish={handleTogglePublish}
                   publicPassword={publicPassword}

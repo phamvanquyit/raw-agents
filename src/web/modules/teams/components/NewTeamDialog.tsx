@@ -2,8 +2,8 @@ import { ArrowRight, UsersGroupTwoRounded } from "@solar-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "src/components/ui/button";
 import { SimpleDialog } from "src/components/ui/dialog";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
 import { createTeam } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch } from "src/store/store";
 
@@ -57,14 +57,7 @@ export function NewTeamDialog() {
   return (
     <>
       {/* Trigger button */}
-      <Button
-        id="canvas-new-team-btn"
-        variant="secondary"
-        size="sm"
-        icon={<UsersGroupTwoRounded width={13} height={13} />}
-        onClick={() => setOpen(true)}
-        className="bg-white/90 border-white/30 text-[#4d4c48] hover:bg-white hover:text-[#141413]"
-      >
+      <Button id="canvas-new-team-btn" variant="primary" size="sm" icon={<UsersGroupTwoRounded width={13} height={13} />} onClick={() => setOpen(true)}>
         New Team
       </Button>
 
@@ -105,7 +98,7 @@ export function NewTeamDialog() {
               />
             </Field>
 
-            {error && <div className="text-[12px] text-[#a03030] font-medium">{error}</div>}
+            {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
           </div>
         </SimpleDialog>
       )}

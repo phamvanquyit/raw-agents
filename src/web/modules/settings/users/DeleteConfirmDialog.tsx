@@ -51,8 +51,8 @@ export function DeleteConfirmDialog({ user, onClose, onDeleted }: DeleteConfirmP
         </div>
       }
     >
-      <p className="text-sm text-soft leading-relaxed">
-        Are you sure you want to delete user <strong className="text-main">{user.username}</strong>? This action cannot be undone.
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Are you sure you want to delete user <strong className="text-foreground">{user.username}</strong>? This action cannot be undone.
       </p>
     </SimpleDialog>
   );

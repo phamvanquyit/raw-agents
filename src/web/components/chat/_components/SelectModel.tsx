@@ -27,8 +27,8 @@ export function SelectModel({ providerId, model, onProviderChange, onModelChange
           className={cn(
             "flex items-center gap-1.5 text-[11px] font-medium transition-all duration-150 cursor-pointer",
             selectedModel
-              ? "px-2 py-1 rounded-lg text-soft hover:bg-border/60 hover:text-main"
-              : "px-2 py-1 rounded-lg border border-dashed border-border-hover text-muted hover:bg-surface-raised hover:border-border-hover",
+              ? "px-2 py-1 rounded-lg text-muted-foreground hover:bg-border/60 hover:text-foreground"
+              : "px-2 py-1 rounded-lg border border-dashed border-border text-muted-foreground hover:bg-muted hover:border-border",
           )}
         >
           {selectedModel && provider && <ProviderIcon provider={provider.provider} size={14} />}

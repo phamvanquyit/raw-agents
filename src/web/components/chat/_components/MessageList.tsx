@@ -1,15 +1,16 @@
-import { StarsMinimalistic } from "@solar-icons/react"; // used in empty state
 import type { ReactNode, RefObject } from "react";
+import { AppLogo } from "src/components/AppLogo"; // used in empty state
 import { MessageBubble } from "./MessageBubble";
 import { ToolCallBubble } from "./ToolCallBubble";
 
 import RenderIf from "src/components/ui/RenderIf";
 import type { ChatAgentMessage } from "../common/types";
+import { isCallAgentToolName } from "../common/utils";
 
 interface MessageListProps {
   messages: ChatAgentMessage[];
   generating: boolean;
-  /** Contextual activity status text (e.g. 'Running Fetch Webpage...') */
+  /** Contextual activity status text (e.g. 'Running Browser...') */
   activityStatus?: string;
   assistantLabel?: string;
   assistantColor?: string | null;
@@ -49,7 +50,7 @@ function isAgentRole(role: ChatAgentMessage["role"]): boolean {
 
 /** True if the previous message is a call_agent tool-call (context switch back to parent) */
 function prevIsCallAgent(msg: ChatAgentMessage | null): boolean {
-  return msg?.role === "tool-call" && msg?.toolName === "call_agent";
+  return msg?.role === "tool-call" && isCallAgentToolName(msg?.toolName);
 }
 
 function isSameSender(a: ChatAgentMessage, b: ChatAgentMessage): boolean {
@@ -116,10 +117,10 @@ export function MessageList({
       <div className={`max-w-[760px] mx-auto ${className}`}>
         <RenderIf condition={!hasMessages}>
           <div className="flex flex-col items-center justify-center h-full gap-3 px-6 py-6 text-center">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-surface-raised border border-border shadow-whisper">
-              <StarsMinimalistic size={20} className="text-primary" />
-            </div>
-            {emptyStateContent ?? <p className="text-xs text-muted leading-relaxed max-w-50 m-0">Send a message to start a conversation with AI.</p>}
+            <AppLogo size={36} />
+            {emptyStateContent ?? (
+              <p className="text-xs text-muted-foreground leading-relaxed max-w-50 m-0">Send a message to start chatting with this agent.</p>
+            )}
           </div>
         </RenderIf>
 
@@ -148,7 +149,7 @@ export function MessageList({
                   <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
                     <span
                       className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase select-none"
-                      style={{ background: assistantColor ?? "#6b9a4a", color: "#fff", letterSpacing: "0.08em" }}
+                      style={{ background: assistantColor ?? "var(--primary)", color: "var(--primary-foreground)", letterSpacing: "0.08em" }}
                     >
                       {assistantLabel}
                     </span>
@@ -165,7 +166,7 @@ export function MessageList({
                         }}
                       />
                     ))}
-                    <span className="text-[10px] text-muted italic ml-1">{activityStatus}</span>
+                    <span className="text-[10px] text-muted-foreground italic ml-1">{activityStatus}</span>
                   </div>
                 </div>
               </div>

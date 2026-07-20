@@ -1,177 +1,135 @@
-import { AltArrowDown } from "@solar-icons/react";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Input } from "src/components/ui/input";
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import { Select as SelectPrimitive } from "radix-ui";
+import type * as React from "react";
+
 import { cn } from "src/lib/utils";
 
-// ─── Select ───────────────────────────────────────────────────────────────────
-// Custom portal-rendered dropdown for dark neon theme.
-
-export interface SelectOption<T extends string | number = string> {
-  value: T;
-  label: ReactNode;
-  disabled?: boolean;
+function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
+  return <SelectPrimitive.Root data-slot="select" {...props} />;
 }
 
-interface SelectProps<T extends string | number = string> {
-  value?: T;
-  onChange?: (value: T) => void;
-  options: SelectOption<T>[];
-  placeholder?: string;
-  disabled?: boolean;
-  className?: string;
-  searchable?: boolean;
-  searchPlaceholder?: string;
-  dropdownWidth?: number | string;
+function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.Group>) {
+  return <SelectPrimitive.Group data-slot="select-group" {...props} />;
 }
 
-export function Select<T extends string | number = string>({
-  value,
-  onChange,
-  options,
-  placeholder = "Select...",
-  disabled = false,
-  className = "",
-  searchable = false,
-  searchPlaceholder = "Search...",
-  dropdownWidth,
-}: SelectProps<T>) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-  const [flipUp, setFlipUp] = useState(false);
+function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.Value>) {
+  return <SelectPrimitive.Value data-slot="select-value" {...props} />;
+}
 
-  const selectedOption = options.find((o) => o.value === value);
-
-  const updatePosition = useCallback(() => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const dropdownMaxHeight = 240;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const shouldFlipUp = spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow;
-    setFlipUp(shouldFlipUp);
-    setDropdownPos({ top: shouldFlipUp ? rect.top - 4 : rect.bottom + 4, left: rect.left, width: rect.width });
-  }, []);
-
-  const handleToggle = useCallback(() => {
-    if (disabled) return;
-    if (!isOpen) updatePosition();
-    else setSearch("");
-    setIsOpen((prev) => !prev);
-  }, [disabled, isOpen, updatePosition]);
-
-  const handleSelect = useCallback(
-    (opt: SelectOption<T>) => {
-      if (opt.disabled) return;
-      onChange?.(opt.value);
-      setIsOpen(false);
-      setSearch("");
-    },
-    [onChange],
-  );
-
-  useEffect(() => {
-    if (isOpen && searchable) setTimeout(() => searchRef.current?.focus(), 50);
-  }, [isOpen, searchable]);
-
-  const filteredOptions = searchable && search ? options.filter((opt) => String(opt.value).toLowerCase().includes(search.toLowerCase())) : options;
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (containerRef.current && !containerRef.current.contains(target) && dropdownRef.current && !dropdownRef.current.contains(target)) setIsOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleReposition = () => updatePosition();
-    window.addEventListener("scroll", handleReposition, true);
-    window.addEventListener("resize", handleReposition);
-    return () => {
-      window.removeEventListener("scroll", handleReposition, true);
-      window.removeEventListener("resize", handleReposition);
-    };
-  }, [isOpen, updatePosition]);
-
+function SelectTrigger({
+  className,
+  size = "default",
+  children,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
+  size?: "sm" | "default";
+}) {
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={handleToggle}
-        className={cn(
-          "w-full h-field-md px-3 rounded-md text-sm text-left",
-          "bg-surface border border-border",
-          "flex items-center justify-between gap-2",
-          "transition-all duration-150 cursor-pointer outline-none",
-          isOpen ? "border-primary" : "hover:border-border-hover",
-          disabled && "bg-surface-raised text-muted border-border cursor-not-allowed",
-        )}
-      >
-        <span className={cn("truncate", selectedOption ? "text-main" : "text-muted")}>{selectedOption ? selectedOption.label : placeholder}</span>
-        <AltArrowDown width={13} height={13} className={cn("shrink-0 text-muted transition-transform duration-150", isOpen && "rotate-180")} />
-      </button>
-
-      {createPortal(
-        isOpen && (
-          <div
-            ref={dropdownRef}
-            className="fixed z-[9999] rounded-xl border border-border bg-surface shadow-drop overflow-hidden animate-in fade-in-0 zoom-in-95"
-            style={{
-              ...(flipUp ? { bottom: window.innerHeight - dropdownPos.top } : { top: dropdownPos.top }),
-              left: dropdownPos.left,
-              width: dropdownWidth ?? dropdownPos.width,
-            }}
-          >
-            {searchable && (
-              <div className="p-2 border-b border-border">
-                <Input ref={searchRef} type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={searchPlaceholder} inputSize="md" />
-              </div>
-            )}
-            <div className="max-h-52 overflow-y-auto py-1">
-              {filteredOptions.map((opt) => (
-                <button
-                  key={String(opt.value)}
-                  type="button"
-                  disabled={opt.disabled}
-                  onClick={() => handleSelect(opt)}
-                  className={cn(
-                    "w-full px-3 py-2 text-sm text-left truncate transition-colors duration-100 cursor-pointer",
-                    opt.value === value ? "bg-primary-50 text-primary font-medium" : "text-soft hover:bg-surface-raised",
-                    opt.disabled && "opacity-40 cursor-not-allowed",
-                  )}
-                  title={typeof opt.label === "string" ? opt.label : undefined}
-                >
-                  {opt.label}
-                </button>
-              ))}
-              {filteredOptions.length === 0 && (
-                <div className="px-3 py-3 text-xs text-muted text-center">{search ? "No results found" : "No options available"}</div>
-              )}
-            </div>
-          </div>
-        ),
-        document.body,
+    <SelectPrimitive.Trigger
+      data-slot="select-trigger"
+      data-size={size}
+      className={cn(
+        "flex w-fit items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:border-border focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 hover:bg-muted/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+        className,
       )}
-    </div>
+      {...props}
+    >
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDownIcon className="size-4 opacity-50" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
   );
 }
 
-export type { SelectProps };
+function SelectContent({ className, children, position = "item-aligned", align = "center", ...props }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        data-slot="select-content"
+        className={cn(
+          "relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          position === "popper" &&
+            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          className,
+        )}
+        position={position}
+        align={align}
+        {...props}
+      >
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport
+          className={cn("p-1", position === "popper" && "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1")}
+        >
+          {children}
+        </SelectPrimitive.Viewport>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  );
+}
+
+function SelectLabel({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Label>) {
+  return <SelectPrimitive.Label data-slot="select-label" className={cn("px-2 py-1.5 text-xs text-muted-foreground", className)} {...props} />;
+}
+
+function SelectItem({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Item>) {
+  return (
+    <SelectPrimitive.Item
+      data-slot="select-item"
+      className={cn(
+        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        className,
+      )}
+      {...props}
+    >
+      <span data-slot="select-item-indicator" className="absolute right-2 flex size-3.5 items-center justify-center">
+        <SelectPrimitive.ItemIndicator>
+          <CheckIcon className="size-4" />
+        </SelectPrimitive.ItemIndicator>
+      </span>
+      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    </SelectPrimitive.Item>
+  );
+}
+
+function SelectSeparator({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Separator>) {
+  return <SelectPrimitive.Separator data-slot="select-separator" className={cn("pointer-events-none -mx-1 my-1 h-px bg-border", className)} {...props} />;
+}
+
+function SelectScrollUpButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {
+  return (
+    <SelectPrimitive.ScrollUpButton
+      data-slot="select-scroll-up-button"
+      className={cn("flex cursor-default items-center justify-center py-1", className)}
+      {...props}
+    >
+      <ChevronUpIcon className="size-4" />
+    </SelectPrimitive.ScrollUpButton>
+  );
+}
+
+function SelectScrollDownButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
+  return (
+    <SelectPrimitive.ScrollDownButton
+      data-slot="select-scroll-down-button"
+      className={cn("flex cursor-default items-center justify-center py-1", className)}
+      {...props}
+    >
+      <ChevronDownIcon className="size-4" />
+    </SelectPrimitive.ScrollDownButton>
+  );
+}
+
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+};

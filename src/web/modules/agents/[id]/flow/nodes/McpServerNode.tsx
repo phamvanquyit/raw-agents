@@ -22,7 +22,7 @@ export type McpServerNodeData = {
 
 export type McpServerNodeType = Node<McpServerNodeData, "mcpServer">;
 
-const MCP_ORANGE = "#FF8A3D";
+const MCP_ORANGE = "var(--edge-mcp)";
 
 export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
   const connectedCount = data.tools.filter((t) => t.connected).length;
@@ -42,8 +42,8 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
         <Handle
           type="source"
           position={Position.Left}
-          className="!w-2 !h-2 !bg-surface-raised !border-2 transition-all duration-150"
-          style={{ borderColor: "rgba(255, 138, 61, 0.6)" }}
+          className="!w-2 !h-2 !bg-muted !border-2 transition-all duration-150"
+          style={{ borderColor: "color-mix(in srgb, var(--edge-mcp) 60%, transparent)" }}
         />
       )}
 
@@ -51,50 +51,46 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
         <PopoverTrigger asChild>
           <button
             type="button"
-            className={`nodrag nopan relative flex items-center gap-2 w-full px-3 py-2 rounded-md border bg-surface cursor-pointer transition-all duration-150 text-left font-[inherit] ${
-              hasConnection
-                ? "border-[rgba(255,138,61,0.35)] hover:border-[rgba(255,138,61,0.55)] hover:bg-[rgba(255,138,61,0.06)]"
-                : "border-border hover:border-[rgba(255,138,61,0.25)] hover:bg-surface-raised/40"
+            className={`nodrag nopan relative flex items-center gap-2 w-full px-3 py-2 rounded-md border bg-card cursor-pointer transition-all duration-150 text-left font-[inherit] ${
+              hasConnection ? "border-edge-mcp/35 hover:border-edge-mcp/55 hover:bg-edge-mcp/6" : "border-border hover:border-edge-mcp/25 hover:bg-muted/40"
             }`}
           >
             <div
               className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
-              style={{ background: "rgba(255, 138, 61, 0.12)", color: MCP_ORANGE }}
+              style={{ background: "color-mix(in srgb, var(--edge-mcp) 12%, transparent)", color: MCP_ORANGE }}
             >
               <PlugCircle weight="BoldDuotone" width={14} height={14} />
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-semibold text-main leading-[1.3] truncate">{data.name}</div>
-              <div className="text-[10px] text-muted leading-tight mt-0.5">
+              <div className="text-xs font-semibold text-foreground leading-[1.3] truncate">{data.name}</div>
+              <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
                 {data.tools.length} tools
                 {connectedCount > 0 ? ` · ${connectedCount} on` : ""}
               </div>
             </div>
 
-            <AltArrowRight width={14} height={14} className="text-muted shrink-0" />
+            <AltArrowRight width={14} height={14} className="text-muted-foreground shrink-0" />
           </button>
         </PopoverTrigger>
 
-        <PopoverContent
-          side="right"
-          align="start"
-          sideOffset={12}
-          className="nodrag nowheel nopan w-[340px] p-0 overflow-visible border-[rgba(255,138,61,0.55)]"
-        >
+        <PopoverContent side="right" align="start" sideOffset={12} className="nodrag nowheel nopan w-[340px] p-0 overflow-visible border-edge-mcp/55">
           <PopoverArrow style={{ fill: MCP_ORANGE }} width={18} height={10} />
-          <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-[rgba(255,138,61,0.25)]" style={{ background: "rgba(255, 138, 61, 0.12)" }}>
+          <div
+            className="flex items-center gap-2.5 px-3.5 py-3 border-b border-edge-mcp/25"
+            style={{ background: "color-mix(in srgb, var(--edge-mcp) 12%, transparent)" }}
+          >
             <div
               className="w-7 h-7 rounded-[7px] flex items-center justify-center shrink-0"
-              style={{ background: "rgba(255, 138, 61, 0.2)", color: MCP_ORANGE }}
+              style={{ background: "color-mix(in srgb, var(--edge-mcp) 20%, transparent)", color: MCP_ORANGE }}
             >
               <PlugCircle weight="BoldDuotone" width={15} height={15} />
             </div>
-            <div className="min-w-0 flex-1 text-[14px] font-semibold text-main truncate">{data.name}</div>
+            <div className="min-w-0 flex-1 text-[14px] font-semibold text-foreground truncate">{data.name}</div>
             <PopoverClose asChild>
               <button
                 type="button"
-                className="nodrag nopan shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-muted hover:text-main hover:bg-white/5 transition-colors"
+                className="nodrag nopan shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                 aria-label="Close"
               >
                 <CloseCircle width={16} height={16} />
@@ -103,7 +99,7 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
           </div>
 
           <div className="flex items-center justify-between gap-2 px-3.5 py-2 border-b border-border/30">
-            <span className="text-[11px] text-muted">
+            <span className="text-[11px] text-muted-foreground">
               {connectedCount}/{data.tools.length} enabled
             </span>
             <button
@@ -118,8 +114,8 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
 
           <div className="max-h-[420px] overflow-y-auto game-scrollbar py-1.5">
             {data.tools.map((tool) => (
-              <div key={tool.id} className="flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-surface-raised/40 transition-colors">
-                <div className="min-w-0 flex-1 text-[13px] font-medium text-main truncate">{tool.label}</div>
+              <div key={tool.id} className="flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-muted/40 transition-colors">
+                <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>
                 <Switch checked={tool.connected} onCheckedChange={(checked) => data.onToggleTool(tool.id, checked)} aria-label={`Toggle ${tool.label}`} />
               </div>
             ))}

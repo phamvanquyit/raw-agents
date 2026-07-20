@@ -5,28 +5,38 @@ type AppLogoProps = {
   className?: string;
 };
 
-export function AppLogo({ fill = "rgba(169, 255, 83, 0.8)", size = 40, strokeWidth = 1, className }: AppLogoProps) {
+/**
+ * Raw Agents mark — robot agent head.
+ * Uses currentColor by default so it follows theme foreground/primary.
+ */
+export function AppLogo({ fill = "currentColor", size = 40, strokeWidth = 1.5, className }: AppLogoProps) {
+  const sw = Math.max(1.2, Math.min(strokeWidth * (size < 28 ? 1.1 : 1), size / 12));
+
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} fill="none" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      className={className}
+      style={fill === "currentColor" ? undefined : { color: fill }}
+      color={fill === "currentColor" ? undefined : fill}
+    >
       <title>Raw Agents</title>
 
-      {/* Antenna */}
-      <line x1="12" y1="2" x2="12" y2="5" stroke={fill} strokeWidth={strokeWidth} strokeLinecap="round" />
-      <circle cx="12" cy="2" r="1" fill={fill} />
+      <path d="M12 2.6v2.4" stroke={fill} strokeWidth={sw} strokeLinecap="round" />
+      <circle cx="12" cy="2.3" r="1.15" fill={fill} />
 
-      {/* Head */}
-      <rect x="4" y="5" width="16" height="12" rx="3" stroke={fill} strokeWidth={strokeWidth} />
+      <rect x="4" y="6" width="16" height="14.2" rx="4.5" stroke={fill} strokeWidth={sw} />
 
-      {/* Eyes */}
-      <circle cx="9" cy="10" r="1.5" fill={fill} />
-      <circle cx="15" cy="10" r="1.5" fill={fill} />
+      <rect x="1.7" y="10.9" width="2.15" height="4" rx="1.05" fill={fill} opacity={0.65} />
+      <rect x="20.15" y="10.9" width="2.15" height="4" rx="1.05" fill={fill} opacity={0.65} />
 
-      {/* Mouth */}
-      <path d="M9 14h6" stroke={fill} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <circle cx="9" cy="12.1" r="1.55" fill={fill} />
+      <circle cx="15" cy="12.1" r="1.55" fill={fill} />
 
-      {/* Ears */}
-      <rect x="1" y="9" width="2" height="4" rx="1" fill={fill} opacity="0.6" />
-      <rect x="21" y="9" width="2" height="4" rx="1" fill={fill} opacity="0.6" />
+      <path d="M9 16c.85 1.1 1.95 1.6 3 1.6s2.15-.5 3-1.6" stroke={fill} strokeWidth={sw} strokeLinecap="round" />
     </svg>
   );
 }

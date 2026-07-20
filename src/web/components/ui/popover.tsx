@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import { cn } from "src/lib/utils";
 
 // ─── Popover ──────────────────────────────────────────────────────────────────
-// Dark neon — dark panel with subtle border.
+// Popover — floating panel surface.
 
 const Popover = PopoverPrimitive.Root;
 const PopoverTrigger = PopoverPrimitive.Trigger;
@@ -18,7 +18,7 @@ const PopoverContent = forwardRef<React.ComponentRef<typeof PopoverPrimitive.Con
           align={align}
           sideOffset={sideOffset}
           className={cn(
-            "z-[9999] rounded-xl border border-border bg-surface shadow-drop overflow-hidden outline-none",
+            "z-[9999] rounded-md border border-border bg-popover text-popover-foreground shadow-md overflow-hidden outline-none",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
             "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",

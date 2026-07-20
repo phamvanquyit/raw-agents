@@ -21,10 +21,24 @@ export function prettyJson(raw: unknown): string {
   }
 }
 
+/** True for legacy `call_agent` and per-target `call_agent__<uuid>` tools */
+export function isCallAgentToolName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return name === "call_agent" || name.startsWith("call_agent__");
+}
+
+/** Reconstruct target agent UUID from `call_agent__<uuid_with_underscores>` */
+export function parseCallAgentToolTargetId(toolName: string): string | null {
+  if (!toolName.startsWith("call_agent__")) return null;
+  const parts = toolName.slice("call_agent__".length).split("_");
+  if (parts.length !== 5) return null;
+  return parts.join("-");
+}
+
 /**
  * Converts a snake_case or camelCase tool name to a human-readable Title Case label.
  * e.g. "generate_code" → "Generate Code"
- *      "fetchWebpage"       → "Fetch Webpage"
+ *      "getCurrentTime"    → "Get Current Time"
  */
 export function formatToolName(name: string): string {
   return (

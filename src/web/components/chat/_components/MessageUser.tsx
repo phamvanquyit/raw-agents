@@ -25,17 +25,17 @@ export function MessageUser({ msg }: MessageUserProps) {
       {/* Message row */}
       <div className="flex items-start gap-3 px-4 pt-3 pb-2">
         {/* Left: tag + message */}
-        <div className="flex-1 min-w-0 flex flex-col bg-[#6b9a4a]/10 px-4 py-2.5 rounded-lg border border-primary/10">
+        <div className="flex-1 min-w-0 flex flex-col bg-primary/10 px-4 py-2.5 rounded-md border border-primary/15">
           {/* Message text */}
           <div
             ref={contentRef}
             className="relative overflow-hidden transition-[max-height] duration-300 ease-in-out"
             style={{ maxHeight: isExpanded || !isOverflow ? "none" : `${MAX_HEIGHT}px` }}
           >
-            <span className="text-sm text-main whitespace-pre-wrap wrap-break-word">{msg.content}</span>
+            <span className="text-sm text-foreground whitespace-pre-wrap wrap-break-word">{msg.content}</span>
             {/* Gradient fade overlay */}
             {isOverflow && !isExpanded && (
-              <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#6b9a4a]/10 to-transparent pointer-events-none" />
+              <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface to-transparent pointer-events-none" />
             )}
           </div>
           {/* Expand / Collapse button */}

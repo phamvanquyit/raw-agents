@@ -1,48 +1,30 @@
-import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
-import { forwardRef } from "react";
+"use client";
+
+import { CircleIcon } from "lucide-react";
+import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
+import type * as React from "react";
+
 import { cn } from "src/lib/utils";
 
-// ─── RadioGroup ───────────────────────────────────────────────────────────────
-// Dark neon — unselected: dark surface, selected: electric lime with dot.
+function RadioGroup({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
+  return <RadioGroupPrimitive.Root data-slot="radio-group" className={cn("grid gap-3", className)} {...props} />;
+}
 
-const RadioGroup = forwardRef<React.ComponentRef<typeof RadioGroupPrimitive.Root>, React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>>(
-  function RadioGroup({ className, ...props }, ref) {
-    return <RadioGroupPrimitive.Root ref={ref} className={cn("grid gap-2", className)} {...props} />;
-  },
-);
-
-const RadioGroupItem = forwardRef<
-  React.ComponentRef<typeof RadioGroupPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Item> & { label?: string }
->(function RadioGroupItem({ className, label, ...props }, ref) {
-  const radioEl = (
+function RadioGroupItem({ className, ...props }: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+  return (
     <RadioGroupPrimitive.Item
-      ref={ref}
+      data-slot="radio-group-item"
       className={cn(
-        "aspect-square h-4.5 w-4.5 rounded-full border-2 cursor-pointer transition-all duration-150",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        "data-[state=checked]:bg-primary data-[state=checked]:border-primary/60",
-        "data-[state=unchecked]:bg-surface data-[state=unchecked]:border-border hover:data-[state=unchecked]:border-border-hover",
+        "aspect-square size-4 shrink-0 rounded-full border border-input text-primary shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40",
         className,
       )}
       {...props}
     >
-      <RadioGroupPrimitive.Indicator className="flex items-center justify-center">
-        <div className="h-2 w-2 rounded-full bg-secondary" />
+      <RadioGroupPrimitive.Indicator data-slot="radio-group-indicator" className="relative flex items-center justify-center">
+        <CircleIcon className="absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 fill-primary" />
       </RadioGroupPrimitive.Indicator>
     </RadioGroupPrimitive.Item>
   );
-
-  if (!label) return radioEl;
-
-  return (
-    // biome-ignore lint/a11y/noLabelWithoutControl: Radix RadioGroupItem renders a button child inside the label
-    <label className={cn("inline-flex items-center gap-2.5 select-none cursor-pointer", props.disabled && "opacity-50 cursor-not-allowed")}>
-      {radioEl}
-      <span className="text-sm font-medium text-soft">{label}</span>
-    </label>
-  );
-});
+}
 
 export { RadioGroup, RadioGroupItem };

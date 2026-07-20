@@ -184,22 +184,22 @@ export function ModelPicker({
       disabled={disabled}
       className={cn(
         "w-full h-field-md px-3 rounded-md text-sm text-left",
-        "bg-surface border border-border",
+        "bg-card border border-border",
         "flex items-center justify-between gap-2",
         "transition-all duration-150 cursor-pointer outline-none",
-        open ? "border-primary" : "hover:border-border-hover",
-        disabled && "bg-surface-raised text-muted border-border cursor-not-allowed",
+        open ? "border-primary" : "hover:border-border",
+        disabled && "bg-muted text-muted-foreground border-border cursor-not-allowed",
       )}
     >
       {selectedProvider && selectedModel ? (
         <span className="flex items-center gap-2 min-w-0">
           <ProviderIcon provider={selectedProvider.provider} size={14} />
-          <span className="text-muted text-xs shrink-0">{providerMeta?.label ?? selectedProvider.label}</span>
-          <span className="text-muted/40 shrink-0">/</span>
-          <span className="text-main truncate font-mono text-xs">{shortModelName(selectedModel)}</span>
+          <span className="text-muted-foreground text-xs shrink-0">{providerMeta?.label ?? selectedProvider.label}</span>
+          <span className="text-muted-foreground shrink-0">/</span>
+          <span className="text-foreground truncate font-mono text-xs">{shortModelName(selectedModel)}</span>
         </span>
       ) : (
-        <span className="text-muted">{placeholder}</span>
+        <span className="text-muted-foreground">{placeholder}</span>
       )}
       <svg
         width={13}
@@ -210,7 +210,7 @@ export function ModelPicker({
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={cn("shrink-0 text-muted transition-transform duration-150", open && "rotate-180")}
+        className={cn("shrink-0 text-muted-foreground transition-transform duration-150", open && "rotate-180")}
       >
         <path d="m6 9 6 6 6-6" />
       </svg>
@@ -228,7 +228,7 @@ export function ModelPicker({
           /* ══ Level 1: Providers ══ */
           <div className="flex flex-col h-80">
             <div className="px-3 py-2.5 border-b border-border">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Select Provider</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Select Provider</span>
             </div>
             <div onWheel={(e) => e.stopPropagation()} className="flex-1 min-h-0 overflow-y-auto py-1 game-scrollbar">
               {filteredProviders.map((p) => {
@@ -241,25 +241,25 @@ export function ModelPicker({
                     onClick={() => handleSelectProvider(p)}
                     className={cn(
                       "w-full px-3 py-2 text-left flex items-center gap-2.5 transition-colors duration-100 cursor-pointer",
-                      isActive ? "bg-primary-50 text-primary" : "text-soft hover:bg-surface-raised",
+                      isActive ? "bg-accent text-primary" : "text-muted-foreground hover:bg-muted",
                     )}
                   >
-                    <div className="w-8 h-8 rounded-md bg-surface-raised border border-border flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-md bg-muted border border-border flex items-center justify-center shrink-0">
                       <ProviderIcon provider={p.provider} size={16} />
                     </div>
 
                     <span className={cn("flex-1 font-medium truncate block", isActive && "text-primary")}>{p.label}</span>
-                    <span className="block text-[10px] text-muted mt-0.5">
+                    <span className="block text-[10px] text-muted-foreground mt-0.5">
                       {modelCount} model{modelCount !== 1 ? "s" : ""}
                     </span>
                   </button>
                 );
               })}
               {filteredProviders.length === 0 && (
-                <div className="px-3 py-6 text-xs text-muted text-center">
+                <div className="px-3 py-6 text-xs text-muted-foreground text-center">
                   No providers available.
                   <br />
-                  <span className="text-muted/60">Go to Settings → API Providers</span>
+                  <span className="text-muted-foreground/60">Go to Settings → API Providers</span>
                 </div>
               )}
             </div>
@@ -268,18 +268,15 @@ export function ModelPicker({
           /* ══ Level 2: Models ══ */
           <div className="flex flex-col h-80">
             {/* Header with back button */}
-            <div
-              onClick={handleBack}
-              className="flex items-center gap-2 pr-3 pl-1 py-2 border-b border-border cursor-pointer hover:bg-surface-raised transition-colors"
-            >
-              <div className="w-6 h-6 rounded-md flex items-center justify-center text-muted">
+            <div onClick={handleBack} className="flex items-center gap-2 pr-3 pl-1 py-2 border-b border-border cursor-pointer hover:bg-muted transition-colors">
+              <div className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground">
                 <AltArrowLeft size={14} />
               </div>
 
               {viewProvider && (
                 <div className="flex items-center gap-2 min-w-0">
                   <ProviderIcon provider={viewProvider.provider} size={14} />
-                  <span className="font-semibold text-sm text-main truncate">{viewProviderMeta?.label ?? viewProvider.label}</span>
+                  <span className="font-semibold text-sm text-foreground truncate">{viewProviderMeta?.label ?? viewProvider.label}</span>
                 </div>
               )}
             </div>
@@ -288,7 +285,7 @@ export function ModelPicker({
             {activeModels.length > 5 && (
               <div className="px-2.5 py-2 border-b border-border">
                 <div className="relative">
-                  <Magnifier size={13} className="absolute top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                  <Magnifier size={13} className="absolute top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                   <input
                     ref={searchRef}
                     type="text"
@@ -296,7 +293,7 @@ export function ModelPicker({
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
                     placeholder="Search models…"
-                    className="w-full h-7 pl-7 pr-2.5 rounded-md text-sm bg-surface text-main placeholder:text-muted outline-none transition-colors"
+                    className="w-full h-7 pl-7 pr-2.5 rounded-md text-sm bg-card text-foreground placeholder:text-muted-foreground outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -304,7 +301,7 @@ export function ModelPicker({
 
             {/* Model list */}
             <div ref={listRef} onWheel={(e) => e.stopPropagation()} className="flex-1 min-h-0 overflow-y-auto py-1 game-scrollbar">
-              {loadingModels && <div className="px-3 py-4 text-xs text-muted text-center">Loading models…</div>}
+              {loadingModels && <div className="px-3 py-4 text-xs text-muted-foreground text-center">Loading models…</div>}
 
               {!loadingModels &&
                 filteredModels.map((m, idx) => {
@@ -319,7 +316,7 @@ export function ModelPicker({
                       onMouseEnter={() => setFocusedIndex(idx)}
                       className={cn(
                         "w-full px-3 py-[7px] text-left text-sm truncate transition-colors duration-100 cursor-pointer",
-                        isActive ? "bg-primary-50 text-primary font-medium" : isFocused ? "bg-surface-raised text-main" : "text-soft hover:bg-surface-raised",
+                        isActive ? "bg-accent text-primary font-medium" : isFocused ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted",
                       )}
                       title={m}
                     >
@@ -328,7 +325,7 @@ export function ModelPicker({
                   );
                 })}
               {!loadingModels && filteredModels.length === 0 && (
-                <div className="px-3 py-4 text-xs text-muted text-center">{search ? "No models match your search" : "No models available"}</div>
+                <div className="px-3 py-4 text-xs text-muted-foreground text-center">{search ? "No models match your search" : "No models available"}</div>
               )}
             </div>
           </div>

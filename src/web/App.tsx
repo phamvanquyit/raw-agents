@@ -5,7 +5,8 @@ import { getAuthToken } from "./common/api";
 import { fetchCurrentUser } from "./common/authSlice";
 import { useSocket } from "./common/hooks/useSocket";
 import { AppLayout } from "./components/AppLayout";
-import { ToastProvider } from "./components/ui/toast";
+import { Toaster } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 import { useAppDispatch, useAppSelector } from "./store/store";
 import "./index.css";
@@ -19,7 +20,6 @@ const SetupPage = lazy(() => import("./modules/auth/SetupPage"));
 const EditToolPage = lazy(() => import("./modules/tools/[id]/EditToolPage"));
 const AgentDetailPage = lazy(() => import("./modules/agents/[id]/page"));
 const DashboardPage = lazy(() => import("./modules/dashboard/DashboardPage"));
-const TeamsPage = lazy(() => import("./modules/teams/TeamsPage"));
 const ProfilePage = lazy(() => import("./modules/profile/ProfilePage"));
 const McpServersPage = lazy(() => import("./modules/mcp-servers/McpServersPage"));
 const McpServersEditPage = lazy(() => import("./modules/mcp-servers/McpServersEditPage"));
@@ -118,8 +118,9 @@ function AppContent() {
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/mcp-servers" element={<McpServersPage />} />
             <Route path="/mcp-servers/edit" element={<McpServersEditPage />} />
-            <Route path="/teams" element={<TeamsPage />} />
+            <Route path="/teams" element={<Navigate to="/agents" replace />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/providers" element={<Navigate to="/settings/providers" replace />} />
             <Route
               path="/settings/*"
               element={
@@ -140,8 +141,10 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
-      <ToastProvider />
+      <TooltipProvider>
+        <AppContent />
+        <Toaster />
+      </TooltipProvider>
     </BrowserRouter>
   );
 }

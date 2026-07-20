@@ -1,150 +1,187 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-/* ── Geist Variable — self-hosted woff2 (primary font) ──────────────────────── */
-@font-face {
-  font-family: "Geist Variable";
-  src: url("./assets/fonts/Geist-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* ── Geist Mono Variable — self-hosted woff2 (monospace font) ───────────────── */
-@font-face {
-  font-family: "Geist Mono Variable";
-  src: url("./assets/fonts/GeistMono-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
+@custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════
-   BASE TOKENS — Dark Neon Design System (Trigger.dev inspired)
+   Docs console — dark-only (career-ops), system UI font
    ═══════════════════════════════════════════════════════════════ */
 
-/* ══ Tailwind v4 theme tokens — names map directly to utility classes ══
-   --color-primary  →  text-primary, bg-primary, border-primary
-   --color-surface  →  bg-surface
-   --color-on-surface → text-on-surface
-*/
-@theme {
-  /* ── Border Radius ──────────────────────────────────────────── */
-  --radius-none: 0px;
-  --radius-xs: 4px;
+:root,
+.dark {
+  --radius: 12px;
+  --background: #121212;
+  --foreground: #d4d4d4;
+  --card: #191919;
+  --card-foreground: #dcdcdc;
+  --popover: #1e1e1e;
+  --popover-foreground: #d4d4d4;
+  --primary: #e8e8e8;
+  --primary-foreground: #171717;
+  --secondary: #212121;
+  --secondary-foreground: #d4d4d4;
+  --muted: #212121;
+  --muted-foreground: #8a8a8a;
+  --accent: color-mix(in oklab, #dd7627 14%, transparent);
+  --accent-foreground: #ffa333;
+  --tertiary-foreground: #9a9a9a;
+  --quaternary-foreground: #6e6e6e;
+  --destructive: #e60a64;
+  --destructive-foreground: #fafafa;
+  --border: color-mix(in oklab, #666666 20%, transparent);
+  --border-subtle: color-mix(in oklab, #666666 12%, transparent);
+  --input: color-mix(in oklab, #666666 20%, transparent);
+  --ring: #8c8c8c;
+  --brand: #dd7627;
+  --brand-soft: #ffa333;
+  --brand-text: #dd7627;
+  --link: #599ce7;
+  --success: #0ac864;
+  --warn: #f1b467;
+  --chart-1: #599ce7;
+  --chart-2: #0ac864;
+  --chart-3: #dd7627;
+  --chart-4: #f1b467;
+  --chart-5: #fc7744;
+  --sidebar: #181818;
+  --sidebar-foreground: #d4d4d4;
+  --sidebar-primary: #e8e8e8;
+  --sidebar-primary-foreground: #171717;
+  --sidebar-accent: color-mix(in oklab, #dd7627 14%, transparent);
+  --sidebar-accent-foreground: #ffa333;
+  --sidebar-border: color-mix(in oklab, #666666 16%, transparent);
+  --sidebar-ring: #8c8c8c;
+  --edge-call-agent: var(--chart-2);
+  --edge-mcp: var(--chart-1);
+  --edge-tool: var(--chart-3);
+  --scrollbar-thumb: color-mix(in oklab, #f0f0f0 14%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, #f0f0f0 22%, transparent);
+}
+
+@theme inline {
+  --radius-xs: 2px;
   --radius-sm: 4px;
-  --radius: 8px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-4xl: 24px;
   --radius-full: 9999px;
 
-  /* ── Primary — Electric Lime ────────────────────────────────── */
-  --color-primary: #a8ff53;
-  --color-primary-50: color-mix(in oklch, #a8ff53 8%, #0e0f12);
-  --color-primary-100: color-mix(in oklch, #a8ff53 15%, #0e0f12);
-  --color-primary-200: color-mix(in oklch, #a8ff53 25%, #0e0f12);
-  --color-primary-300: color-mix(in oklch, #a8ff53 40%, #0e0f12);
-  --color-primary-400: color-mix(in oklch, #a8ff53 60%, #0e0f12);
-  --color-primary-500: #a8ff53;
-  --color-primary-600: color-mix(in oklch, #a8ff53 85%, white);
-  --color-primary-700: color-mix(in oklch, #a8ff53 70%, white);
-  --color-primary-800: color-mix(in oklch, #a8ff53 55%, white);
-  --color-primary-900: color-mix(in oklch, #a8ff53 45%, white);
-  --color-primary-950: color-mix(in oklch, #a8ff53 30%, white);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-edge-call-agent: var(--edge-call-agent);
+  --color-edge-mcp: var(--edge-mcp);
+  --color-edge-tool: var(--edge-tool);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-text: var(--brand-text);
+  --color-link: var(--link);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-tertiary-foreground: var(--tertiary-foreground);
+  --color-quaternary-foreground: var(--quaternary-foreground);
 
-  --color-primary-hover: color-mix(in oklch, #a8ff53 85%, white);
+  --shadow-card: none;
+  --shadow-whisper: none;
+  --shadow-button-outline: 0 0 0 1px var(--border);
+  --shadow-drop: 0 2px 8px color-mix(in oklab, #0a0a0a 8%, transparent);
+  --shadow-panel: 0 0 0 1px var(--border), 0 4px 16px color-mix(in oklab, #0a0a0a 8%, transparent);
 
-  /* ── Secondary — Near Black (button text, deep contrast) ────── */
-  --color-secondary: #121317;
+  --spacing-control-xs: 24px;
+  --spacing-control-sm: 28px;
+  --spacing-control-md: 32px;
+  --spacing-control-lg: 36px;
+  --spacing-nav-item: 32px;
 
-  /* ── Tertiary — Cool Lavender ───────────────────────────────── */
-  --color-tertiary: #9c9af2;
-
-  /* ── Text Hierarchy ─────────────────────────────────────────── */
-  --color-main: #f3f4f6;
-  --color-soft: #d7d9dd;
-  --color-muted: #8b8d94;
-
-  /* ── Surface & Background ───────────────────────────────────── */
-  --color-background: #0e0f12;
-  --color-surface: #121317;
-  --color-sidebar: #0e0f12;
-  --color-surface-raised: #1a1d23;
-  --color-on-surface: #f3f4f6;
-
-  /* ── Borders ────────────────────────────────────────────────── */
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-hover: rgba(255, 255, 255, 0.15);
-  --default-border-color: rgba(255, 255, 255, 0.08);
-
-  /* ── Semantic ───────────────────────────────────────────────── */
-  --color-danger: #ff4d6d;
-  --color-danger-hover: #e8445f;
-  --color-danger-active: #d13b52;
-
-  /* ── Code ────────────────────────────────────────────────────── */
-  --color-code: #1a1d23;
-
-  /* ── Muted (translucent dividers) ───────────────────────────── */
-  --color-muted-border: #b5b8c01a;
-
-  /* ── Shadows — very subtle, intentionally flat ──────────────── */
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --shadow-whisper: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 24px rgba(0, 0, 0, 0.3);
-  --shadow-drop: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 12px 40px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
-
-  /* ── Typography ─────────────────────────────────────────────── */
-  --font-family-sans: "Geist Variable", "Geist", -apple-system, "system-ui", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-family-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-family-serif: Georgia, "Times New Roman", Times, serif;
-  --font-family-mono: "Geist Mono Variable", "Geist Mono", "SFMono-Regular", Menlo, monospace;
-  --font-family-display: "Geist Variable", "Geist", -apple-system, "system-ui", "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-family-chat: ui-sans-serif, -apple-system, "system-ui", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, "sans-serif", "Segoe UI Emoji",
-    "Segoe UI Symbol";
+  --font-family-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-family-display: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-chat: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  --default-font-family: "Geist Variable", "Geist", ui-sans-serif, -apple-system, "system-ui", "Segoe UI", Helvetica, Arial, sans-serif;
-  --default-mono-font-family: "Geist Mono Variable", "Geist Mono", "SFMono-Regular", Menlo, monospace;
+  --default-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --default-mono-font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  --font-size-2xs: 11px;
-  --font-size-xs: 12px;
-  --font-size-sm: 13px;
-  --font-size-md: 14px;
-  --font-size-base: 15px;
-  --font-size-lg: 17px;
-  --font-size-xl: 20px;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
 
-  /* ── Field Heights ──────────────────────────────────────────── */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 14px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-md: 16px;
+  --text-md--line-height: 24px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 18px;
+  --text-lg--line-height: 28px;
+  --text-xl: 24px;
+  --text-xl--line-height: 32px;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 42px;
+
   --spacing-field-sm: 28px;
-  --spacing-field-md: 36px;
-  --spacing-field-lg: 44px;
+  --spacing-field-md: 32px;
+  --spacing-field-lg: 36px;
+  --spacing-field-nav: 32px;
 
-  /* ── Scrollbar ──────────────────────────────────────────────── */
-  --color-scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
+  --color-scrollbar-thumb-hover: var(--scrollbar-thumb-hover);
 }
 
 @layer base {
   * {
-    @apply box-border m-0 p-0;
-    border-color: rgba(255, 255, 255, 0.08);
+    @apply box-border m-0 p-0 border-border outline-none;
   }
   html {
     @apply overflow-hidden w-screen;
     height: 100dvh;
-    background: var(--color-background);
+    background: var(--background);
     font-family: var(--font-family-sans);
-    color-scheme: dark;
   }
   body {
-    @apply overflow-hidden w-screen;
+    @apply overflow-hidden w-screen bg-background text-foreground;
     font-family: var(--font-family-sans);
     height: 100dvh;
-    font-size: 15px;
+    font-size: 14px;
+    line-height: 20px;
     font-weight: 400;
-    color: var(--color-main);
-    background: var(--color-background);
-
-    /* ── Font rendering ── */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -153,14 +190,12 @@
     font-variant-numeric: lining-nums;
   }
   #root {
-    @apply flex flex-col overflow-hidden;
+    @apply flex flex-col overflow-hidden bg-background;
     height: 100%;
-    background: var(--color-background);
   }
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
-/* Hide on html/body/root — those use overflow:hidden */
 html::-webkit-scrollbar,
 body::-webkit-scrollbar,
 #root::-webkit-scrollbar {
@@ -172,7 +207,6 @@ body,
   scrollbar-width: none;
 }
 
-/* Webkit scrollbar size + colors (applies when .game-scrollbar or explicit overflow triggers it) */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -181,20 +215,18 @@ body,
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-scrollbar-thumb);
+  background: var(--scrollbar-thumb);
   border-radius: 99px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-thumb-hover);
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* .game-scrollbar — use on inner scroll containers for consistent Firefox support */
 .game-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-scrollbar-thumb) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-/* ── Hide scrollbar utility ────────────────────────────────────────────────── */
 .no-scrollbar {
   scrollbar-width: none !important;
   -ms-overflow-style: none;
@@ -203,7 +235,6 @@ body,
   display: none;
 }
 
-/* ── Hover-reveal scrollbar ────────────────────────────────────────────────── */
 .hover-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -219,16 +250,15 @@ body,
   border-radius: 3px;
 }
 .hover-scrollbar:hover {
-  scrollbar-color: var(--color-scrollbar-thumb) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 .hover-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: var(--color-scrollbar-thumb);
+  background: var(--scrollbar-thumb);
 }
 .hover-scrollbar:hover::-webkit-scrollbar-thumb:hover {
-  background: var(--color-scrollbar-thumb-hover);
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* ── Canvas game popup slide-up animation ──────────────────────────────────── */
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -262,7 +292,6 @@ body,
   }
 }
 
-/* ── Sidebar tooltip slide-in ──────────────────────────────────────────────── */
 @keyframes sidebar-tooltip-in {
   from {
     opacity: 0;
@@ -274,13 +303,36 @@ body,
   }
 }
 
-/* ── Sidebar neon glow pulse (subtle) ──────────────────────────────────────── */
-@keyframes sidebar-neon-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 4px rgba(168, 255, 83, 0.15);
+@keyframes ca-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
-  50% {
-    box-shadow: 0 0 8px rgba(168, 255, 83, 0.25);
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ca-dot-bounce {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.ca-fade-in {
+  animation: ca-fade-in 0.28s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ca-fade-in {
+    animation: none;
   }
 }

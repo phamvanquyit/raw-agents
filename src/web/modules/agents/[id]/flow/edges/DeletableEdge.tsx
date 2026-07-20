@@ -36,7 +36,7 @@ export function DeletableEdge({
         path={edgePath}
         style={{
           ...style,
-          ...(selected ? { stroke: "#ff4d6d", strokeWidth: 3, opacity: 1 } : {}),
+          ...(selected ? { stroke: "#e85d4c", strokeWidth: 3, opacity: 1 } : {}),
         }}
         markerEnd={markerEnd}
       />
@@ -47,7 +47,7 @@ export function DeletableEdge({
           <div className="w-full h-full flex items-center justify-center">
             <button
               type="button"
-              className="w-5 h-5 rounded-full bg-danger text-white text-[10px] font-bold cursor-pointer flex items-center justify-center transition-all duration-150 shadow-[0_2px_8px_rgba(0,0,0,0.4)] leading-none p-0 font-[inherit] border-none hover:w-6 hover:h-6 hover:shadow-[0_0_12px_rgba(255,77,109,0.5)]"
+              className="w-5 h-5 rounded-full bg-destructive text-white text-[10px] font-bold cursor-pointer flex items-center justify-center transition-all duration-150 leading-none p-0 font-[inherit] border-none hover:w-6 hover:h-6"
               onClick={(e) => {
                 e.stopPropagation();
                 data?.onDelete?.();

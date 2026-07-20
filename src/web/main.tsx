@@ -1,8 +1,11 @@
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
+import { initTheme } from "src/common/theme";
 import "./index.css";
 import { store } from "src/store/store";
 import App from "./App";
+
+initTheme();
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {

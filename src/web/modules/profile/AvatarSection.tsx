@@ -43,13 +43,13 @@ export function AvatarSection({ avatar, name, onAvatarChange }: AvatarSectionPro
             type="button"
             onClick={handleRandomize}
             disabled={saving}
-            className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-primary text-[#121317] shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+            className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100"
             title="Randomize Avatar"
           >
             <Refresh size={14} className={saving ? "animate-spin" : ""} />
           </button>
         </div>
-        <p className="text-xs text-soft">Click the button to randomize your avatar.</p>
+        <p className="text-xs text-muted-foreground">Click the button to randomize your avatar.</p>
       </div>
     </SectionRow>
   );

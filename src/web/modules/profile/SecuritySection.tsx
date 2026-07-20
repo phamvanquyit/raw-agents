@@ -2,8 +2,8 @@ import { Key } from "@solar-icons/react";
 import { useForm } from "@tanstack/react-form";
 import { apiClient } from "src/common/api";
 import { Button } from "src/components/ui/button";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
 import { toast } from "src/components/ui/toast";
 import { SectionRow } from "./SectionRow";
 

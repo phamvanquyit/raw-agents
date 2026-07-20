@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { DeleteConfirmButton } from "src/components/ui/alert-dialog";
 import { Button } from "src/components/ui/button";
 import { SimpleDialog } from "src/components/ui/dialog";
+import { Field } from "src/components/ui/form-field";
 import { Input } from "src/components/ui/input";
-import { Field } from "src/components/ui/label";
 import { toast } from "src/components/ui/toast";
 import { deleteTeam, updateTeam } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
@@ -127,7 +127,7 @@ export function EditTeamDialog({ open, team, onClose }: EditTeamDialogProps) {
           />
         </Field>
 
-        {error && <div className="text-[12px] text-[#a03030] font-medium">{error}</div>}
+        {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
       </div>
     </SimpleDialog>
   );

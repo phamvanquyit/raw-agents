@@ -54,7 +54,7 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
         type="source"
         position={Position.Right}
         style={{ top: 28 }}
-        className="!w-2 !h-2 !bg-[rgba(156,154,242,0.2)] !border-2 !border-[rgba(156,154,242,0.35)] transition-all duration-150"
+        className="!w-2 !h-2 !bg-edge-call-agent/20 !border-2 !border-edge-call-agent/35 transition-all duration-150"
       />
 
       <Popover>
@@ -65,18 +65,18 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
           >
             {/* Circular icon container */}
             <div
-              className={`w-14 h-14 rounded-full bg-surface border-2 shadow-[0_0_24px_rgba(0,0,0,0.3),0_0_0_1px_rgba(255,255,255,0.04)] flex items-center justify-center transition-all duration-200 group-hover:scale-[1.08] group-active:scale-[0.95] ${data.isPublic ? "border-[#9c9af2]/40 shadow-[0_0_28px_rgba(156,154,242,0.15),0_0_0_1px_rgba(156,154,242,0.12)]" : "border-white/10 group-hover:border-[#9c9af2]/40 group-hover:shadow-[0_0_28px_rgba(156,154,242,0.12),0_0_0_1px_rgba(156,154,242,0.1)]"}`}
+              className={`w-14 h-14 rounded-full bg-card border-2 flex items-center justify-center transition-all duration-200 group-hover:scale-[1.08] group-active:scale-[0.95] ${data.isPublic ? "border-chart-2/40" : "border-border group-hover:border-chart-2/40"}`}
             >
               <svg
                 width={22}
                 height={22}
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={data.isPublic ? "#9c9af2" : "currentColor"}
+                stroke="currentColor"
                 strokeWidth={1.8}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={`transition-all duration-200 ${data.isPublic ? "opacity-100 text-[#9c9af2]" : "opacity-50 text-muted group-hover:opacity-80 group-hover:text-[#9c9af2]"}`}
+                className={`transition-all duration-200 ${data.isPublic ? "opacity-100 text-chart-2" : "opacity-50 text-muted-foreground group-hover:opacity-80 group-hover:text-chart-2"}`}
               >
                 <circle cx="12" cy="12" r="10" />
                 <line x1="2" y1="12" x2="22" y2="12" />
@@ -86,7 +86,7 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
 
             {/* Label below */}
             <span
-              className={`text-[11px] font-semibold leading-[1] tracking-wide transition-colors duration-200 ${data.isPublic ? "text-[#9c9af2]" : "text-muted group-hover:text-[#9c9af2]"}`}
+              className={`text-[11px] font-semibold leading-[1] tracking-wide transition-colors duration-200 ${data.isPublic ? "text-chart-2" : "text-muted-foreground group-hover:text-chart-2"}`}
             >
               Publish
             </span>
@@ -97,7 +97,7 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
           <PopoverArrow className="fill-border" width={12} height={6} />
           <div className="flex flex-col gap-3 p-4">
             {/* Link display */}
-            <div className="flex items-center gap-2 bg-surface-raised px-2.5 py-1.5 rounded-lg border border-border">
+            <div className="flex items-center gap-2 bg-muted px-2.5 py-1.5 rounded-lg border border-border">
               <Link size={13} className="text-primary shrink-0" />
               <a
                 href={publicLink}
@@ -114,7 +114,7 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
 
             {/* Password */}
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-soft">Access Password</span>
+              <span className="text-[11px] font-medium text-muted-foreground">Access Password</span>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -126,7 +126,7 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted hover:text-main transition-colors bg-transparent border-none cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground transition-colors bg-transparent border-none cursor-pointer"
                 >
                   {showPassword ? (
                     <svg
@@ -160,7 +160,7 @@ export function PublishNode({ data }: NodeProps<PublishNodeType>) {
                   )}
                 </button>
               </div>
-              <p className="text-[10px] text-muted">Guests must enter this password to access the chat.</p>
+              <p className="text-[10px] text-muted-foreground">Guests must enter this password to access the chat.</p>
             </div>
 
             <div className="flex justify-end">
