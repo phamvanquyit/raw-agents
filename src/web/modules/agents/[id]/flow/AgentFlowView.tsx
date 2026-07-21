@@ -216,7 +216,7 @@ function AgentFlowInner({
       id: "config",
       type: "agentConfig",
       position: { x: CENTER_X - 190, y: CENTER_Y - 40 },
-      style: { width: 380, height: 560 },
+      style: { width: 380, height: "auto" },
       data: {
         name,
         description,

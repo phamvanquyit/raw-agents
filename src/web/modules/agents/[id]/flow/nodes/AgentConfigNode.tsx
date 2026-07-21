@@ -114,7 +114,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
   const promptPreview = hasPrompt ? data.systemPrompt.replace(/\s+/g, " ").trim() : "";
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative w-full">
       <Handle
         type="target"
         id="tools"
@@ -147,8 +147,8 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
         />
       )}
 
-      <div className="h-full w-full flex flex-col rounded-md border border-border bg-card overflow-hidden transition-all duration-200">
-        <div className="flex flex-col items-center pt-5 pb-2 shrink-0">
+      <div className="w-full flex flex-col rounded-md border border-border bg-card transition-all duration-200">
+        <div className="flex flex-col items-center pt-5 pb-2">
           <div className="nodrag nopan">
             <Popover
               open={avatarOpen}
@@ -175,8 +175,8 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
           </div>
         </div>
 
-        <div className="px-4 pb-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto game-scrollbar">
-          <div className="flex flex-col gap-1 shrink-0">
+        <div className="px-4 pb-4 flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Name</span>
             <div className="nodrag nopan">
               <input
@@ -190,7 +190,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1 shrink-0">
+          <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Description</span>
             <div className="nodrag nopan nowheel">
               <textarea
@@ -204,7 +204,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1 shrink-0">
+          <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Model</span>
             <div className="nodrag nopan nowheel">
               <ModelPicker
@@ -216,7 +216,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 shrink-0">
+          <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Instruct</span>
               {hasPrompt && <span className="text-[10px] font-medium text-brand-soft">Configured</span>}
@@ -258,7 +258,7 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1 shrink-0">
+          <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Publish</span>
             <div className="nodrag nopan">
               <div
