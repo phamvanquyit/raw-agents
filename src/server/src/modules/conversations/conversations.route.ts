@@ -1,70 +1,93 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { BadRequestException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { streamChatSSE } from "../agents/raw-agent/raw-agent.service.js";
 import { relayRunToSSE, runRegistry } from "../agents/raw-agent/utils/run-registry.js";
 import {
   createConversation,
   createMessage,
   deleteConversation,
-  getConversation,
   getMessageFeed,
   listConversations,
   listMessages,
   patchMessageMeta,
+  requireOwnedConversation,
   updateConversation,
 } from "./conversations.service.js";
 
 const app = new Hono();
 
+function requireUser(c: { get: (key: string) => unknown }) {
+  const user = c.get("user") as { id: string; role: string } | undefined;
+  if (!user) throw new UnauthorizedException("Authentication required");
+  return user;
+}
+
 // GET /api/conversations?page=1&limit=50&sorts=-createdAt&agentId=xxx
 app.get("/", (c) => {
-  return c.json(listConversations(c.req.query()));
+  const user = requireUser(c);
+  return c.json(listConversations(user.id, c.req.query()));
 });
 
 // GET /api/conversations/feed/messages — must be before /:id
 app.get("/feed/messages", (c) => {
+  const user = requireUser(c);
   const agentId = c.req.query("agentId");
   if (!agentId) throw new BadRequestException("agentId required");
-  return c.json(getMessageFeed(agentId, c.req.query("cursor")));
+  return c.json(getMessageFeed(agentId, user.id, c.req.query("cursor")));
 });
 
 // GET /api/conversations/:id
 app.get("/:id", (c) => {
-  const row = getConversation(c.req.param("id"));
-  if (!row) throw new BadRequestException("Not found");
-  return c.json(row);
+  const user = requireUser(c);
+  return c.json(requireOwnedConversation(c.req.param("id"), user.id));
 });
 
 // POST /api/conversations
 app.post("/", async (c) => {
+  const user = requireUser(c);
   const body = await c.req.json();
-  return c.json(createConversation(body), 201);
+  return c.json(createConversation({ ...body, ownerId: user.id }), 201);
 });
 
 // PUT /api/conversations/:id
 app.put("/:id", async (c) => {
+  const user = requireUser(c);
+  const id = c.req.param("id");
+  requireOwnedConversation(id, user.id);
   const body = await c.req.json();
-  return c.json(updateConversation(c.req.param("id"), body));
+  return c.json(updateConversation(id, body));
 });
 
 // DELETE /api/conversations/:id
 app.delete("/:id", (c) => {
-  deleteConversation(c.req.param("id"));
+  const user = requireUser(c);
+  const id = c.req.param("id");
+  requireOwnedConversation(id, user.id);
+  deleteConversation(id);
   return c.json({ ok: true });
 });
 
 // GET /api/conversations/:id/messages
-app.get("/:id/messages", (c) => c.json(listMessages(c.req.param("id"))));
+app.get("/:id/messages", (c) => {
+  const user = requireUser(c);
+  requireOwnedConversation(c.req.param("id"), user.id);
+  return c.json(listMessages(c.req.param("id")));
+});
 
 // POST /api/conversations/:id/messages
 app.post("/:id/messages", async (c) => {
+  const user = requireUser(c);
+  const id = c.req.param("id");
+  requireOwnedConversation(id, user.id);
   const body = await c.req.json();
-  return c.json(createMessage(c.req.param("id"), body), 201);
+  return c.json(createMessage(id, body), 201);
 });
 
 // PATCH /api/conversations/:convId/messages/:msgId/metadata
 app.patch("/:convId/messages/:msgId/metadata", async (c) => {
+  const user = requireUser(c);
+  requireOwnedConversation(c.req.param("convId"), user.id);
   const patch = await c.req.json<Record<string, unknown>>();
   const result = patchMessageMeta(c.req.param("msgId"), patch);
   if (!result) throw new BadRequestException("Message not found");
@@ -75,7 +98,9 @@ app.patch("/:convId/messages/:msgId/metadata", async (c) => {
 // POST /api/conversations/:id/chat — starts a background agent run, then relays
 // events over SSE. Disconnecting does NOT cancel the run (use /chat/stop).
 app.post("/:id/chat", async (c) => {
+  const user = requireUser(c);
   const conversationId = c.req.param("id");
+  requireOwnedConversation(conversationId, user.id);
   const body = await c.req.json<{ agentId: string; message: string; password?: string; token?: string }>();
 
   return streamSSE(c, async (stream) => {
@@ -87,7 +112,9 @@ app.post("/:id/chat", async (c) => {
 // GET /api/conversations/:id/stream — subscribe to a running (or recently finished)
 // background task. Replays buffered events so F5 mid-stream catches up.
 app.get("/:id/stream", (c) => {
+  const user = requireUser(c);
   const conversationId = c.req.param("id");
+  requireOwnedConversation(conversationId, user.id);
 
   return streamSSE(c, async (stream) => {
     // Wait for stream to become available (GET opened before POST registers the run)

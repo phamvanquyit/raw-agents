@@ -1,16 +1,17 @@
-import { and, desc, eq, lt, ne, sql } from "drizzle-orm";
-import { type NewAgentConversation, type NewAgentMessage, agentConversations, agentMessages, getDb } from "../../common/db/client.js";
+import { and, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
+import { type AgentConversation, type NewAgentConversation, type NewAgentMessage, agentConversations, agentMessages, getDb } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
+import { BadRequestException, ForbiddenException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 
 const STALE_MS = 60_000;
 
-export function listConversations(query: RawQuery = {}) {
-  // Build static WHERE: exclude "public" trigger, optionally filter by agentId
+export function listConversations(ownerId: string, query: RawQuery = {}) {
+  // Build static WHERE: owner + exclude "public" trigger, optionally filter by agentId
   const agentId = query.agentId;
   const staticWhere = agentId
-    ? and(eq(agentConversations.agentId, agentId), ne(agentConversations.trigger, "public"))
-    : ne(agentConversations.trigger, "public");
+    ? and(eq(agentConversations.ownerId, ownerId), eq(agentConversations.agentId, agentId), ne(agentConversations.trigger, "public"))
+    : and(eq(agentConversations.ownerId, ownerId), ne(agentConversations.trigger, "public"));
 
   // Remove agentId from query so listQuery doesn't re-apply it as a column filter
   const { agentId: _, ...cleanQuery } = query;
@@ -35,11 +36,19 @@ export function getConversation(id: string) {
   return getDb().select().from(agentConversations).where(eq(agentConversations.id, id)).get();
 }
 
+/** Ensure conversation exists and belongs to the given owner. */
+export function requireOwnedConversation(id: string, ownerId: string): AgentConversation {
+  const conv = getConversation(id);
+  if (!conv || conv.trigger === "public") throw new BadRequestException("Not found");
+  if (conv.ownerId !== ownerId) throw new ForbiddenException("Forbidden");
+  return conv;
+}
+
 export function createConversation(body: {
   agentId: string;
   title?: string;
   trigger?: NewAgentConversation["trigger"];
-  ownerId?: string;
+  ownerId: string;
 }) {
   const now = new Date();
   const conv: NewAgentConversation = {
@@ -47,7 +56,7 @@ export function createConversation(body: {
     agentId: body.agentId,
     title: body.title ?? "New Chat",
     trigger: body.trigger ?? "manual",
-    ownerId: body.ownerId ?? "user",
+    ownerId: body.ownerId,
     status: "done",
     startedAt: now,
     createdAt: now,
@@ -99,18 +108,26 @@ export function patchMessageMeta(msgId: string, patch: Record<string, unknown>) 
 
 // ─── Feed ─────────────────────────────────────────────────────────────────────
 
-export function getMessageFeed(agentId: string, cursor?: string) {
+export function getMessageFeed(agentId: string, ownerId: string, cursor?: string) {
   const PAGE = 30;
   const db = getDb();
   const cursorDate = cursor ? new Date(cursor) : undefined;
 
-  const convRows = db.select().from(agentConversations).where(eq(agentConversations.agentId, agentId)).orderBy(desc(agentConversations.createdAt)).all();
+  const convRows = db
+    .select()
+    .from(agentConversations)
+    .where(and(eq(agentConversations.agentId, agentId), eq(agentConversations.ownerId, ownerId)))
+    .orderBy(desc(agentConversations.createdAt))
+    .all();
 
   if (convRows.length === 0) return { items: [], hasMore: false };
 
   const convMap = new Map(convRows.map((conv) => [conv.id, conv]));
+  const ownedConvIds = convRows.map((c) => c.id);
 
-  const whereClause = cursorDate ? and(eq(agentMessages.agentId, agentId), lt(agentMessages.createdAt, cursorDate)) : eq(agentMessages.agentId, agentId);
+  const whereClause = cursorDate
+    ? and(eq(agentMessages.agentId, agentId), inArray(agentMessages.conversationId, ownedConvIds), lt(agentMessages.createdAt, cursorDate))
+    : and(eq(agentMessages.agentId, agentId), inArray(agentMessages.conversationId, ownedConvIds));
 
   const msgRows = db
     .select()
