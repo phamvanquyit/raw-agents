@@ -1,10 +1,12 @@
-import { CloseSquare, DocumentText } from "@solar-icons/react";
+import { CloseSquare, Diskette, DocumentText } from "@solar-icons/react";
+import { Button, message } from "antd";
 import type * as MonacoNS from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
 import { type EditorInstance, MonacoEditor } from "src/components/MonacoEditor";
+import { updateAgent } from "src/modules/agents/common/agentsSlice";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { getSettingValues } from "src/modules/settings/common/settingsApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
@@ -28,6 +30,7 @@ const PLACEHOLDER = "Write instructions for this agent…\n\nPersonality, rules,
 const SIDEBAR_DEFAULT = 400;
 const SIDEBAR_MIN = 300;
 const SIDEBAR_MAX = 560;
+const AUTOSAVE_MS = 800;
 
 function ResizableSplitter({
   sidebarWidth,
@@ -106,6 +109,16 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
   const [model, setModel] = useState("");
   const initializedRef = useRef(false);
 
+  const [savedPrompt, setSavedPrompt] = useState(agent.systemPrompt ?? "");
+  const [saving, setSaving] = useState(false);
+  const dirty = systemPrompt !== savedPrompt;
+  const promptRef = useRef(systemPrompt);
+  promptRef.current = systemPrompt;
+  const savedPromptRef = useRef(savedPrompt);
+  savedPromptRef.current = savedPrompt;
+  const savingRef = useRef(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     dispatch(fetchLlmProviders());
   }, [dispatch]);
@@ -148,9 +161,71 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
     const newPrompt = agent.systemPrompt ?? "";
     if (newPrompt !== lastAgentPromptRef.current) {
       lastAgentPromptRef.current = newPrompt;
+      savedPromptRef.current = newPrompt;
+      setSavedPrompt(newPrompt);
       applyPrompt(newPrompt);
     }
   }, [agent.systemPrompt, applyPrompt]);
+
+  const savePrompt = useCallback(
+    async (value?: string) => {
+      const next = value ?? promptRef.current;
+      if (next === savedPromptRef.current) return;
+      if (savingRef.current) return;
+      savingRef.current = true;
+      setSaving(true);
+      try {
+        await dispatch(updateAgent({ id, systemPrompt: next || null })).unwrap();
+        lastAgentPromptRef.current = next;
+        savedPromptRef.current = next;
+        setSavedPrompt(next);
+      } catch {
+        message.error("Failed to save prompt");
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
+    },
+    [dispatch, id],
+  );
+
+  const savePromptRef = useRef(savePrompt);
+  savePromptRef.current = savePrompt;
+
+  const scheduleAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void savePromptRef.current();
+    }, AUTOSAVE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      void savePromptRef.current();
+    };
+  }, []);
+
+  const handleChange = useCallback(
+    (v: string | undefined) => {
+      const next = v ?? "";
+      setSystemPrompt(next);
+      if (next !== savedPromptRef.current) scheduleAutosave();
+    },
+    [setSystemPrompt, scheduleAutosave],
+  );
+
+  const handleSave = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    void savePrompt();
+  }, [savePrompt]);
 
   const isEmpty = !systemPrompt || systemPrompt.trim().length === 0;
 
@@ -165,7 +240,23 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
             <div className="text-[13px] font-semibold leading-none text-foreground">Instruct</div>
             {agent.name ? <div className="mt-1 truncate text-[11px] leading-none text-tertiary-foreground">{agent.name}</div> : null}
           </div>
+          {dirty && !saving ? (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-2 py-0.5 text-xs font-medium text-brand-soft">
+              <span className="size-1.5 animate-pulse rounded-full bg-brand-soft" />
+              Unsaved
+            </span>
+          ) : null}
         </div>
+        <Button
+          type="primary"
+          size="small"
+          icon={!saving ? <Diskette width={14} height={14} /> : undefined}
+          loading={saving}
+          disabled={!dirty && !saving}
+          onClick={handleSave}
+        >
+          {saving ? "Saving…" : "Save"}
+        </Button>
         {onClose ? (
           <button
             type="button"
@@ -184,7 +275,8 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
             <MonacoEditor
               language="markdown"
               value={systemPrompt}
-              onChange={(v) => setSystemPrompt(v ?? "")}
+              onChange={handleChange}
+              onSave={handleSave}
               onMount={(editor) => {
                 editorRef.current = editor;
               }}
