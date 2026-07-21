@@ -469,8 +469,67 @@ describe("SSE Chat & Streaming API", () => {
     expect(res.status).toBe(400);
   });
 
-  test("Public stream — non-existent conv returns 404", async () => {
+  test("Public stream — non-existent conv returns 400", async () => {
     const res = await app.request(`/api/public/agents/${agentId}/conversations/fake-conv/stream?fp=test`);
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
+  });
+
+  // ── Public Chat SSE ────────────────────────────────────────────────────
+
+  test("Public chat — requires fingerprint", async () => {
+    await authRequest(app, token, "PUT", `/api/agents/${agentId}`, { publicPassword: null });
+
+    const createRes = await app.request(`/api/public/agents/${agentId}/conversations?fp=chat-fp`, { method: "POST" });
+    const { conversationId } = (await createRes.json()) as { conversationId: string };
+
+    const res = await app.request(`/api/public/agents/${agentId}/conversations/${conversationId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "hi" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test("Public chat — wrong fingerprint rejected", async () => {
+    const createRes = await app.request(`/api/public/agents/${agentId}/conversations?fp=owner-fp`, { method: "POST" });
+    const { conversationId } = (await createRes.json()) as { conversationId: string };
+
+    const res = await app.request(`/api/public/agents/${agentId}/conversations/${conversationId}/chat?fp=wrong-fp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "hi" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test("Public chat — correct fingerprint saves message", async () => {
+    const fp = `chat-${crypto.randomUUID()}`;
+    const createRes = await app.request(`/api/public/agents/${agentId}/conversations?fp=${fp}`, { method: "POST" });
+    const { conversationId } = (await createRes.json()) as { conversationId: string };
+
+    const res = await app.request(`/api/public/agents/${agentId}/conversations/${conversationId}/chat?fp=${fp}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Hello guest!" }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("data:");
+
+    const getRes = await app.request(`/api/public/agents/${agentId}/conversations/${conversationId}?fp=${fp}`);
+    const detail = (await getRes.json()) as { messages: { role: string; content: string }[] };
+    expect(detail.messages.some((m) => m.role === "user" && m.content === "Hello guest!")).toBe(true);
+  });
+
+  test("Auth chat — cannot send on public conversation", async () => {
+    const fp = `iso-${crypto.randomUUID()}`;
+    const createRes = await app.request(`/api/public/agents/${agentId}/conversations?fp=${fp}`, { method: "POST" });
+    const { conversationId } = (await createRes.json()) as { conversationId: string };
+
+    const res = await authRequest(app, token, "POST", `/api/conversations/${conversationId}/chat`, {
+      agentId,
+      message: "should fail",
+    });
+    expect(res.status).toBe(400);
   });
 });

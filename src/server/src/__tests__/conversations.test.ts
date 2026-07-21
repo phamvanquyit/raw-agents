@@ -6,6 +6,7 @@ describe("Conversations API", () => {
   let app: Hono;
   let cleanup: () => void;
   let token: string;
+  let adminUserId: string;
   let agentId: string;
 
   beforeAll(async () => {
@@ -14,6 +15,7 @@ describe("Conversations API", () => {
     cleanup = t.cleanup;
     const admin = await setupAdmin(app);
     token = admin.token;
+    adminUserId = admin.user.id as string;
 
     // Create an agent for conversations
     const agentRes = await authRequest(app, token, "POST", "/api/agents", {
@@ -42,6 +44,7 @@ describe("Conversations API", () => {
     expect(data.agentId).toBe(agentId);
     expect(data.trigger).toBe("manual");
     expect(data.status).toBe("done");
+    expect(data.ownerId).toBe(adminUserId);
     convId = data.id as string;
   });
 
@@ -141,5 +144,58 @@ describe("Conversations API", () => {
     // Verify deleted
     const getRes = await authRequest(app, token, "GET", `/api/conversations/${convId}`);
     expect(getRes.status).toBe(400);
+  });
+
+  // ── Per-user isolation ────────────────────────────────────────────────
+
+  test("conversations are isolated per user", async () => {
+    // Admin creates a conversation
+    const adminConvRes = await authRequest(app, token, "POST", "/api/conversations", {
+      agentId,
+      title: "Admin Only Chat",
+    });
+    expect(adminConvRes.status).toBe(201);
+    const adminConv = (await adminConvRes.json()) as { id: string };
+
+    // Create member user and login
+    await authRequest(app, token, "POST", "/api/users", {
+      username: "convmember",
+      name: "Conv Member",
+      password: "memberpass1",
+      role: "member",
+    });
+    const loginRes = await app.request("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "convmember", password: "memberpass1" }),
+    });
+    const { token: memberToken } = (await loginRes.json()) as { token: string };
+
+    // Member creates their own conversation
+    const memberConvRes = await authRequest(app, memberToken, "POST", "/api/conversations", {
+      agentId,
+      title: "Member Only Chat",
+    });
+    expect(memberConvRes.status).toBe(201);
+    const memberConv = (await memberConvRes.json()) as { id: string; ownerId: string };
+    expect(memberConv.ownerId).not.toBe(adminUserId);
+
+    // Member list does not include admin's conversation
+    const memberListRes = await authRequest(app, memberToken, "GET", `/api/conversations?agentId=${agentId}`);
+    const memberList = (await memberListRes.json()) as { items: { id: string }[] };
+    expect(memberList.items.some((c) => c.id === adminConv.id)).toBe(false);
+    expect(memberList.items.some((c) => c.id === memberConv.id)).toBe(true);
+
+    // Admin list does not include member's conversation
+    const adminListRes = await authRequest(app, token, "GET", `/api/conversations?agentId=${agentId}`);
+    const adminList = (await adminListRes.json()) as { items: { id: string }[] };
+    expect(adminList.items.some((c) => c.id === memberConv.id)).toBe(false);
+    expect(adminList.items.some((c) => c.id === adminConv.id)).toBe(true);
+
+    // Member cannot get/update/delete admin's conversation
+    expect((await authRequest(app, memberToken, "GET", `/api/conversations/${adminConv.id}`)).status).toBe(403);
+    expect((await authRequest(app, memberToken, "PUT", `/api/conversations/${adminConv.id}`, { title: "Hacked" })).status).toBe(403);
+    expect((await authRequest(app, memberToken, "DELETE", `/api/conversations/${adminConv.id}`)).status).toBe(403);
+    expect((await authRequest(app, memberToken, "GET", `/api/conversations/${adminConv.id}/messages`)).status).toBe(403);
   });
 });
