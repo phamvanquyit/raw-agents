@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-21
+
+### Added
+- Guest public chat streams via fingerprint-gated SSE (`POST /api/public/agents/:id/conversations/:convId/chat`)
+- Authenticated conversations are scoped to the owning user across list, feed, and chat APIs
+
+### Changed
+- Public chat UI redesigned (resizable sidebar, empty-state starters, shared shell styling)
+
+### Fixed
+- Chat auto-scroll stays pinned during streaming and layout/textarea resize
+
+### Upgrade notes
+- Multi-user installs: each user only sees their own non-public conversations
+- Rebuild/re-pull the Docker image for the UI and server changes
+
 ## [0.8.0] - 2026-07-20
 
 ### Added
@@ -74,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.9.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.8.2...v0.9.0
 [0.8.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.5.1...v0.6.0
