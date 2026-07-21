@@ -57,6 +57,7 @@ export function PromptAgentPanel({ providerId, model, streamUrl, maxSteps = 6, o
         model={model}
         onProviderChange={onChangeAiProvider}
         onModelChange={onChangeModel}
+        enableTypeToFocus={false}
       />
     </div>
   );

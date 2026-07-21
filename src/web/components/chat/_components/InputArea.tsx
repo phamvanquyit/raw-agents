@@ -28,13 +28,17 @@ interface InputAreaProps {
   hideConfig?: boolean;
   /** When this changes (e.g. conversation id), focus the input */
   focusSignal?: string | null;
+  /** Redirect bare keypresses into this input when focus is elsewhere (default true) */
+  enableTypeToFocus?: boolean;
 }
 
 function isEditableTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
   const tag = el.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) return true;
-  return Boolean(el.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu']"));
+  return Boolean(
+    el.closest("input, textarea, select, [contenteditable], [role='dialog'], [role='alertdialog'], [role='listbox'], [role='menu'], .monaco-editor"),
+  );
 }
 
 function getNativeTextArea(ref: TextAreaRef | null): HTMLTextAreaElement | null {
@@ -52,6 +56,7 @@ export function InputArea({
   onModelChange,
   hideConfig,
   focusSignal,
+  enableTypeToFocus = true,
 }: InputAreaProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<TextAreaRef>(null);
@@ -76,6 +81,8 @@ export function InputArea({
   }, [focusSignal]);
 
   useEffect(() => {
+    if (!enableTypeToFocus) return;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -101,7 +108,7 @@ export function InputArea({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [enableTypeToFocus]);
 
   const handleSend = () => {
     if (!sendEnabled) return;

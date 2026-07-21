@@ -133,6 +133,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
           model={model}
           onProviderChange={onChangeAiProvider}
           onModelChange={onChangeModel}
+          enableTypeToFocus={false}
         />
       </div>
     </div>
