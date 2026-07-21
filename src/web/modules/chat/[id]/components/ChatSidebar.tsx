@@ -1,17 +1,13 @@
-import { AltArrowLeft } from "@solar-icons/react";
-import { AppLogo } from "../../../../components/AppLogo";
-import type { ConvMeta } from "./types";
+import { ChatRound, PenNewSquare, SidebarMinimalistic, TrashBinMinimalistic } from "@solar-icons/react";
+import { UserAvatar } from "src/components/UserAvatar";
+import type { ConvMeta, PublicAgent } from "./types";
 
 interface ChatSidebarProps {
-  agentName?: string;
-  agentDescription?: string;
-  agentModel?: string;
-  toolCount?: number;
+  agent: PublicAgent;
   conversations: ConvMeta[];
   conversationId: string | null;
   processingConvIds: Set<string>;
-  sidebarOpen: boolean;
-  running: boolean;
+  width?: number;
   onCloseSidebar: () => void;
   onNewConversation: () => void;
   onSwitchConversation: (convId: string) => void;
@@ -19,185 +15,109 @@ interface ChatSidebarProps {
 }
 
 export function ChatSidebar({
-  agentName,
-  agentDescription,
-  agentModel,
-  toolCount,
+  agent,
   conversations,
   conversationId,
   processingConvIds,
-  sidebarOpen,
-  running,
+  width = 260,
   onCloseSidebar,
   onNewConversation,
   onSwitchConversation,
   onDeleteConversation,
 }: ChatSidebarProps) {
-  const modelName = agentModel ? agentModel.split("/").pop() : null;
+  const modelLabel = agent.model?.split("/").pop() ?? null;
 
   return (
-    <>
-      {/* Mobile overlay */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={onCloseSidebar} />}
+    <div className="flex flex-col h-full bg-card shrink-0 overflow-hidden" style={{ width }}>
+      <div className="flex items-center gap-3 px-3.5 pt-4 pb-3.5 shrink-0 min-w-0">
+        <UserAvatar name={agent.name} size={40} className="shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[14px] font-semibold text-foreground truncate leading-snug">{agent.name}</div>
+          {modelLabel && <div className="mt-1 text-[11px] text-muted-foreground truncate leading-snug">{modelLabel}</div>}
+        </div>
+        <button
+          type="button"
+          onClick={onCloseSidebar}
+          className="flex items-center justify-center size-8 shrink-0 rounded-lg border-none bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+          aria-label="Close sidebar"
+          title="Close sidebar"
+        >
+          <SidebarMinimalistic width={16} height={16} />
+        </button>
+      </div>
 
-      <aside
-        className={`
-          fixed md:relative z-40 md:z-auto
-          flex flex-col h-full
-          w-72 shrink-0
-          bg-muted
-          border-r border-border
-          transition-transform duration-300 ease-out
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 md:w-0 md:border-0 md:overflow-hidden"}
-        `}
-      >
-        {/* ── Agent Info Card ─────────────────────────────────── */}
-        <div className="shrink-0 px-4 pt-5 pb-4 relative">
-          {/* Close button (mobile) */}
-          <button
-            type="button"
-            onClick={onCloseSidebar}
-            className="md:hidden absolute top-4 right-3 text-muted-foreground hover:text-muted-foreground transition-colors p-1.5 rounded-lg hover:bg-accent"
-          >
-            <AltArrowLeft size={16} />
-          </button>
+      <div className="flex items-center gap-1 px-2 pb-2 shrink-0">
+        <button
+          type="button"
+          onClick={onNewConversation}
+          className="flex-1 flex items-center gap-2.5 min-w-0 px-2.5 py-2 rounded-lg text-[13px] font-medium text-foreground bg-muted/70 hover:bg-muted border-none cursor-pointer transition-colors font-[inherit]"
+        >
+          <PenNewSquare width={15} height={15} className="shrink-0" />
+          <span className="truncate">New chat</span>
+        </button>
+      </div>
 
-          {/* Icon + Name + Description (centered, stacked) */}
-          <div className="flex flex-col items-center gap-2 mb-3">
-            <div className="relative pt-1">
-              <div className="absolute inset-0 rounded-lg bg-primary/15 blur-md scale-150" />
-              <div className="relative">
-                <AppLogo size={48} />
-              </div>
-            </div>
-            <h1 className="font-display text-[16px] font-semibold text-foreground leading-tight text-center truncate max-w-full">{agentName}</h1>
+      <div className="flex-1 min-h-0 overflow-y-auto game-scrollbar py-1 px-1 space-y-px">
+        {conversations.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-8 text-center px-3">
+            <ChatRound width={18} height={18} className="text-muted-foreground opacity-40" />
+            <span className="text-[11px] text-muted-foreground">No conversations yet</span>
           </div>
+        )}
 
-          {/* Description */}
-          {agentDescription && <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-2 mb-3 text-center">{agentDescription}</p>}
+        {conversations.map((conv) => {
+          const isActive = conv.id === conversationId;
+          const isProcessing = processingConvIds.has(conv.id);
 
-          {/* Specs — label:value rows */}
-          <div className="flex flex-col gap-2.5 pt-3 border-t border-border/20">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] font-medium text-muted-foreground shrink-0">Model</span>
-              {modelName ? (
-                <span className="text-[12px] font-medium text-muted-foreground truncate max-w-[140px]">{modelName}</span>
-              ) : (
-                <span className="text-[11px] text-muted-foreground italic">—</span>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] font-medium text-muted-foreground shrink-0">Tools</span>
-              <span className="text-[12px] text-muted-foreground">
-                {toolCount ?? 0} {(toolCount ?? 0) === 1 ? "tool" : "tools"}
+          return (
+            <div
+              key={conv.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSwitchConversation(conv.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSwitchConversation(conv.id);
+                }
+              }}
+              className={[
+                "relative w-full flex items-center gap-2 py-2 px-2.5 rounded-lg text-left cursor-pointer border-none group",
+                isActive ? "bg-primary/[0.08]" : "bg-transparent hover:bg-muted/80",
+              ].join(" ")}
+            >
+              <span className={["flex-1 min-w-0 text-sm truncate font-normal text-foreground", "group-hover:pr-6 group-focus-within:pr-7"].join(" ")}>
+                {conv.title || "Untitled"}
               </span>
+
+              {isProcessing && (
+                <span
+                  className="shrink-0 inline-block rounded-full animate-spin"
+                  style={{
+                    width: 12,
+                    height: 12,
+                    border: "2px solid color-mix(in srgb, var(--primary) 20%, transparent)",
+                    borderTopColor: "var(--primary)",
+                  }}
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteConversation(conv.id);
+                }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden items-center justify-center size-6 rounded-md cursor-pointer border-none bg-muted text-muted-foreground hover:bg-red-500/20 hover:text-destructive group-hover:flex group-focus-within:flex"
+                title="Delete conversation"
+                tabIndex={-1}
+              >
+                <TrashBinMinimalistic width={12} height={12} />
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* Neon accent divider */}
-        <div className="mx-4 h-px shrink-0" style={{ background: "linear-gradient(90deg, transparent, var(--border), transparent)" }} />
-
-        {/* New Chat button */}
-        <div className="px-3 py-3 shrink-0">
-          <button
-            type="button"
-            onClick={onNewConversation}
-            disabled={running}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-border/40 text-muted-foreground text-[13px] font-medium hover:border-primary/30 hover:text-primary hover:bg-primary/6 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <title>New</title>
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New Chat
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="mx-3 h-px bg-border/30 shrink-0" />
-
-        {/* Conversation list */}
-        <div className="flex-1 min-h-0 overflow-y-auto game-scrollbar px-2 pb-4 pt-2">
-          {conversations.length === 0 ? (
-            <p className="text-[12px] text-muted-foreground text-center py-4">No conversations yet</p>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              {conversations.map((conv) => {
-                const isActive = conv.id === conversationId;
-                const isProcessing = processingConvIds.has(conv.id);
-                return (
-                  <div
-                    key={conv.id}
-                    className="group relative flex items-center rounded-md transition-all"
-                    style={{
-                      backgroundColor: isActive ? "color-mix(in srgb, var(--primary) 8%, transparent)" : undefined,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.backgroundColor = "color-mix(in srgb, var(--muted) 40%, transparent)";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    <button type="button" onClick={() => onSwitchConversation(conv.id)} className="flex-1 text-left pl-3 py-2.5 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <p
-                          className="text-sm font-medium leading-snug truncate line-clamp-2 flex-1 min-w-0"
-                          style={{
-                            color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
-                          }}
-                        >
-                          {conv.title}
-                        </p>
-                        {isProcessing && (
-                          <span
-                            className="shrink-0 inline-block rounded-full animate-spin"
-                            style={{
-                              width: 12,
-                              height: 12,
-                              border: "2px solid color-mix(in srgb, var(--primary) 20%, transparent)",
-                              borderTopColor: "var(--primary)",
-                            }}
-                          />
-                        )}
-                      </div>
-                    </button>
-                    {/* Delete button — show on hover */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteConversation(conv.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 shrink-0 mr-2 p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
-                      title="Delete conversation"
-                    >
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <title>Delete</title>
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6l-1 14H6L5 6" />
-                        <path d="M10 11v6M14 11v6" />
-                        <path d="M9 6V4h6v2" />
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </aside>
-    </>
+          );
+        })}
+      </div>
+    </div>
   );
 }

@@ -41,6 +41,9 @@ function handleEvent(event: WsEvent) {
       // Skip public conversations — they belong to public users and should not
       // appear in the admin conversation list.
       if (conv.trigger === "public") break;
+      // Only sync conversations owned by the current user
+      const userId = store.getState().auth.user?.id;
+      if (userId && conv.ownerId !== userId) break;
       store.dispatch(upsertConversationLocal(conv));
       break;
     }

@@ -1,20 +1,13 @@
-import { AppLogo } from "../../../../components/AppLogo";
-import { GridBackground } from "./GridBackground";
-
 export function LoadingScreen() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background relative overflow-hidden">
-      <GridBackground />
-      <div className="relative flex flex-col items-center gap-4">
-        <div className="animate-pulse">
-          <AppLogo size={48} />
-        </div>
-        <div className="flex items-center gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="w-1 h-1 rounded-full bg-primary/60 inline-block animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-          ))}
-        </div>
-      </div>
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-48"
+        style={{
+          background: "radial-gradient(ellipse 80% 100% at 50% 0%, color-mix(in oklab, var(--muted) 55%, transparent), transparent)",
+        }}
+      />
+      <span className="relative text-[12px] text-muted-foreground animate-pulse">Loading...</span>
     </div>
   );
 }

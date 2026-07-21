@@ -1,5 +1,3 @@
-import { GridBackground } from "./GridBackground";
-
 interface ErrorScreenProps {
   error: string;
 }
@@ -7,8 +5,13 @@ interface ErrorScreenProps {
 export function ErrorScreen({ error }: ErrorScreenProps) {
   return (
     <div className="flex h-screen w-full flex-col items-center justify-center bg-background relative overflow-hidden p-6">
-      <GridBackground />
-      <div className="relative rounded-md border border-border bg-muted p-10 text-center max-w-md w-full shadow-card">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-48"
+        style={{
+          background: "radial-gradient(ellipse 80% 100% at 50% 0%, color-mix(in oklab, var(--muted) 55%, transparent), transparent)",
+        }}
+      />
+      <div className="relative rounded-xl border border-border bg-card p-10 text-center max-w-md w-full">
         <div className="w-12 h-12 rounded-full border border-destructive/30 bg-destructive/8 flex items-center justify-center mx-auto mb-5">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <title>Error</title>
@@ -21,8 +24,8 @@ export function ErrorScreen({ error }: ErrorScreenProps) {
             />
           </svg>
         </div>
-        <h2 className="font-display text-[18px] text-foreground font-semibold mb-2">Unavailable</h2>
-        <p className="text-muted-foreground text-[14px] leading-relaxed">{error}</p>
+        <h2 className="text-[18px] text-foreground font-semibold mb-2">Unavailable</h2>
+        <p className="text-muted-foreground text-[14px] leading-relaxed mb-0">{error}</p>
       </div>
     </div>
   );

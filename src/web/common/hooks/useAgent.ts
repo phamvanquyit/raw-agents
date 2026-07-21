@@ -68,21 +68,37 @@ function toSseCallbacks(callbacks: {
 
 /**
  * Stream chat from server-side agent.
- * POST /api/conversations/:id/chat returns SSE directly.
+ * Auth: POST /api/conversations/:id/chat
+ * Guest: POST /api/public/agents/:id/conversations/:convId/chat?fp=
  */
-async function streamAgentChat(agentId: string, message: string, conversationId: string, callbacks: AgentStreamCallbacks): Promise<void> {
+async function streamAgentChat(
+  agentId: string,
+  message: string,
+  conversationId: string,
+  callbacks: AgentStreamCallbacks,
+  options?: { fingerprint?: string },
+): Promise<void> {
   const { onChunk, onThinking, onToolCall, onToolResult, onDone, onError, abortSignal, password, token } = callbacks;
 
   if (abortSignal?.aborted) return;
 
   const BASE_URL: string = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "";
 
+  const url = options?.fingerprint
+    ? `${BASE_URL}/api/public/agents/${agentId}/conversations/${conversationId}/chat?fp=${encodeURIComponent(options.fingerprint)}`
+    : `${BASE_URL}/api/conversations/${conversationId}/chat`;
+
   let res: Response;
   try {
-    res = await fetch(`${BASE_URL}/api/conversations/${conversationId}/chat`, {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (!options?.fingerprint) {
+      const authToken = getAuthToken();
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    }
+    res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ agentId, message, password, token }),
+      headers,
+      body: JSON.stringify(options?.fingerprint ? { message, password, token } : { agentId, message, password, token }),
       signal: abortSignal,
     });
   } catch (err) {
@@ -221,6 +237,8 @@ interface RunOptions {
   onError: (err: string) => void;
   password?: string;
   token?: string;
+  /** Guest public chat — routes through /api/public with fingerprint ownership */
+  fingerprint?: string;
 }
 
 export function useAgentRunner() {
@@ -232,7 +250,7 @@ export function useAgentRunner() {
   const conversationIdRef = useRef<string>("");
 
   const run = useCallback(async (options: RunOptions) => {
-    const { agent, conversationId, userMessage, onChunk, onThinking, onToolCall, onToolResult, onDone, onError, password, token } = options;
+    const { agent, conversationId, userMessage, onChunk, onThinking, onToolCall, onToolResult, onDone, onError, password, token, fingerprint } = options;
 
     agentIdRef.current = agent.id;
     conversationIdRef.current = conversationId;
@@ -245,17 +263,23 @@ export function useAgentRunner() {
     setRunning(true);
 
     try {
-      await streamAgentChat(agent.id, userMessage, conversationId, {
-        onChunk,
-        onThinking: onThinking ?? (() => {}),
-        onToolCall,
-        onToolResult,
-        onDone,
-        onError,
-        abortSignal: abort.signal,
-        password,
-        token,
-      });
+      await streamAgentChat(
+        agent.id,
+        userMessage,
+        conversationId,
+        {
+          onChunk,
+          onThinking: onThinking ?? (() => {}),
+          onToolCall,
+          onToolResult,
+          onDone,
+          onError,
+          abortSignal: abort.signal,
+          password,
+          token,
+        },
+        fingerprint ? { fingerprint } : undefined,
+      );
     } finally {
       if (runIdRef.current === currentRunId) {
         setRunning(false);

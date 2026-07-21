@@ -35,13 +35,11 @@ export const createConversation = createAsyncThunk(
     agentId: string;
     title?: string;
     trigger?: "manual" | "cron" | "api" | "meeting" | "public";
-    ownerId?: string;
   }) => {
     const conv = await apiClient.post<AgentConversation>("/api/conversations", {
       agentId: data.agentId,
       title: data.title ?? "New Chat",
       trigger: data.trigger ?? "manual",
-      ownerId: data.ownerId,
     });
     return conv;
   },
