@@ -1,10 +1,15 @@
-import { FullScreen, QuitFullScreen } from "@solar-icons/react";
+import { Download, FullScreen, Moon, QuitFullScreen, Sun } from "@solar-icons/react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { sanitizeMermaid } from "../common/sanitizeMermaid";
 
 interface MermaidBlockProps {
   children: string;
 }
+
+type MermaidTheme = "light" | "dark";
+
+const btnClass =
+  "flex items-center gap-1 px-2 py-1 rounded-lg border border-border text-muted-foreground text-xs cursor-pointer transition-colors hover:text-primary hover:border-primary/30";
 
 export function MermaidBlock({ children }: MermaidBlockProps) {
   const id = useId().replace(/:/g, "_");
@@ -14,6 +19,7 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [svgContent, setSvgContent] = useState<string>("");
+  const [theme, setTheme] = useState<MermaidTheme>("dark");
 
   // Pan/zoom state — use refs for drag perf (no re-render per mousemove)
   const [zoom, setZoom] = useState(1);
@@ -21,23 +27,25 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
   const dragRef = useRef({ active: false, startX: 0, startY: 0, panX: 0, panY: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
+  const isDark = theme === "dark";
+  const surfaceClass = isDark ? "bg-[#1e1e1e]" : "bg-white";
+
   useEffect(() => {
     let cancelled = false;
 
     const render = async () => {
-      // Dynamic import — mermaid is only loaded when a mermaid block appears
       const { default: mermaid } = await import("mermaid");
       mermaid.initialize({
         startOnLoad: false,
-        theme: "default",
-        fontFamily: '"Inter Variable", Inter, ui-sans-serif, -apple-system, "system-ui", "Segoe UI", Helvetica, Arial, sans-serif',
+        theme: isDark ? "dark" : "default",
       });
 
       const raw = children.trim();
+      const renderId = `mermaid-${id}-${theme}`;
 
-      // Attempt 1: render raw input
       try {
-        const { svg } = await mermaid.render(`mermaid-${id}`, raw);
+        document.getElementById(`d${renderId}`)?.remove();
+        const { svg } = await mermaid.render(renderId, raw);
         if (!cancelled) {
           setSvgContent(svg);
           if (containerRef.current) containerRef.current.innerHTML = svg;
@@ -45,17 +53,15 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
         }
         return;
       } catch {
-        // raw failed — clean up orphaned DOM from failed render, then try sanitized
-        document.getElementById(`dmermaid-${id}`)?.remove();
+        document.getElementById(`d${renderId}`)?.remove();
       }
 
-      // Attempt 2: sanitize then render
       const sanitized = sanitizeMermaid(raw);
       try {
-        const renderId = `mermaid-${id}-s`;
-        // Clean up any leftover element from failed render
-        document.getElementById(renderId)?.remove();
-        const { svg } = await mermaid.render(renderId, sanitized);
+        const sanitizedId = `${renderId}-s`;
+        document.getElementById(sanitizedId)?.remove();
+        document.getElementById(`d${sanitizedId}`)?.remove();
+        const { svg } = await mermaid.render(sanitizedId, sanitized);
         if (!cancelled) {
           setSvgContent(svg);
           if (containerRef.current) containerRef.current.innerHTML = svg;
@@ -72,12 +78,33 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
     return () => {
       cancelled = true;
     };
-  }, [children, id]);
+  }, [children, id, theme, isDark]);
+
+  useEffect(() => {
+    if (dialogRef.current?.open && fullscreenRef.current && svgContent) {
+      fullscreenRef.current.innerHTML = svgContent;
+    }
+  }, [svgContent]);
 
   const resetView = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
   }, []);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  const downloadSvg = () => {
+    if (!svgContent) return;
+    const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "diagram.svg";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const openFullscreen = () => {
     if (dialogRef.current && fullscreenRef.current) {
@@ -92,7 +119,6 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
     resetView();
   };
 
-  // --- Zoom via scroll wheel ---
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -102,20 +128,17 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
     });
   }, []);
 
-  // --- Drag to pan ---
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Ignore clicks on buttons/controls
     if ((e.target as HTMLElement).closest("button")) return;
     e.preventDefault();
     dragRef.current = {
       active: true,
       startX: e.clientX,
       startY: e.clientY,
-      panX: 0, // will be set in effect
+      panX: 0,
       panY: 0,
     };
     setIsDragging(true);
-    // Snapshot current pan via closure
     setPan((prev) => {
       dragRef.current.panX = prev.x;
       dragRef.current.panY = prev.y;
@@ -137,7 +160,6 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
     setIsDragging(false);
   }, []);
 
-  // Clean up drag if mouse leaves viewport
   const handleMouseLeave = useCallback(() => {
     if (dragRef.current.active) {
       dragRef.current.active = false;
@@ -158,44 +180,59 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
 
   return (
     <>
-      <div className="my-3.5 last:mb-0 group relative rounded-md border border-border/60 bg-card overflow-hidden">
-        {/* Fullscreen button — top right */}
-        <button
-          type="button"
-          onClick={openFullscreen}
-          className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 rounded-lg bg-card border border-border text-muted-foreground text-xs cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary hover:border-primary/30"
-          title="Fullscreen"
-        >
-          <FullScreen size={14} />
-        </button>
+      <div className={`my-3.5 last:mb-0 group relative rounded-md border border-border/60 ${surfaceClass} overflow-hidden`}>
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button type="button" onClick={toggleTheme} className={`${btnClass} ${surfaceClass}`} title={isDark ? "Light theme" : "Dark theme"}>
+            {isDark ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+          <button type="button" onClick={downloadSvg} className={`${btnClass} ${surfaceClass}`} title="Download SVG" disabled={!svgContent}>
+            <Download size={14} />
+          </button>
+          <button type="button" onClick={openFullscreen} className={`${btnClass} ${surfaceClass}`} title="Fullscreen">
+            <FullScreen size={14} />
+          </button>
+        </div>
 
-        {/* Mermaid diagram */}
         <div
           ref={containerRef}
           className="flex justify-center p-6 overflow-x-auto [scrollbar-width:thin] [scrollbar-color:#d1cfc5_transparent] [&_svg]:max-w-full"
         />
       </div>
 
-      {/* Fullscreen dialog */}
       <dialog
         ref={dialogRef}
-        className="m-0 p-0 w-screen h-screen max-w-none max-h-none bg-card backdrop:bg-black/40 open:flex open:flex-col"
+        className={`m-0 p-0 w-screen h-screen max-w-none max-h-none ${surfaceClass} backdrop:bg-black/40 open:flex open:flex-col`}
         onKeyDown={(e) => {
           if (e.key === "Escape") closeFullscreen();
         }}
       >
-        <button
-          type="button"
-          onClick={closeFullscreen}
-          className="fixed top-5 right-5 z-50 flex items-center gap-1.5 px-3 py-2 rounded-md bg-card border border-border text-muted-foreground text-sm cursor-pointer shadow-md hover:text-primary hover:border-primary/30 transition-colors"
-          title="Exit fullscreen"
-        >
-          <QuitFullScreen size={16} />
-          <span>Exit</span>
-        </button>
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`${btnClass} ${surfaceClass} px-3 py-2 text-sm shadow-md`}
+            title={isDark ? "Light theme" : "Dark theme"}
+          >
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button
+            type="button"
+            onClick={downloadSvg}
+            className={`${btnClass} ${surfaceClass} px-3 py-2 text-sm shadow-md`}
+            title="Download SVG"
+            disabled={!svgContent}
+          >
+            <Download size={16} />
+          </button>
+          <button type="button" onClick={closeFullscreen} className={`${btnClass} ${surfaceClass} px-3 py-2 text-sm shadow-md`} title="Exit fullscreen">
+            <QuitFullScreen size={16} />
+            <span>Exit</span>
+          </button>
+        </div>
 
-        {/* Zoom indicator */}
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border text-xs text-muted-foreground shadow-md select-none">
+        <div
+          className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full ${surfaceClass} border border-border text-xs text-muted-foreground shadow-md select-none`}
+        >
           <span>{Math.round(zoom * 100)}%</span>
           {!isDefaultView && (
             <button type="button" onClick={resetView} className="text-muted-foreground hover:text-primary cursor-pointer transition-colors">
@@ -204,7 +241,6 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
           )}
         </div>
 
-        {/* Pan/zoom viewport — clips content, captures drag */}
         <div
           ref={viewportRef}
           onWheel={handleWheel}
@@ -215,7 +251,6 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
           onDoubleClick={resetView}
           className={`flex-1 overflow-hidden w-full h-full select-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
         >
-          {/* Inner content — positioned via translate + scale */}
           <div
             ref={fullscreenRef}
             className="flex items-center justify-center w-full h-full origin-center [&_svg]:max-w-none [&_svg]:max-h-none pointer-events-none"

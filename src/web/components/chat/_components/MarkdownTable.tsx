@@ -35,11 +35,11 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="relative my-3 rounded-lg overflow-hidden border border-border">
+    <div className="relative my-3 rounded-lg overflow-hidden group">
       <button
         type="button"
         onClick={handleCopy}
-        className="absolute top-1.5 right-1.5 z-10 w-6 h-6 flex items-center justify-center rounded-md bg-card/80 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+        className="absolute top-1.5 right-1.5 z-10 w-6 h-6 flex items-center justify-center rounded-md bg-card/80 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-opacity cursor-pointer opacity-0 group-hover:opacity-100"
         title={copied ? "Copied" : "Copy as Markdown"}
       >
         {copied ? <ClipboardCheck size={12} /> : <Clipboard size={12} />}
@@ -52,8 +52,7 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
             "min-w-full text-[14px] border-collapse whitespace-nowrap " +
             "[&_th]:bg-foreground/[0.07] [&_th]:text-foreground [&_th]:font-semibold " +
             "[&_th]:px-3 [&_th]:py-[7px] [&_th]:border [&_th]:border-border [&_th]:text-left " +
-            "[&_td]:px-3 [&_td]:py-1.5 [&_td]:border [&_td]:border-border [&_td]:text-foreground " +
-            "[&_tr:nth-child(even)_td]:bg-background/70"
+            "[&_td]:px-3 [&_td]:py-1.5 [&_td]:border [&_td]:border-border [&_td]:text-foreground"
           }
         >
           {children}
