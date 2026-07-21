@@ -177,10 +177,9 @@ export function createPublicConversation(agentId: string, fingerprint: string) {
   return { data: { conversationId: convId, messages: [] } };
 }
 
-/** Load an existing public conversation by ID (validates ownership). */
-export function getPublicConversation(agentId: string, convId: string, fingerprint: string) {
-  const db = getDb();
-  const conv = db
+/** Ensure public conversation exists and belongs to this fingerprint. */
+export function requirePublicConversation(agentId: string, convId: string, fingerprint: string) {
+  const conv = getDb()
     .select()
     .from(agentConversations)
     .where(
@@ -193,29 +192,20 @@ export function getPublicConversation(agentId: string, convId: string, fingerpri
     )
     .get();
   if (!conv) throw new BadRequestException("Conversation not found");
+  return conv;
+}
 
+/** Load an existing public conversation by ID (validates ownership). */
+export function getPublicConversation(agentId: string, convId: string, fingerprint: string) {
+  requirePublicConversation(agentId, convId, fingerprint);
   const msgs = loadConvMessages(convId);
   return { data: { conversationId: convId, messages: msgs } };
 }
 
 /** Delete a public conversation (validates ownership). */
 export function deletePublicConversation(agentId: string, convId: string, fingerprint: string) {
+  requirePublicConversation(agentId, convId, fingerprint);
   const db = getDb();
-  const conv = db
-    .select()
-    .from(agentConversations)
-    .where(
-      and(
-        eq(agentConversations.id, convId),
-        eq(agentConversations.agentId, agentId),
-        eq(agentConversations.trigger, "public"),
-        eq(agentConversations.ownerId, fingerprint),
-      ),
-    )
-    .get();
-  if (!conv) throw new BadRequestException("Conversation not found");
-
-  // Delete messages first, then conversation
   db.delete(agentMessages).where(eq(agentMessages.conversationId, convId)).run();
   db.delete(agentConversations).where(eq(agentConversations.id, convId)).run();
 }

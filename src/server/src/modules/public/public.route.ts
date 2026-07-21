@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { agentConversations, getDb } from "../../common/db/client.js";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { streamChatSSE } from "../agents/raw-agent/raw-agent.service.js";
 import { relayRunToSSE, runRegistry } from "../agents/raw-agent/utils/run-registry.js";
 import {
   createPublicConversation,
@@ -9,6 +9,7 @@ import {
   getPublicAgent,
   getPublicConversation,
   listPublicConversations,
+  requirePublicConversation,
   verifyPublicPassword,
   verifyPublicToken,
 } from "./public.service.js";
@@ -71,6 +72,23 @@ app.delete("/agents/:id/conversations/:convId", (c) => {
   return c.json({ ok: true });
 });
 
+// ─── Chat send (SSE response) ────────────────────────────────────────────────
+// POST /api/public/agents/:id/conversations/:convId/chat?fp=<fingerprint>
+app.post("/agents/:id/conversations/:convId/chat", async (c) => {
+  const agentId = c.req.param("id");
+  const convId = c.req.param("convId");
+  const fp = c.req.query("fp");
+  if (!fp) throw new BadRequestException("Fingerprint required");
+
+  requirePublicConversation(agentId, convId, fp);
+
+  const body = await c.req.json<{ message: string; password?: string; token?: string }>();
+
+  return streamSSE(c, async (stream) => {
+    await streamChatSSE({ agentId, conversationId: convId, message: body.message, password: body.password, token: body.token }, stream);
+  });
+});
+
 // ─── SSE Stream ──────────────────────────────────────────────────────────────
 // GET /api/public/agents/:id/conversations/:convId/stream?fp=<fingerprint>
 // Subscribe to live stream events. Validates ownership via fingerprint.
@@ -78,23 +96,9 @@ app.get("/agents/:id/conversations/:convId/stream", async (c) => {
   const agentId = c.req.param("id");
   const convId = c.req.param("convId");
   const fp = c.req.query("fp");
-  if (!fp) return c.json({ error: "Fingerprint required" }, 400);
+  if (!fp) throw new BadRequestException("Fingerprint required");
 
-  // Validate ownership — same check as getPublicConversation
-  const db = getDb();
-  const conv = db
-    .select()
-    .from(agentConversations)
-    .where(
-      and(
-        eq(agentConversations.id, convId),
-        eq(agentConversations.agentId, agentId),
-        eq(agentConversations.trigger, "public"),
-        eq(agentConversations.ownerId, fp),
-      ),
-    )
-    .get();
-  if (!conv) return c.json({ error: "Conversation not found" }, 404);
+  requirePublicConversation(agentId, convId, fp);
 
   // Wait briefly — client may open stream right as POST registers the run
   const maxWait = 5000;
