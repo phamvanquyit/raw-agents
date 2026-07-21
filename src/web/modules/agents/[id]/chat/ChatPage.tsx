@@ -211,7 +211,7 @@ export function ChatPage() {
   // which can miss auto-scroll when textarea resize changes clientHeight
   useEffect(() => {
     scrollToBottom();
-  }, [liveMessages.length, streamingContent]);
+  }, [liveMessages.length, streamingContent, activityStatus]);
 
   // Load conversations when agent changes
   useEffect(() => {
