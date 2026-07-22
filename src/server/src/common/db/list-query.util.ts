@@ -155,6 +155,7 @@ function buildSortSQL(cols: Record<string, SQLiteColumn>, sortsParam?: string, a
  * ));
  *
  * // URL: /api/agents?page=1&limit=20&search=hello&status=active&sorts=-createdAt
+ * // Omit limit to return all rows (page defaults to 1).
  * ```
  */
 export function listQuery<TTable extends SQLiteTableWithColumns<any>>(
@@ -164,9 +165,11 @@ export function listQuery<TTable extends SQLiteTableWithColumns<any>>(
   const { table, allowedSorts, allowedFilters, searchColumns, where: staticWhere } = options;
 
   // ── Parse reserved params ─────────────────────────────────────────────────
+  // No limit → return all rows. page defaults to 1.
   const page = Math.max(1, Number(query.page) || 1);
-  const limit = Math.min(200, Math.max(1, Number(query.limit) || 50));
-  const offset = (page - 1) * limit;
+  const hasLimit = query.limit !== undefined && query.limit !== "";
+  const limit = hasLimit ? Math.min(200, Math.max(1, Number(query.limit))) : 0;
+  const offset = hasLimit ? (page - 1) * limit : 0;
   const search = query.search;
   const sorts = query.sorts;
 
@@ -229,27 +232,26 @@ export function listQuery<TTable extends SQLiteTableWithColumns<any>>(
   // ── Execute ───────────────────────────────────────────────────────────────
   const db = getDb();
 
-  const itemsQuery = db
+  const baseQuery = db
     .select()
     .from(table as any)
     .where(whereSQL)
-    .orderBy(...orderSQL)
-    .limit(limit)
-    .offset(offset);
+    .orderBy(...orderSQL);
+
+  const items = (hasLimit ? baseQuery.limit(limit).offset(offset) : baseQuery).all() as TTable["$inferSelect"][];
 
   const countQuery = db
     .select({ value: count() })
     .from(table as any)
     .where(whereSQL);
 
-  const items = itemsQuery.all() as TTable["$inferSelect"][];
   const [{ value: total }] = countQuery.all();
 
   return {
     items,
     page,
-    limit,
+    limit: hasLimit ? limit : total,
     total,
-    totalPages: Math.ceil(total / limit),
+    totalPages: hasLimit ? Math.ceil(total / limit) : 1,
   };
 }
