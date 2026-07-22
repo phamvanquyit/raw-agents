@@ -266,3 +266,24 @@ export interface User {
 export type NewUser = Omit<User, "id" | "createdAt" | "updatedAt"> & {
   password: string;
 };
+
+// ─── KV Store ─────────────────────────────────────────────────────────────────
+
+export interface KvStoreEntry {
+  id: string;
+  key: string;
+  value: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ─── Secrets ──────────────────────────────────────────────────────────────────
+
+export interface SecretEntry {
+  id: string;
+  key: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}

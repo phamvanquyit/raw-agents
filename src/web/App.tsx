@@ -21,6 +21,8 @@ const DashboardPage = lazy(() => import("./modules/dashboard/DashboardPage"));
 const ProfilePage = lazy(() => import("./modules/profile/ProfilePage"));
 const McpServersPage = lazy(() => import("./modules/mcp-servers/McpServersPage"));
 const McpServersEditPage = lazy(() => import("./modules/mcp-servers/McpServersEditPage"));
+const KvStorePage = lazy(() => import("./modules/kvstore/KvStorePage"));
+const SecretsPage = lazy(() => import("./modules/secrets/SecretsPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
 const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
@@ -71,7 +73,7 @@ function AppContent() {
   const isSetupRoute = location.pathname === "/setup";
   const isAuthRoute = isLoginRoute || isSetupRoute;
 
-  useSocket();
+  useSocket(!isAuthRoute && !isPublicRoute);
 
   // Login/Setup routes → full-width, no auth
   if (isAuthRoute) {
@@ -119,6 +121,15 @@ function AppContent() {
             <Route path="/teams" element={<Navigate to="/agents" replace />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/providers" element={<Navigate to="/settings/providers" replace />} />
+            <Route path="/kvstore" element={<KvStorePage />} />
+            <Route
+              path="/secrets"
+              element={
+                <AdminGuard>
+                  <SecretsPage />
+                </AdminGuard>
+              }
+            />
             <Route
               path="/settings/*"
               element={

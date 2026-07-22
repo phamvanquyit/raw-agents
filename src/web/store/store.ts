@@ -4,8 +4,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { authReducer } from "src/common/authSlice";
 import { agentsReducer } from "src/modules/agents/common/agentsSlice";
 import { chatReducer } from "src/modules/chat/common/chatSlice";
+import { kvStoreReducer } from "src/modules/kvstore/common/kvStoreSlice";
 import { llmProvidersReducer } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { mcpServersReducer } from "src/modules/mcp-servers/common/mcpServersSlice";
+import { secretsReducer } from "src/modules/secrets/common/secretsSlice";
 import { teamsReducer } from "src/modules/teams/common/teamsSlice";
 import { toolFoldersReducer } from "src/modules/tools/common/toolFoldersSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
@@ -20,6 +22,8 @@ export const store = configureStore({
     teams: teamsReducer,
     chat: chatReducer,
     mcpServers: mcpServersReducer,
+    kvStore: kvStoreReducer,
+    secrets: secretsReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
 });

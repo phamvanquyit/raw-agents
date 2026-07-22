@@ -1,7 +1,20 @@
-import { FaceScanSquare, HomeAngle, Logout2, MenuDots, PlugCircle, Programming, User as UserIcon } from "@solar-icons/react";
+import {
+  AltArrowLeft,
+  Database,
+  FaceScanSquare,
+  HomeAngle,
+  LockPassword,
+  Logout2,
+  MenuDots,
+  PlugCircle,
+  Programming,
+  Settings,
+  User as UserIcon,
+} from "@solar-icons/react";
 import { Dropdown } from "antd";
 import type { MenuProps } from "antd";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { clearAuthToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
@@ -26,6 +39,10 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: "/tools", label: "Tools", icon: <Programming {...ICON} /> },
   { to: "/mcp-servers", label: "MCP", icon: <PlugCircle {...ICON} /> },
 ];
+
+const STORAGE_NAV_ALL: NavItem[] = [{ to: "/kvstore", label: "KV Store", icon: <Database {...ICON} /> }];
+
+const STORAGE_NAV_ADMIN: NavItem[] = [{ to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} /> }];
 
 function NavSectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pb-2 pt-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">{children}</div>;
@@ -78,6 +95,42 @@ function SidebarNavLink({ item, end }: { item: NavItem; end?: boolean }) {
         </>
       )}
     </NavLink>
+  );
+}
+
+function SidebarNavButton({
+  label,
+  icon,
+  active,
+  trailing,
+  onClick,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  active?: boolean;
+  trailing?: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group flex h-9 w-full min-w-0 items-center gap-2.5 rounded-md border-0 bg-transparent px-3 text-left text-base transition-colors duration-150 cursor-pointer",
+        active ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground" : "font-normal text-sidebar-foreground hover:bg-muted",
+      )}
+    >
+      <span
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center [&_svg]:size-4",
+          active ? "text-sidebar-accent-foreground" : "text-tertiary-foreground group-hover:text-sidebar-foreground",
+        )}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {trailing}
+    </button>
   );
 }
 
@@ -152,12 +205,29 @@ function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: (
 
 export function AppSidebar() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const currentUser = useAppSelector((s) => s.auth.user);
   const isAdmin = currentUser?.role === "admin";
+  const isSettingsRoute = pathname.startsWith("/settings");
+  const [panel, setPanel] = useState<"main" | "settings">(isSettingsRoute ? "settings" : "main");
+
+  useEffect(() => {
+    if (isSettingsRoute) setPanel("settings");
+  }, [isSettingsRoute]);
 
   const handleLogout = () => {
     clearAuthToken();
     navigate("/login", { replace: true });
+  };
+
+  const openSettings = () => {
+    setPanel("settings");
+    if (!isSettingsRoute) navigate("/settings/general");
+  };
+
+  const backToMain = () => {
+    setPanel("main");
+    navigate("/");
   };
 
   return (
@@ -171,16 +241,37 @@ export function AppSidebar() {
       </div>
       <SketchDivider className="mb-2" />
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2.5 pb-4">
-        <div className="flex flex-col gap-1">
-          {WORKSPACE_NAV.map((item) => (
-            <SidebarNavLink key={item.to} item={item} end={item.to === "/"} />
-          ))}
-        </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div
+          className={cn(
+            "flex h-full w-[200%] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+            panel === "settings" ? "-translate-x-1/2" : "translate-x-0",
+          )}
+        >
+          <nav className="flex h-full w-1/2 flex-col gap-1 overflow-y-auto px-2.5 pb-4">
+            <div className="flex flex-col gap-1">
+              {WORKSPACE_NAV.map((item) => (
+                <SidebarNavLink key={item.to} item={item} end={item.to === "/"} />
+              ))}
+            </div>
 
-        {isAdmin && (
-          <div className="mt-auto pt-2">
-            <NavSectionLabel>Settings</NavSectionLabel>
+            <NavSectionLabel>Storage</NavSectionLabel>
+            <div className="flex flex-col gap-1">
+              {STORAGE_NAV_ALL.map((item) => (
+                <SidebarNavLink key={item.to} item={item} />
+              ))}
+              {isAdmin && STORAGE_NAV_ADMIN.map((item) => <SidebarNavLink key={item.to} item={item} />)}
+            </div>
+
+            {isAdmin && (
+              <div className="mt-auto pt-2">
+                <SidebarNavButton label="Settings" icon={<Settings {...ICON} />} active={isSettingsRoute} onClick={openSettings} />
+              </div>
+            )}
+          </nav>
+
+          <nav className="flex h-full w-1/2 flex-col gap-1 overflow-y-auto px-2.5 pb-4">
+            <SidebarNavButton label="Settings" icon={<AltArrowLeft {...ICON} />} onClick={backToMain} />
             <div className="flex flex-col gap-1">
               {SETTINGS_TABS.map((tab) => {
                 const Icon = tab.icon;
@@ -196,9 +287,9 @@ export function AppSidebar() {
                 );
               })}
             </div>
-          </div>
-        )}
-      </nav>
+          </nav>
+        </div>
+      </div>
 
       <div className="shrink-0 border-t border-sidebar-border px-2 py-2">
         <SidebarProfileLink user={currentUser} onLogout={handleLogout} />
