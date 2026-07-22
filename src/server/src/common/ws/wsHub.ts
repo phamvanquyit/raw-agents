@@ -2,11 +2,11 @@
  * wsHub — singleton WebSocket broadcast hub
  *
  * Supports:
- *   - wsHub.broadcast(type, payload) — fan-out to all connected clients
+ *   - wsHub.broadcast(type, payload) — fan-out to authenticated clients (role-filtered)
  *   - wsHub.send(clientId, type, payload) — targeted send to one client
  *   - wsHub.emit(type, payload) — alias for broadcast (back-compat)
  *
- * Each connection is assigned a unique clientId on open.
+ * Each connection is assigned a unique clientId on open and must be JWT-authenticated.
  * State/CRUD events use broadcast. Chat tokens stream over SSE, not WS.
  */
 
@@ -38,6 +38,12 @@ export type WsEventType =
   | "mcp-servers:created"
   | "mcp-servers:updated"
   | "mcp-servers:deleted"
+  | "kvstore:created"
+  | "kvstore:updated"
+  | "kvstore:deleted"
+  | "secrets:created"
+  | "secrets:updated"
+  | "secrets:deleted"
   | "users:created"
   | "users:updated"
   | "users:deleted"
@@ -48,26 +54,45 @@ export interface WsEvent<T = unknown> {
   payload: T;
 }
 
+export type WsClientData = {
+  clientId: string;
+  userId: string;
+  role: string;
+};
+
+type ClientEntry = {
+  ws: ServerWebSocket<WsClientData>;
+  userId: string;
+  role: string;
+};
+
+/** secrets:* is admin-only; all other CRUD events go to any authenticated client. */
+export function clientMayReceive(role: string, type: WsEventType): boolean {
+  if (type.startsWith("secrets:")) return role === "admin";
+  return true;
+}
+
 // ─── Hub ──────────────────────────────────────────────────────────────────────
 
 class WsHub {
-  private clients = new Map<string, ServerWebSocket<unknown>>();
+  private clients = new Map<string, ClientEntry>();
 
-  add(ws: ServerWebSocket<unknown>, clientId: string) {
-    this.clients.set(clientId, ws);
+  add(ws: ServerWebSocket<WsClientData>, clientId: string, meta: { userId: string; role: string }) {
+    this.clients.set(clientId, { ws, userId: meta.userId, role: meta.role });
   }
 
   remove(clientId: string) {
     this.clients.delete(clientId);
   }
 
-  /** Broadcast to ALL connected clients */
+  /** Broadcast to connected clients allowed to receive this event type */
   broadcast<T>(type: WsEventType, payload: T) {
     if (this.clients.size === 0) return;
     const msg = JSON.stringify({ type, payload } satisfies WsEvent<T>);
-    for (const ws of this.clients.values()) {
+    for (const client of this.clients.values()) {
+      if (!clientMayReceive(client.role, type)) continue;
       try {
-        ws.send(msg);
+        client.ws.send(msg);
       } catch {
         // ignore dead sockets — will be removed on close
       }
@@ -76,10 +101,11 @@ class WsHub {
 
   /** Send to a specific client by clientId */
   send<T>(clientId: string, type: WsEventType, payload: T) {
-    const ws = this.clients.get(clientId);
-    if (!ws) return false;
+    const client = this.clients.get(clientId);
+    if (!client) return false;
+    if (!clientMayReceive(client.role, type)) return false;
     try {
-      ws.send(JSON.stringify({ type, payload } satisfies WsEvent<T>));
+      client.ws.send(JSON.stringify({ type, payload } satisfies WsEvent<T>));
       return true;
     } catch {
       return false;
@@ -93,6 +119,11 @@ class WsHub {
 
   get size() {
     return this.clients.size;
+  }
+
+  /** Test helper — drop all tracked clients without closing sockets. */
+  _resetForTests() {
+    this.clients.clear();
   }
 }
 
