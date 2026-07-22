@@ -1,3 +1,4 @@
+import type { ModalProps } from "antd";
 import { type ThemeConfig, theme } from "antd";
 
 /** Dark-only Ant Design theme mapped to app palette. */
@@ -8,6 +9,7 @@ export const antdTheme: ThemeConfig = {
     colorBgContainer: "#191919",
     colorBgElevated: "#1e1e1e",
     colorBgLayout: "#121212",
+    colorBgMask: "rgba(0, 0, 0, 0.68)",
     colorText: "#d4d4d4",
     colorTextSecondary: "#8a8a8a",
     colorTextTertiary: "#9a9a9a",
@@ -41,9 +43,19 @@ export const antdTheme: ThemeConfig = {
     },
     Modal: {
       contentBg: "#191919",
-      headerBg: "#191919",
-      footerBg: "#191919",
-    },
+      headerBg: "#161616",
+      footerBg: "#161616",
+      titleFontSize: 15,
+      contentPadding: 0,
+      headerPadding: "12px 16px",
+      headerBorderBottom: "1px solid rgba(102, 102, 102, 0.2)",
+      headerMarginBottom: 0,
+      bodyPadding: "20px 16px",
+      footerPadding: "12px 16px",
+      footerBorderTop: "1px solid rgba(102, 102, 102, 0.2)",
+      footerMarginTop: 0,
+      footerBorderRadius: "0 0 12px 12px",
+    } as NonNullable<ThemeConfig["components"]>["Modal"],
     Input: {
       // Hover: slightly lighter border (not primary). Focus: primary border, no ring.
       hoverBorderColor: "rgba(255, 255, 255, 0.28)",
@@ -65,6 +77,36 @@ export const antdTheme: ThemeConfig = {
     },
     Cascader: {
       optionSelectedBg: "color-mix(in oklab, #dd7627 14%, transparent)",
+    },
+  },
+};
+
+export const antdModalConfig: Pick<ModalProps, "mask" | "styles"> = {
+  mask: { blur: true },
+  styles: {
+    container: {
+      padding: 0,
+      border: "1px solid rgba(102, 102, 102, 0.32)",
+      boxShadow: "0 16px 48px rgba(0, 0, 0, 0.55)",
+    },
+    header: {
+      padding: "12px 16px",
+      margin: 0,
+      minHeight: 44,
+      display: "flex",
+      alignItems: "center",
+    },
+    body: {
+      padding: "20px 16px",
+    },
+    footer: {
+      padding: "12px 16px",
+      margin: 0,
+      background: "#161616",
+    },
+    close: {
+      top: 8,
+      insetInlineEnd: 10,
     },
   },
 };

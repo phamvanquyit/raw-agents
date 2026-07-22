@@ -8,7 +8,7 @@ const ROLE_STYLES: Record<string, string> = {
 
 export function RoleBadge({ role }: { role: string }) {
   return (
-    <Tag bordered={false} className={cn("rounded-md capitalize !m-0", ROLE_STYLES[role] ?? ROLE_STYLES.member)}>
+    <Tag variant="filled" className={cn("rounded-md capitalize !m-0", ROLE_STYLES[role] ?? ROLE_STYLES.member)}>
       {role}
     </Tag>
   );

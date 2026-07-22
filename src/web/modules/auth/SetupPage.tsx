@@ -242,8 +242,7 @@ export default function SetupPage() {
                   onChange={(val) => setTimezone(val)}
                   options={timezoneOptions}
                   placeholder="Select timezone..."
-                  showSearch
-                  optionFilterProp="label"
+                  showSearch={{ optionFilterProp: "label" }}
                   className="w-full"
                   disabled={loading}
                 />

@@ -45,8 +45,7 @@ export function TimezoneSection() {
           options={tzOptions}
           placeholder={loadingTz ? "Loading timezones…" : "Search timezone…"}
           disabled={loadingTz}
-          showSearch
-          optionFilterProp="label"
+          showSearch={{ optionFilterProp: "label" }}
           className="w-full"
         />
       </div>

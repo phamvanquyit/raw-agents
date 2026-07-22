@@ -145,7 +145,7 @@ export default function McpServersPage() {
       <Drawer
         open={!!drawerServer}
         onClose={() => setDrawerId(null)}
-        width={440}
+        size={440}
         destroyOnHidden
         title={null}
         styles={{
