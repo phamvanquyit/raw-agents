@@ -1,15 +1,18 @@
 /**
  * useSocket — mounts the WebSocket connection and wires up store updates.
  *
- * Call ONCE at the app root (App.tsx).
- * Một listener duy nhất xử lý tất cả events qua type + payload.
+ * Call from AppContent with `enabled` only for authenticated app routes
+ * (not login/setup/public chat). Guests on /chat must never receive CRUD WS events.
  */
 
 import { useEffect } from "react";
-import type { Agent, AgentConversation, AgentTool, McpServer } from "src/common/types";
+import { getAuthToken } from "src/common/api";
+import type { Agent, AgentConversation, AgentTool, KvStoreEntry, McpServer, SecretEntry } from "src/common/types";
 import { removeAgentLocal, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
 import { removeConversationLocal, upsertConversationLocal } from "src/modules/chat/common/chatSlice";
+import { removeKvEntryLocal, upsertKvEntryLocal } from "src/modules/kvstore/common/kvStoreSlice";
 import { removeMcpServerLocal, upsertMcpServerLocal } from "src/modules/mcp-servers/common/mcpServersSlice";
+import { removeSecretLocal, upsertSecretLocal } from "src/modules/secrets/common/secretsSlice";
 import { removeTeamLocal, upsertTeamLocal } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { removeToolFolderLocal, reorderToolFoldersLocal, upsertToolFolderLocal } from "src/modules/tools/common/toolFoldersSlice";
@@ -105,16 +108,45 @@ function handleEvent(event: WsEvent) {
       break;
     }
 
+    // ── KV Store ─────────────────────────────────────────────────────────────
+    case "kvstore:created":
+    case "kvstore:updated": {
+      store.dispatch(upsertKvEntryLocal(payload as KvStoreEntry));
+      break;
+    }
+    case "kvstore:deleted": {
+      store.dispatch(removeKvEntryLocal((payload as { id: string }).id));
+      break;
+    }
+
+    // ── Secrets ──────────────────────────────────────────────────────────────
+    case "secrets:created":
+    case "secrets:updated": {
+      store.dispatch(upsertSecretLocal(payload as SecretEntry));
+      break;
+    }
+    case "secrets:deleted": {
+      store.dispatch(removeSecretLocal((payload as { id: string }).id));
+      break;
+    }
+
     default:
       break;
   }
 }
 
-export function useSocket() {
+export function useSocket(enabled: boolean) {
   useEffect(() => {
+    if (!enabled || !getAuthToken()) {
+      wsClient.disconnect();
+      return;
+    }
+
     wsClient.connect();
-    // Single listener — route by type inside handleEvent
     const unsub = wsClient.onAny(handleEvent);
-    return unsub;
-  }, []);
+    return () => {
+      unsub();
+      wsClient.disconnect();
+    };
+  }, [enabled]);
 }

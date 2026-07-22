@@ -2,6 +2,7 @@
  * wsClient — singleton WebSocket connection to the Raw Agents server.
  *
  * Features:
+ *  - JWT via Sec-WebSocket-Protocol (not query string — avoids URL/log leaks)
  *  - Auto-reconnect with exponential back-off (max 30s)
  *  - Typed event subscription via `wsClient.on(type, handler)`
  *  - wsClient.send(type, payload) — send message to server
@@ -10,7 +11,14 @@
  *  - Heartbeat ping every 25s to keep connection alive through proxies
  *
  * Chat tokens stream over SSE, not WebSocket.
+ * Public chat (/chat) must NOT connect — guests have no app JWT.
  */
+
+import { getAuthToken } from "../api";
+
+/** Must stay in sync with server `WS_APP_PROTOCOL` / `WS_JWT_PROTOCOL_PREFIX`. */
+const WS_APP_PROTOCOL = "raw-agents";
+const WS_JWT_PROTOCOL_PREFIX = "jwt.";
 
 // ─── Types (mirrored from server wsHub — keep in sync) ───────────────────────
 
@@ -38,6 +46,12 @@ export type WsEventType =
   | "mcp-servers:created"
   | "mcp-servers:updated"
   | "mcp-servers:deleted"
+  | "kvstore:created"
+  | "kvstore:updated"
+  | "kvstore:deleted"
+  | "secrets:created"
+  | "secrets:updated"
+  | "secrets:deleted"
   | "ping"
   | "client:id";
 
@@ -69,6 +83,7 @@ let retryDelay = 1_000;
 let pingInterval: ReturnType<typeof setInterval> | null = null;
 let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 let destroyed = false;
+let intentionalClose = false;
 
 /** clientId assigned by server on connect — used to correlate targeted events */
 let clientId: string | null = null;
@@ -89,8 +104,29 @@ function getWsUrl(): string {
 function connect() {
   if (destroyed) return;
 
+  const token = getAuthToken();
+  if (!token) return;
+
+  intentionalClose = false;
+
+  // Replace existing socket if any
+  if (ws) {
+    intentionalClose = true;
+    clearPing();
+    if (retryTimeout) clearTimeout(retryTimeout);
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+    ws = null;
+    intentionalClose = false;
+  }
+
   const url = getWsUrl();
-  ws = new WebSocket(url);
+  // Browser cannot set Authorization on WS; pass JWT as a subprotocol.
+  // Server echoes only "raw-agents" (never the jwt.* protocol).
+  ws = new WebSocket(url, [WS_APP_PROTOCOL, `${WS_JWT_PROTOCOL_PREFIX}${token}`]);
 
   ws.onopen = () => {
     retryDelay = 1_000; // reset back-off
@@ -124,7 +160,10 @@ function connect() {
   ws.onclose = () => {
     clearPing();
     clientId = null;
-    if (destroyed) return;
+    ws = null;
+    if (destroyed || intentionalClose) return;
+    // Don't reconnect without a valid token
+    if (!getAuthToken()) return;
     retryTimeout = setTimeout(() => {
       retryDelay = Math.min(retryDelay * 2, 30_000);
       connect();
@@ -134,6 +173,24 @@ function connect() {
   ws.onerror = () => {
     // onclose fires right after; we let that handle reconnect
   };
+}
+
+function disconnect() {
+  intentionalClose = true;
+  clearPing();
+  if (retryTimeout) {
+    clearTimeout(retryTimeout);
+    retryTimeout = null;
+  }
+  if (ws) {
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+    ws = null;
+  }
+  clientId = null;
 }
 
 function clearPing() {
@@ -193,15 +250,16 @@ export const wsClient = {
     });
   },
 
-  /** Manually start the connection (called once at app boot) */
+  /** Manually start the connection (called when authenticated app shell mounts) */
   connect,
+
+  /** Close without destroying — used when leaving authenticated routes */
+  disconnect,
 
   /** Tear down — call only when unmounting the whole app */
   destroy() {
     destroyed = true;
-    clearPing();
-    if (retryTimeout) clearTimeout(retryTimeout);
-    ws?.close();
+    disconnect();
   },
 
   get readyState() {
