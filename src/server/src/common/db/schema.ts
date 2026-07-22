@@ -292,3 +292,35 @@ export const users = sqliteTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+// ─── KV Store ─────────────────────────────────────────────────────────────────
+
+export const kvStore = sqliteTable("kv_store", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type KvStoreEntry = typeof kvStore.$inferSelect;
+export type NewKvStoreEntry = typeof kvStore.$inferInsert;
+
+// ─── Secrets ──────────────────────────────────────────────────────────────────
+
+export const secrets = sqliteTable("secrets", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type SecretEntry = typeof secrets.$inferSelect;
+export type NewSecretEntry = typeof secrets.$inferInsert;
