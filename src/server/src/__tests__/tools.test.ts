@@ -31,6 +31,8 @@ describe("Tools API", () => {
     const builtinIds = data.items.map((t) => t.id).filter((id) => (id as string).startsWith("builtin:"));
     expect(builtinIds.length).toBeGreaterThanOrEqual(1);
     expect(builtinIds).toContain("builtin:browser");
+    expect(builtinIds).toContain("builtin:kv_store");
+    expect(builtinIds).not.toContain("builtin:secrets");
   });
 
   // ── Custom Tool CRUD ──────────────────────────────────────────────────

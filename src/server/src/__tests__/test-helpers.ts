@@ -141,6 +141,24 @@ function createTestDb() {
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS kv_store (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      value TEXT NOT NULL,
+      description TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS secrets (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      value TEXT NOT NULL,
+      description TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
     CREATE TABLE IF NOT EXISTS llm_providers (
       id TEXT PRIMARY KEY,
       provider TEXT NOT NULL,
@@ -177,6 +195,7 @@ function createTestDb() {
 // ─── App + Auth Helpers ──────────────────────────────────────────────────────
 
 import { createApp } from "../app.js";
+import { _resetSecretEncryptionKeyCache } from "../common/crypto/secret-crypto.js";
 import { _resetDb, _setTestDb } from "../common/db/client.js";
 
 /**
@@ -188,6 +207,7 @@ export function createTestApp() {
 
   // Inject the test DB into the singleton so all services use it
   _setTestDb(db, raw);
+  _resetSecretEncryptionKeyCache();
 
   const app = createApp();
 
@@ -198,6 +218,7 @@ export function createTestApp() {
     cleanup: () => {
       raw.close();
       _resetDb();
+      _resetSecretEncryptionKeyCache();
     },
   };
 }
