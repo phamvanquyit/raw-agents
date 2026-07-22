@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-07-22
+
+### Added
+- KV Store module for key-value storage with CRUD API and web UI
+- Secrets module for encrypted secret management with AES-256-GCM
+- Agent context (`ctx.kv`, `ctx.secrets`) in Python tool runner with lazy decryption proxy
+- WebSocket JWT authentication via Sec-WebSocket-Protocol
+- Storage section in sidebar with KV Store and Secrets navigation
+- Role-based WebSocket broadcast filtering (secrets events are admin-only)
+
+### Changed
+- Sidebar redesigned with sliding panel for main ↔ settings navigation
+- `listQuery` now supports optional limit (omit to return all rows)
+- Slice filters default to loading all items when pagination params omitted
+- Modal styling polished with Ant Design theme tokens
+
+### Fixed
+- Updated deprecated Ant Design props (`showSearch`, `bordered` → `variant`, `width` → `size`)
+
+### Upgrade notes
+- Migration `0031_kv_store_and_secrets.sql` adds `kvStore` and `secrets` tables
+- WebSocket connections now require JWT authentication; guests on public chat routes are excluded
+- Python tools can access workspace stores via `ctx.kv.get("KEY")` and `ctx.secrets.get("KEY")`
+
 ## [0.9.0] - 2026-07-21
 
 ### Added
@@ -90,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.10.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.8.2...v0.9.0
 [0.8.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.6.0...v0.7.0

@@ -13,6 +13,8 @@ Self-hosted AI Agent Manager with a beautiful web UI. Create, manage and schedul
 - 🛠️ **Custom Tools** — JavaScript / Python tools, organized in folders on a kanban-style Tools page
 - 🔌 **MCP Servers** — Connect remote MCP servers (SSE / Streamable HTTP), sync catalogs, and attach tools to agents
 - 🌐 **Browser Tool** — Builtin stealth headless browser for navigate, click, fill, snapshot, and screenshots
+- 🗄️ **KV Store** — Key-value storage accessible from agents via `ctx.kv` context
+- 🔐 **Secrets Management** — Encrypted secret storage with AES-256-GCM, accessible from agents via `ctx.secrets`
 - ⏰ **Scheduled Tasks** — Cron-based task scheduling for automated agent runs
 - 💬 **Real-time Chat** — Live streaming chat with agents; refresh (F5) resumes an in-progress reply
 - 🔗 **Public Sharing** — Share agents via public links with optional password protection
