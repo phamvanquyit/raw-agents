@@ -59,8 +59,8 @@ export function generateLabel(provider: string, existingItems: LlmProvider[]): s
 
 export interface ILlmProvidersState extends IBaseState {
   filter: {
-    page: number;
-    limit: number;
+    page?: number;
+    limit?: number;
     sorts?: string;
     search?: string;
   };
@@ -70,11 +70,7 @@ const initialState: ILlmProvidersState = {
   total: 0,
   items: [] as LlmProvider[],
   selected: [],
-  filter: {
-    page: 1,
-    limit: 200,
-    sorts: "-createdAt",
-  },
+  filter: {},
 };
 
 // ─── Extra actions ────────────────────────────────────────────────────────────

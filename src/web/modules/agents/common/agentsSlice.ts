@@ -7,8 +7,8 @@ import { BaseReducer, type IBaseState } from "src/store/baseSlice";
 
 export interface IAgentsState extends IBaseState {
   filter: {
-    page: number;
-    limit: number;
+    page?: number;
+    limit?: number;
     sorts?: string;
     search?: string;
   };
@@ -18,11 +18,7 @@ const initialState: IAgentsState = {
   total: 0,
   items: [] as Agent[],
   selected: [],
-  filter: {
-    page: 1,
-    limit: 200,
-    sorts: "-createdAt",
-  },
+  filter: {},
 };
 
 // ─── Extra actions ────────────────────────────────────────────────────────────
@@ -47,10 +43,8 @@ const { actions: _actions, reducer: agentsReducer } = new BaseReducer<IAgentsSta
       const index = state.items.findIndex((item) => item.id === info.id);
       if (index >= 0) {
         state.items.splice(index, 1, Object.assign(state.items[index], info));
-      } else if (state?.filter?.sorts === "-createdAt") {
-        state.items.unshift(info);
       } else {
-        state.items.push(info);
+        state.items.unshift(info);
       }
     });
   },

@@ -16,14 +16,14 @@ export function toolEditKey(target: ToolEditTarget): string {
 // ─── State ────────────────────────────────────────────────────────────────────
 
 export interface IToolsState extends IBaseState {
-  filter: { page: number; limit: number; sorts?: string; search?: string };
+  filter: { page?: number; limit?: number; sorts?: string; search?: string };
 }
 
 const initialState: IToolsState = {
   total: 0,
   items: [] as AgentTool[],
   selected: [],
-  filter: { page: 1, limit: 1000, sorts: "-createdAt" },
+  filter: {},
 };
 
 function applyToolColumnOrder(items: AgentTool[], folderId: string | null, toolIds: string[]): AgentTool[] {

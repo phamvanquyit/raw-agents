@@ -4,14 +4,14 @@ import { BaseReducer, type IBaseState } from "src/store/baseSlice";
 // ─── State ────────────────────────────────────────────────────────────────────
 
 export interface IMcpServersState extends IBaseState {
-  filter: { page: number; limit: number; sorts?: string; search?: string };
+  filter: { page?: number; limit?: number; sorts?: string; search?: string };
 }
 
 const initialState: IMcpServersState = {
   total: 0,
   items: [] as McpServer[],
   selected: [],
-  filter: { page: 1, limit: 1000, sorts: "createdAt" },
+  filter: {},
 };
 
 // ─── Slice ────────────────────────────────────────────────────────────────────

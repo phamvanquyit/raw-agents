@@ -7,8 +7,8 @@ export interface IBaseState {
   total: number;
   items: any[];
   filter: {
-    page: number;
-    limit: number;
+    page?: number;
+    limit?: number;
     sorts?: string;
     search?: string;
     createdAt?: string;
