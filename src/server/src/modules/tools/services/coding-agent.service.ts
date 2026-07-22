@@ -3,7 +3,7 @@
  *
  * Handles the business logic for the coding assistant:
  *   - Resolves AI model
- *   - Builds local tools (generate_code, run_current_script, browser)
+ *   - Builds local tools (generate_code, run_current_script, browser, kv_store, secrets)
  *   - Creates a ReAct agent and streams SSE events
  */
 
@@ -15,6 +15,8 @@ import { createAgent } from "langchain";
 import { browserTool } from "../../../common/ai/agent-tools/browser.tool.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
+import { makeKvStoreTool } from "../../agents/raw-agent/llm-tools/kv-store.tool.js";
+import { makeSecretsTool } from "../../agents/raw-agent/llm-tools/secrets.tool.js";
 import { makeGenerateCodeTool } from "../common/agent-tools/generate-code.tool.js";
 import { makeRunCurrentScriptTool } from "../common/agent-tools/run-current-script.tool.js";
 import { buildCodingSystemPrompt } from "../common/constants.js";
@@ -192,7 +194,13 @@ export async function streamCodingAgent(toolId: string, body: CodingStreamReques
   const model = await getChatModel(providerId, modelId);
 
   // 2. Build tools — all local to this module
-  const tools: StructuredToolInterface[] = [makeGenerateCodeTool(toolId), makeRunCurrentScriptTool(toolId), browserTool];
+  const tools: StructuredToolInterface[] = [
+    makeGenerateCodeTool(toolId),
+    makeRunCurrentScriptTool(toolId),
+    browserTool,
+    makeKvStoreTool(["list"]),
+    makeSecretsTool(["list"]),
+  ];
 
   // 3. Create agent — system prompt includes current tool metadata + draftCode from DB
   const currentCode = getDraftCode(toolId);

@@ -21,11 +21,13 @@ import { runTool } from "../../../tools/tools.service.js";
 import { browserTool } from "../../../../common/ai/agent-tools/browser.tool.js";
 import { type CallAgentTarget, isCallAgentToolName, makeCallAgentTools, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
+import { kvStoreTool } from "../llm-tools/kv-store.tool.js";
 import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
 
 const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   get_current_time: getCurrentTimeTool,
   browser: browserTool,
+  kv_store: kvStoreTool,
 };
 
 export function formatToolName(name: string): string {
@@ -44,6 +46,7 @@ export function getToolLabel(toolName: string): string {
   const KNOWN_LABELS: Record<string, string> = {
     get_current_time: "Get Current Time",
     browser: "Browser",
+    kv_store: "KV Store",
     call_agent: "Call Agent",
     manage_memory: "Manage Memory",
   };

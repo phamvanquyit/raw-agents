@@ -10,24 +10,26 @@ interface ToolDefinition {
 }
 import { TOOL_DEF as BROWSER_DEF } from "../../common/ai/agent-tools/browser.tool.js";
 import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
+import { TOOL_DEF as KV_STORE_DEF } from "../agents/raw-agent/llm-tools/kv-store.tool.js";
 import { TOOL_DEF as MANAGE_MEMORY_DEF } from "../agents/raw-agent/llm-tools/manage-memory.tool.js";
 
 const ALL_TOOL_DEFS: ToolDefinition[] = [
   GET_TIME_DEF,
   BROWSER_DEF,
+  KV_STORE_DEF,
   MANAGE_MEMORY_DEF,
   {
     toolName: "generate_code",
     toolLabel: "Generate Code",
     description:
-      "Write the entire Python function body into the editor (COMPLETELY replacing the old content). The 'code' field is the raw Python body — NO 'def main(input):', NO markdown fences. You must call this tool to apply the code; NEVER return code as text in the conversation.",
+      "Write the entire Python function body into the editor (COMPLETELY replacing the old content). The 'code' field is the raw Python body — NO 'def main(input, ctx):', NO markdown fences. You must call this tool to apply the code; NEVER return code as text in the conversation.",
     parameters: {
       type: "object",
       properties: {
         code: {
           type: "string",
           description:
-            "THE ENTIRE Python function body (raw code, NO 'def main(input):' header, NO markdown fences). This is the content that will be placed INSIDE def main(input) by the system.",
+            "THE ENTIRE Python function body (raw code, NO 'def main(input, ctx):' header, NO markdown fences). This is the content that will be placed INSIDE def main(input, ctx) by the system. Use ctx.kv.get / ctx.secrets.get for workspace stores.",
         },
         summary: { type: "string", description: "Short description of changes made (shown to the user)." },
       },
@@ -55,6 +57,7 @@ import { type NewAgentTool, agentToolAssignments, agentTools, getDb } from "../.
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { getDataDir } from "../../common/utils/data-dir.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { loadKvMap } from "../kvstore/kvstore.service.js";
 import { executeTool } from "./common/python-runner.js";
 
 /** Core tools that are always-on and shouldn't appear in user-facing tool lists */
@@ -217,11 +220,15 @@ export function deleteTool(id: string) {
   }
 }
 
+function toolRuntimeCtx() {
+  return { kv: loadKvMap() };
+}
+
 export async function runTool(id: string, inputJson = "{}", code?: string) {
   const tool = getTool(id);
   if (!tool) return null;
   const codeToRun = code ?? tool.codeContent;
-  const resultStr = await executeTool(id, codeToRun, inputJson, getDataDir());
+  const resultStr = await executeTool(id, codeToRun, inputJson, getDataDir(), toolRuntimeCtx());
   return JSON.parse(resultStr);
 }
 
@@ -241,6 +248,6 @@ export function getDraftCode(id: string): string | null {
 export async function runDraftCode(id: string, inputJson = "{}") {
   const draftCode = getDraftCode(id);
   if (!draftCode) return null;
-  const resultStr = await executeTool(id, draftCode, inputJson, getDataDir());
+  const resultStr = await executeTool(id, draftCode, inputJson, getDataDir(), toolRuntimeCtx());
   return resultStr;
 }
