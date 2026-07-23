@@ -1,7 +1,11 @@
+// ─── MCP Servers Node ─────────────────────────────────────────────────────────
+// Single card node (like Tools). Click opens a popover listing MCP tools
+// grouped by server, each with a Switch. Connected tools fan out as children.
+
 import { CloseCircle, PlugCircle } from "@solar-icons/react";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export type McpToolToggleItem = {
   id: string;
@@ -9,25 +13,38 @@ export type McpToolToggleItem = {
   connected: boolean;
 };
 
-export type McpServerNodeData = {
+export type McpServerGroup = {
+  id: string;
   name: string;
   tools: McpToolToggleItem[];
-  width?: number;
-  onToggleTool: (toolId: string, connected: boolean) => void;
 };
 
-export type McpServerNodeType = Node<McpServerNodeData, "mcpServer">;
+export type McpServersNodeData = {
+  groups: McpServerGroup[];
+  width?: number;
+  onToggleTool: (toolId: string, enable: boolean) => void;
+};
 
-const MCP_ORANGE = "var(--edge-mcp)";
+export type McpServersNodeType = Node<McpServersNodeData, "mcpServers">;
 
-export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
+const MCP_COLOR = "var(--edge-mcp)";
+
+export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
   const [open, setOpen] = useState(false);
-  const connectedCount = data.tools.filter((t) => t.connected).length;
+
+  const { connectedCount, totalCount, serverCount } = useMemo(() => {
+    const all = data.groups.flatMap((g) => g.tools);
+    return {
+      connectedCount: all.filter((t) => t.connected).length,
+      totalCount: all.length,
+      serverCount: data.groups.length,
+    };
+  }, [data.groups]);
+
   const hasConnection = connectedCount > 0;
 
   return (
     <div className="relative" style={data.width ? { width: data.width } : undefined}>
-      {/* Edge into the central config node */}
       {hasConnection && (
         <Handle
           id="to-config"
@@ -38,8 +55,8 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
         />
       )}
 
-      {/* Fan-out edges to connected child tool nodes on the right (hidden marker) */}
-      {hasConnection && <Handle id="to-tools" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />}
+      {/* Fan-out to connected server branch nodes */}
+      {hasConnection && <Handle id="to-servers" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />}
 
       <Popover
         open={open}
@@ -71,11 +88,11 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
             >
               <div
                 className="w-7 h-7 rounded-[7px] flex items-center justify-center shrink-0 ring-1 ring-edge-mcp/25"
-                style={{ background: "color-mix(in srgb, var(--edge-mcp) 22%, transparent)", color: MCP_ORANGE }}
+                style={{ background: "color-mix(in srgb, var(--edge-mcp) 22%, transparent)", color: MCP_COLOR }}
               >
                 <PlugCircle weight="BoldDuotone" width={15} height={15} />
               </div>
-              <div className="min-w-0 flex-1 text-[14px] font-semibold text-foreground truncate">{data.name}</div>
+              <div className="min-w-0 flex-1 text-[14px] font-semibold text-foreground truncate">MCP Servers</div>
               <button
                 type="button"
                 className="nodrag nopan shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-background/40 transition-colors"
@@ -87,17 +104,29 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
             </div>
 
             <div className="max-h-[420px] overflow-y-auto game-scrollbar py-1.5">
-              {data.tools.map((tool) => (
-                <div key={tool.id} className="flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-muted/40 transition-colors">
-                  <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>
-                  <Switch
-                    size="small"
-                    checked={tool.connected}
-                    onChange={(checked) => data.onToggleTool(tool.id, checked)}
-                    aria-label={`Toggle ${tool.label}`}
-                  />
-                </div>
-              ))}
+              {totalCount === 0 ? (
+                <div className="px-3.5 py-6 text-[12px] text-muted-foreground text-center">No MCP tools available</div>
+              ) : (
+                data.groups.map((group) => (
+                  <div key={group.id} className="pb-1">
+                    <div className="px-3.5 pt-2.5 pb-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{group.name}</span>
+                    </div>
+
+                    {group.tools.map((tool) => (
+                      <div key={tool.id} className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-muted/40 transition-colors">
+                        <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>
+                        <Switch
+                          size="small"
+                          checked={tool.connected}
+                          onChange={(checked) => data.onToggleTool(tool.id, checked)}
+                          aria-label={`Toggle ${group.name} → ${tool.label}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         }
@@ -110,15 +139,15 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
         >
           <div
             className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
-            style={{ background: "color-mix(in srgb, var(--edge-mcp) 12%, transparent)", color: MCP_ORANGE }}
+            style={{ background: "color-mix(in srgb, var(--edge-mcp) 12%, transparent)", color: MCP_COLOR }}
           >
             <PlugCircle weight="BoldDuotone" width={14} height={14} />
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-foreground leading-[1.3] truncate">{data.name}</div>
+            <div className="text-xs font-semibold text-foreground leading-[1.3] truncate">MCP Servers</div>
             <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-              {data.tools.length} tools
+              {serverCount} servers · {totalCount} tools
               {connectedCount > 0 ? ` · ${connectedCount} on` : ""}
             </div>
           </div>

@@ -6,6 +6,8 @@ import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-do
 import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { fetchMcpServers } from "src/modules/mcp-servers/common/mcpServersSlice";
+import { fetchTeams } from "src/modules/teams/common/teamsSlice";
+import { fetchToolFolders } from "src/modules/tools/common/toolFoldersSlice";
 import { fetchTools } from "src/modules/tools/common/toolsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { deleteAgent, fetchAgents, fetchOneAgent, updateAgent } from "../common/agentsSlice";
@@ -62,6 +64,8 @@ export default function AgentDetailPage() {
   const agents = useAppSelector((s) => s.agents.items) as Agent[];
   const allTools = useAppSelector((s) => s.tools.items) as AgentTool[];
   const mcpServers = useAppSelector((s) => s.mcpServers.items) as McpServer[];
+  const teams = useAppSelector((s) => s.teams.teams);
+  const toolFolders = useAppSelector((s) => s.toolFolders.folders);
 
   // ── Detail form state ──────────────────────────────────────────────────────
   const [loaded, setLoaded] = useState(false);
@@ -74,6 +78,8 @@ export default function AgentDetailPage() {
   const toolAssignmentsRef = useRef(toolAssignments);
   toolAssignmentsRef.current = toolAssignments;
   const [callableAgentIds, setCallableAgentIds] = useState<string[]>([]);
+  const callableAgentIdsRef = useRef(callableAgentIds);
+  callableAgentIdsRef.current = callableAgentIds;
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [aiModel, setAiModel] = useState("");
   const [isPublic, setIsPublic] = useState(false);
@@ -92,11 +98,13 @@ export default function AgentDetailPage() {
     fetchAssignments(id).then((a) => setToolAssignments(a));
   }, [id, dispatch]);
 
-  // Fetch tools + providers + MCP servers
+  // Fetch tools + providers + MCP servers + teams + folders
   useEffect(() => {
     dispatch(fetchTools());
+    dispatch(fetchToolFolders());
     dispatch(fetchLlmProviders());
     dispatch(fetchMcpServers());
+    dispatch(fetchTeams());
   }, [dispatch]);
 
   // Hydrate form state from store
@@ -180,28 +188,33 @@ export default function AgentDetailPage() {
     [id],
   );
 
-  const handleAddCallableAgent = useCallback(
-    (agentId: string) => {
+  const handleToggleCallableAgent = useCallback(
+    (agentId: string, enable: boolean) => {
       if (!id) return;
-      const next = [...callableAgentIds, agentId];
+      const prev = callableAgentIdsRef.current;
+      const next = enable ? (prev.includes(agentId) ? prev : [...prev, agentId]) : prev.filter((cid) => cid !== agentId);
+      if (next.length === prev.length && next.every((v, i) => v === prev[i])) return;
       setCallableAgentIds(next);
       apiUpdateCallableAgents(id, next).catch(() => {
-        setCallableAgentIds(callableAgentIds);
+        if (callableAgentIdsRef.current === next) setCallableAgentIds(prev);
       });
     },
-    [id, callableAgentIds],
+    [id],
   );
 
-  const handleRemoveCallableAgent = useCallback(
-    (agentId: string) => {
-      if (!id) return;
-      const next = callableAgentIds.filter((cid) => cid !== agentId);
+  const handleToggleCallableAgents = useCallback(
+    (agentIds: string[], enable: boolean) => {
+      if (!id || agentIds.length === 0) return;
+      const prev = callableAgentIdsRef.current;
+      const target = new Set(agentIds);
+      const next = enable ? [...new Set([...prev, ...agentIds])] : prev.filter((cid) => !target.has(cid));
+      if (next.length === prev.length && next.every((v, i) => v === prev[i])) return;
       setCallableAgentIds(next);
       apiUpdateCallableAgents(id, next).catch(() => {
-        setCallableAgentIds(callableAgentIds);
+        if (callableAgentIdsRef.current === next) setCallableAgentIds(prev);
       });
     },
-    [id, callableAgentIds],
+    [id],
   );
 
   // ── Flow config handlers (model + name/desc — auto-save) ───────────────
@@ -319,6 +332,8 @@ export default function AgentDetailPage() {
                 <AgentFlowView
                   agent={agent}
                   agents={agents}
+                  teams={teams}
+                  toolFolders={toolFolders}
                   allTools={allTools}
                   mcpServers={mcpServers}
                   toolAssignments={toolAssignments}
@@ -326,8 +341,8 @@ export default function AgentDetailPage() {
                   onRemoveToolAssignment={handleRemoveToolAssignment}
                   onAddToolAssignment={handleAddToolAssignment}
                   onToggleMcpTools={handleToggleMcpTools}
-                  onAddCallableAgent={handleAddCallableAgent}
-                  onRemoveCallableAgent={handleRemoveCallableAgent}
+                  onToggleCallableAgent={handleToggleCallableAgent}
+                  onToggleCallableAgents={handleToggleCallableAgents}
                   selectedProviderId={selectedProviderId}
                   aiModel={aiModel}
                   systemPrompt={systemPrompt}

@@ -1,30 +1,38 @@
 // ─── Agent Flow View ──────────────────────────────────────────────────────────
 // React Flow canvas with current agent at center. To the right:
-//   • Builtin Tools / Custom Tools — drag-connect
-//   • MCP — server cards; popover toggles assign tools; edge if ≥1 connected
-//   • Call Agent group — other agents, drag-connect to assign
+//   • Tools — single card; popover toggles builtin + folder tools
+//     Connected folders fan out mid-level, then each fans out to its tools
+//   • MCP Servers — single card; popover toggles tools grouped by server
+//     Connected servers fan out mid-level, then each fans out to its tools
+//   • Call Agents — single card; popover toggles agents grouped by team
+//     Connected agents fan out as child nodes to the right of Call Agents
 
 import { Background, BackgroundVariant, type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Modal } from "antd";
 import { useCallback, useMemo, useState } from "react";
-import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
+import type { Agent, AgentTeam, AgentTool, AgentToolAssignment, McpServer, ToolFolder } from "src/common/types";
 import { PromptPage } from "../prompt/PromptPage";
 import { DeletableEdge } from "./edges/DeletableEdge";
+import { layoutFanoutSection, layoutTwoLevelFanout, measureChildWidth } from "./layout";
 import { AgentConfigNode, type AgentConfigNodeType } from "./nodes/AgentConfigNode";
+import { CallAgentsNode, type CallAgentTeamGroup, type CallAgentsNodeType } from "./nodes/CallAgentsNode";
 import { CallableAgentNode, type CallableAgentNodeType } from "./nodes/CallableAgentNode";
-import { DashedGroupNode, type DashedGroupNodeType } from "./nodes/DashedGroupNode";
-import { FlowToolNode, type FlowToolNodeType } from "./nodes/FlowToolNode";
-import { McpServerNode, type McpServerNodeType } from "./nodes/McpServerNode";
+import { ConnectedToolNode, type ConnectedToolNodeType } from "./nodes/ConnectedToolNode";
+import { GroupBranchNode, type GroupBranchNodeType } from "./nodes/GroupBranchNode";
+import { McpServersNode, type McpServerGroup, type McpServersNodeType } from "./nodes/McpServersNode";
 import { PublishNode, type PublishNodeType } from "./nodes/PublishNode";
+import { ToolsNode, type ToolFolderGroup, type ToolsNodeType } from "./nodes/ToolsNode";
 
 // ─── Node & Edge Types ──────────────────────────────────────────────────────
 
 const nodeTypes = {
-  flowTool: FlowToolNode,
-  mcpServer: McpServerNode,
+  tools: ToolsNode,
+  connectedTool: ConnectedToolNode,
+  groupBranch: GroupBranchNode,
+  mcpServers: McpServersNode,
+  callAgents: CallAgentsNode,
   callableAgent: CallableAgentNode,
-  dashedGroup: DashedGroupNode,
   agentConfig: AgentConfigNode,
   publish: PublishNode,
 };
@@ -38,14 +46,16 @@ const edgeTypes = {
 const CENTER_X = 500;
 const CENTER_Y = 400;
 
-const ITEMS_COL_X = CENTER_X + 600; // x position for items inside groups
-const ITEM_GAP_Y = 50; // vertical spacing between nodes
-
-const GROUP_PADDING_X = 16; // horizontal padding inside group box
-const GROUP_PADDING_TOP = 44; // space under group label (Tools / MCP / Call Agent)
-const GROUP_PADDING_BOTTOM = 12;
-const GROUP_GAP = 40; // gap between tool / MCP / agent groups
-const MCP_PARENT_GAP_Y = 56; // vertical spacing between MCP server cards
+const ITEMS_COL_X = CENTER_X + 420;
+const SIDE_CARD_H = 56;
+const FANOUT_CHILD_GAP_X = 100; // gap between levels of fan-out
+const FANOUT_CHILD_GAP_Y = 56; // vertical spacing between sibling children
+const FANOUT_CHILD_H = 40; // plain child card height (tool / agent leaf)
+const GROUP_MID_H = 40; // folder / MCP server mid-level card height (single line)
+const TOOL_CHILD_CHROME = 28; // paddings for connected tool cards
+const GROUP_MID_CHROME = 36; // paddings for folder / MCP mid branch cards
+const AGENT_CHILD_CHROME = 64; // avatar + gaps + paddings for callable agent cards
+const SECTION_GAP = 28; // min vertical gap between packed sections
 
 // ─── Edge Colors ─────────────────────────────────────────────────────────────
 
@@ -69,6 +79,8 @@ function measureMaxTextWidth(texts: string[], font = "600 12px Inter, system-ui,
 interface AgentFlowViewProps {
   agent: Agent;
   agents: Agent[];
+  teams: AgentTeam[];
+  toolFolders: ToolFolder[];
   allTools: AgentTool[];
   mcpServers: McpServer[];
   toolAssignments: AgentToolAssignment[];
@@ -76,8 +88,8 @@ interface AgentFlowViewProps {
   onRemoveToolAssignment: (toolId: string) => void;
   onAddToolAssignment: (toolId: string) => void;
   onToggleMcpTools: (toolIds: string[], enable: boolean) => void;
-  onAddCallableAgent: (agentId: string) => void;
-  onRemoveCallableAgent: (agentId: string) => void;
+  onToggleCallableAgent: (agentId: string, enable: boolean) => void;
+  onToggleCallableAgents: (agentIds: string[], enable: boolean) => void;
   // Config node props
   selectedProviderId: string | null;
   aiModel: string;
@@ -101,6 +113,8 @@ interface AgentFlowViewProps {
 function AgentFlowInner({
   agent,
   agents,
+  teams,
+  toolFolders,
   allTools,
   mcpServers,
   toolAssignments,
@@ -108,8 +122,8 @@ function AgentFlowInner({
   onRemoveToolAssignment,
   onAddToolAssignment,
   onToggleMcpTools,
-  onAddCallableAgent,
-  onRemoveCallableAgent,
+  onToggleCallableAgent,
+  onToggleCallableAgents,
   selectedProviderId,
   aiModel,
   systemPrompt,
@@ -130,7 +144,7 @@ function AgentFlowInner({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
 
-  const handleToggleMcpTool = useCallback(
+  const handleToggleTool = useCallback(
     (toolId: string, connected: boolean) => {
       if (connected) onAddToolAssignment(toolId);
       else onRemoveToolAssignment(toolId);
@@ -138,77 +152,203 @@ function AgentFlowInner({
     [onAddToolAssignment, onRemoveToolAssignment],
   );
 
-  const handleToggleAllMcpTools = useCallback(
-    (toolIds: string[], enable: boolean) => {
-      onToggleMcpTools(toolIds, enable);
-    },
-    [onToggleMcpTools],
-  );
+  const toolGroups = useMemo((): ToolFolderGroup[] => {
+    const activeTools = allTools.filter((t) => t.isActive !== false && t.name !== "call_agent");
+    const builtin: ToolToggleLike[] = [];
+    const byFolder = new Map<string | null, ToolToggleLike[]>();
+    const folderMeta = new Map(toolFolders.map((f) => [f.id, f]));
+
+    for (const tool of activeTools) {
+      const item = {
+        id: tool.id,
+        label: tool.label || tool.name,
+        connected: assignedToolIds.has(tool.id),
+        sortOrder: tool.sortOrder ?? 0,
+      };
+      if (tool.id.startsWith("builtin:")) {
+        builtin.push(item);
+        continue;
+      }
+      const fid = tool.folderId && folderMeta.has(tool.folderId) ? tool.folderId : null;
+      if (!byFolder.has(fid)) byFolder.set(fid, []);
+      byFolder.get(fid)!.push(item);
+    }
+
+    const sortTools = (items: ToolToggleLike[]) =>
+      [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label)).map(({ id, label, connected }) => ({ id, label, connected }));
+
+    const groups: ToolFolderGroup[] = [];
+    if (builtin.length > 0) {
+      groups.push({ id: "__builtin__", name: "Builtin Tools", tools: sortTools(builtin) });
+    }
+
+    const folderGroups = [...byFolder.entries()]
+      .map(([fid, items]) => ({
+        id: fid,
+        name: fid ? (folderMeta.get(fid)?.name ?? "Folder") : "Ungrouped",
+        sortOrder: fid ? (folderMeta.get(fid)?.sortOrder ?? 0) : Number.MAX_SAFE_INTEGER,
+        tools: sortTools(items),
+      }))
+      .filter((g) => g.tools.length > 0)
+      .sort((a, b) => {
+        if (a.id === null) return 1;
+        if (b.id === null) return -1;
+        return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name);
+      })
+      .map(({ id, name, tools }) => ({ id, name, tools }));
+
+    groups.push(...folderGroups);
+    return groups;
+  }, [allTools, toolFolders, assignedToolIds]);
+
+  const callAgentTeams = useMemo((): CallAgentTeamGroup[] => {
+    const otherAgents = agents.filter((a) => a.id !== agent.id).sort((a, b) => a.name.localeCompare(b.name));
+    const teamMeta = new Map(teams.map((t) => [t.id, t]));
+    const byTeam = new Map<string | null, CallAgentTeamGroup>();
+
+    for (const ag of otherAgents) {
+      const tid = ag.teamId && teamMeta.has(ag.teamId) ? ag.teamId : null;
+      if (!byTeam.has(tid)) {
+        byTeam.set(tid, {
+          id: tid,
+          name: tid ? (teamMeta.get(tid)?.name ?? "Team") : "No team",
+          agents: [],
+        });
+      }
+      byTeam.get(tid)!.agents.push({
+        id: ag.id,
+        name: ag.name,
+        avatar: ag.avatar,
+        teamId: ag.teamId,
+        connected: callableSet.has(ag.id),
+      });
+    }
+
+    return [...byTeam.values()].sort((a, b) => {
+      if (a.id === null) return 1;
+      if (b.id === null) return -1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [agents, agent.id, teams, callableSet]);
 
   // ─── Build Nodes ────────────────────────────────────────────────────────────
 
   const nodes = useMemo(() => {
     const result: Node[] = [];
 
-    // ── Prepare data ────────────────────────────────────────────────────────
-
-    const activeTools = allTools.filter((t) => t.isActive !== false && t.name !== "call_agent");
-
-    const builtinTools = activeTools.filter((t) => t.id.startsWith("builtin:")).sort((a, b) => (a.label || a.name).localeCompare(b.label || b.name));
-    const customTools = activeTools.filter((t) => !t.id.startsWith("builtin:")).sort((a, b) => (a.label || a.name).localeCompare(b.label || b.name));
-
-    const mcpGroups: { serverId: string; name: string; tools: { id: string; label: string }[] }[] = [];
+    const mcpGroups: McpServerGroup[] = [];
     for (const server of mcpServers) {
       if (server.isActive === false) continue;
       const catalog = [...(server.tools ?? [])].sort((a, b) => a.name.localeCompare(b.name));
       if (catalog.length === 0) continue;
       mcpGroups.push({
-        serverId: server.id,
+        id: server.id,
         name: server.name,
         tools: catalog.map((t) => ({
           id: `mcp:${server.id}:${t.name}`,
           label: t.name,
+          connected: assignedToolIds.has(`mcp:${server.id}:${t.name}`),
         })),
       });
     }
 
-    const otherAgents = agents.filter((a) => a.id !== agent.id).sort((a, b) => a.name.localeCompare(b.name));
-
     // ── Measure widths ──────────────────────────────────────────────────────
 
-    const ITEM_FIXED_WIDTH = 56;
-    const toolLabels = [...builtinTools, ...customTools].map((t) => t.label || t.name);
-    const mcpParentLabels = mcpGroups.map((g) => g.name);
-    const agentLabels = otherAgents.map((a) => a.name);
-    const parentMaxText = measureMaxTextWidth([...toolLabels, ...mcpParentLabels, ...agentLabels]);
-    const groupInnerWidth = Math.ceil(parentMaxText + ITEM_FIXED_WIDTH + 24);
-    const groupWidth = groupInnerWidth + 2 * GROUP_PADDING_X;
+    const ITEM_FIXED_WIDTH = 88;
+    const SIDE_CARD_MIN_W = 200;
+    const parentMaxText = measureMaxTextWidth(["Tools", "MCP Servers", "Call Agents"]);
+    const groupInnerWidth = Math.max(SIDE_CARD_MIN_W, Math.ceil(parentMaxText + ITEM_FIXED_WIDTH));
 
-    // ── Calculate group heights & positions ─────────────────────────────────
+    // ── Connected children (needed for auto layout) ─────────────────────────
 
-    const builtinGroupHeight = builtinTools.length > 0 ? GROUP_PADDING_TOP + builtinTools.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM : 0;
-    const customGroupHeight = customTools.length > 0 ? GROUP_PADDING_TOP + customTools.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM : 0;
-    const mcpStackHeight = mcpGroups.length > 0 ? mcpGroups.length * MCP_PARENT_GAP_Y : 0;
-    const mcpSectionHeight = mcpStackHeight > 0 ? GROUP_PADDING_TOP + mcpStackHeight + GROUP_PADDING_BOTTOM : 0;
-    const agentsGroupHeight = otherAgents.length > 0 ? GROUP_PADDING_TOP + otherAgents.length * ITEM_GAP_Y + GROUP_PADDING_BOTTOM : 0;
+    // Only folders that have ≥1 connected tool appear as mid-level branches
+    const connectedToolBranches = toolGroups
+      .map((g) => ({
+        id: String(g.id ?? "__ungrouped__"),
+        name: g.name,
+        tools: g.tools.filter((t) => t.connected).sort((a, b) => a.label.localeCompare(b.label)),
+      }))
+      .filter((g) => g.tools.length > 0);
 
-    const sections: number[] = [];
-    if (builtinGroupHeight > 0) sections.push(builtinGroupHeight);
-    if (customGroupHeight > 0) sections.push(customGroupHeight);
-    if (mcpSectionHeight > 0) sections.push(mcpSectionHeight);
-    if (agentsGroupHeight > 0) sections.push(agentsGroupHeight);
+    // Only servers that have ≥1 connected tool appear as mid-level branches
+    const connectedMcpBranches = mcpGroups
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        tools: g.tools.filter((t) => t.connected).sort((a, b) => a.label.localeCompare(b.label)),
+      }))
+      .filter((g) => g.tools.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-    const totalHeight = sections.reduce((sum, h) => sum + h, 0) + Math.max(0, sections.length - 1) * GROUP_GAP;
+    const connectedAgents = callAgentTeams
+      .flatMap((t) => t.agents)
+      .filter((a) => a.connected)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    // ── Pack sections top→bottom so fan-outs never collide ──────────────────
+
+    const toolsLayout0 = layoutTwoLevelFanout(
+      0,
+      SIDE_CARD_H,
+      connectedToolBranches.map((b) => b.tools.length),
+      GROUP_MID_H,
+      FANOUT_CHILD_GAP_Y,
+      FANOUT_CHILD_H,
+      SECTION_GAP,
+    );
+    const toolsSectionH = toolsLayout0.sectionHeight;
+
+    const mcpLayout0 = layoutTwoLevelFanout(
+      0,
+      SIDE_CARD_H,
+      connectedMcpBranches.map((b) => b.tools.length),
+      GROUP_MID_H,
+      FANOUT_CHILD_GAP_Y,
+      FANOUT_CHILD_H,
+      SECTION_GAP,
+    );
+    const mcpSectionH = mcpGroups.length > 0 ? mcpLayout0.sectionHeight : 0;
+
+    const agentsLayout0 = layoutFanoutSection(0, SIDE_CARD_H, connectedAgents.length, FANOUT_CHILD_GAP_Y, FANOUT_CHILD_H);
+    const agentsSectionH = agentsLayout0.sectionBottom;
+
+    const sectionHeights: number[] = [toolsSectionH];
+    if (mcpGroups.length > 0) sectionHeights.push(mcpSectionH);
+    sectionHeights.push(agentsSectionH);
+
+    const totalHeight = sectionHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, sectionHeights.length - 1) * SECTION_GAP;
 
     let cursorY = CENTER_Y - totalHeight / 2 + 20;
-    const builtinGroupY = cursorY;
-    if (builtinGroupHeight > 0) cursorY += builtinGroupHeight + GROUP_GAP;
-    const customGroupY = cursorY;
-    if (customGroupHeight > 0) cursorY += customGroupHeight + GROUP_GAP;
 
-    const mcpSectionY = cursorY;
-    if (mcpSectionHeight > 0) cursorY += mcpSectionHeight + GROUP_GAP;
-    const agentsGroupY = cursorY;
+    const toolsLayout = layoutTwoLevelFanout(
+      cursorY,
+      SIDE_CARD_H,
+      connectedToolBranches.map((b) => b.tools.length),
+      GROUP_MID_H,
+      FANOUT_CHILD_GAP_Y,
+      FANOUT_CHILD_H,
+      SECTION_GAP,
+    );
+    cursorY = toolsLayout.sectionBottom + SECTION_GAP;
+
+    let mcpLayout = layoutTwoLevelFanout(
+      cursorY,
+      SIDE_CARD_H,
+      connectedMcpBranches.map((b) => b.tools.length),
+      GROUP_MID_H,
+      FANOUT_CHILD_GAP_Y,
+      FANOUT_CHILD_H,
+      SECTION_GAP,
+    );
+    if (mcpGroups.length > 0) {
+      cursorY = mcpLayout.sectionBottom + SECTION_GAP;
+    }
+
+    const agentsLayout = layoutFanoutSection(cursorY, SIDE_CARD_H, connectedAgents.length, FANOUT_CHILD_GAP_Y, FANOUT_CHILD_H);
+
+    const midX = ITEMS_COL_X + groupInnerWidth + FANOUT_CHILD_GAP_X;
+    // leaf column shares width with mid column for a clean cascade
+    const leafX = midX + groupInnerWidth + FANOUT_CHILD_GAP_X;
 
     // ── 0. Config Node (central node) ──────────────────────────────────────
 
@@ -253,150 +393,197 @@ function AgentFlowInner({
       result.push(publishNode);
     }
 
-    // ── 1. Builtin Tools Group ──────────────────────────────────────────────
+    // ── 1. Tools — root → folder branches → tool leaves ────────────────────
 
-    if (builtinTools.length > 0) {
-      const builtinBackdrop: DashedGroupNodeType = {
-        id: "builtin-tools-backdrop",
-        type: "dashedGroup",
-        position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: builtinGroupY },
-        zIndex: -1,
-        selectable: false,
+    {
+      const toolsNode: ToolsNodeType = {
+        id: "tools",
+        type: "tools",
+        position: { x: ITEMS_COL_X, y: toolsLayout.rootY },
         draggable: false,
-        data: { label: "Builtin Tools", color: "var(--edge-tool)", width: groupWidth, height: builtinGroupHeight },
+        connectable: false,
+        data: {
+          groups: toolGroups,
+          width: groupInnerWidth,
+          onToggleTool: handleToggleTool,
+        },
       };
-      result.push(builtinBackdrop);
+      result.push(toolsNode);
 
-      builtinTools.forEach((tool, i) => {
-        const node: FlowToolNodeType = {
-          id: `tool-${tool.id}`,
-          type: "flowTool",
-          position: { x: ITEMS_COL_X, y: builtinGroupY + GROUP_PADDING_TOP + i * ITEM_GAP_Y },
-          data: {
-            label: tool.label || tool.name,
-            name: tool.name,
-            description: tool.description?.slice(0, 60) + (tool.description?.length > 60 ? "…" : "") || "",
-            isConnected: assignedToolIds.has(tool.id),
-            width: groupInnerWidth,
-          },
-        };
-        result.push(node);
-      });
+      if (connectedToolBranches.length > 0) {
+        const midWidth = measureChildWidth(
+          connectedToolBranches.map((b) => b.name),
+          GROUP_MID_CHROME,
+          groupInnerWidth,
+          measureMaxTextWidth,
+        );
+        const leafWidth = measureChildWidth(
+          connectedToolBranches.flatMap((b) => b.tools.map((t) => t.label)),
+          TOOL_CHILD_CHROME,
+          groupInnerWidth,
+          measureMaxTextWidth,
+        );
+
+        connectedToolBranches.forEach((branch, bi) => {
+          const bl = toolsLayout.branches[bi]!;
+
+          const mid: GroupBranchNodeType = {
+            id: `tool-folder-${branch.id}`,
+            type: "groupBranch",
+            position: { x: midX, y: bl.midY },
+            draggable: false,
+            connectable: false,
+            selectable: false,
+            data: {
+              name: branch.name,
+              width: midWidth,
+              accent: "tool",
+            },
+          };
+          result.push(mid);
+
+          branch.tools.forEach((tool, ti) => {
+            const leaf: ConnectedToolNodeType = {
+              id: `tool-child-${tool.id}`,
+              type: "connectedTool",
+              position: { x: leafX, y: bl.leafTop + ti * FANOUT_CHILD_GAP_Y },
+              draggable: false,
+              connectable: false,
+              selectable: false,
+              data: {
+                label: tool.label,
+                width: leafWidth,
+                accent: "tool",
+              },
+            };
+            result.push(leaf);
+          });
+        });
+      }
     }
 
-    // ── 1b. Custom Tools Group ──────────────────────────────────────────────
-
-    if (customTools.length > 0) {
-      const customBackdrop: DashedGroupNodeType = {
-        id: "custom-tools-backdrop",
-        type: "dashedGroup",
-        position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: customGroupY },
-        zIndex: -1,
-        selectable: false,
-        draggable: false,
-        data: { label: "Custom Tools", color: "var(--edge-call-agent)", width: groupWidth, height: customGroupHeight },
-      };
-      result.push(customBackdrop);
-
-      customTools.forEach((tool, i) => {
-        const node: FlowToolNodeType = {
-          id: `tool-${tool.id}`,
-          type: "flowTool",
-          position: { x: ITEMS_COL_X, y: customGroupY + GROUP_PADDING_TOP + i * ITEM_GAP_Y },
-          data: {
-            label: tool.label || tool.name,
-            name: tool.name,
-            description: tool.description?.slice(0, 60) + (tool.description?.length > 60 ? "…" : "") || "",
-            isConnected: assignedToolIds.has(tool.id),
-            width: groupInnerWidth,
-          },
-        };
-        result.push(node);
-      });
-    }
-
-    // ── 2. MCP Section — server cards with popover toggles ──────────────────
+    // ── 2. MCP Servers — root → server branches → tool leaves ────────────
 
     if (mcpGroups.length > 0) {
-      const mcpBackdrop: DashedGroupNodeType = {
-        id: "mcp-backdrop",
-        type: "dashedGroup",
-        position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: mcpSectionY },
-        zIndex: -1,
-        selectable: false,
+      const mcpNode: McpServersNodeType = {
+        id: "mcp-servers",
+        type: "mcpServers",
+        position: { x: ITEMS_COL_X, y: mcpLayout.rootY },
         draggable: false,
-        data: { label: "MCP", color: "var(--edge-mcp)", width: groupWidth, height: mcpSectionHeight },
+        connectable: false,
+        data: {
+          groups: mcpGroups,
+          width: groupInnerWidth,
+          onToggleTool: handleToggleTool,
+        },
       };
-      result.push(mcpBackdrop);
+      result.push(mcpNode);
 
-      mcpGroups.forEach((group, gi) => {
-        const parentY = mcpSectionY + GROUP_PADDING_TOP + gi * MCP_PARENT_GAP_Y;
+      if (connectedMcpBranches.length > 0) {
+        const midWidth = measureChildWidth(
+          connectedMcpBranches.map((b) => b.name),
+          GROUP_MID_CHROME,
+          groupInnerWidth,
+          measureMaxTextWidth,
+        );
+        const leafWidth = measureChildWidth(
+          connectedMcpBranches.flatMap((b) => b.tools.map((t) => t.label)),
+          TOOL_CHILD_CHROME,
+          groupInnerWidth,
+          measureMaxTextWidth,
+        );
 
-        const parent: McpServerNodeType = {
-          id: `mcp-server-${group.serverId}`,
-          type: "mcpServer",
-          position: { x: ITEMS_COL_X, y: parentY },
-          draggable: false,
-          connectable: false,
-          data: {
-            name: group.name,
-            width: groupInnerWidth,
-            tools: group.tools.map((tool) => ({
-              id: tool.id,
-              label: tool.label,
-              connected: assignedToolIds.has(tool.id),
-            })),
-            onToggleTool: handleToggleMcpTool,
-            onToggleAll: handleToggleAllMcpTools,
-          },
-        };
-        result.push(parent);
-      });
+        connectedMcpBranches.forEach((branch, bi) => {
+          const bl = mcpLayout.branches[bi]!;
+
+          const mid: GroupBranchNodeType = {
+            id: `mcp-branch-${branch.id}`,
+            type: "groupBranch",
+            position: { x: midX, y: bl.midY },
+            draggable: false,
+            connectable: false,
+            selectable: false,
+            data: {
+              name: branch.name,
+              width: midWidth,
+              accent: "mcp",
+            },
+          };
+          result.push(mid);
+
+          branch.tools.forEach((tool, ti) => {
+            const leaf: ConnectedToolNodeType = {
+              id: `tool-child-${tool.id}`,
+              type: "connectedTool",
+              position: { x: leafX, y: bl.leafTop + ti * FANOUT_CHILD_GAP_Y },
+              draggable: false,
+              connectable: false,
+              selectable: false,
+              data: {
+                label: tool.label,
+                width: leafWidth,
+                accent: "mcp",
+              },
+            };
+            result.push(leaf);
+          });
+        });
+      }
     }
 
-    // ── 3. Agents Group ─────────────────────────────────────────────────────
+    // ── 3. Call Agents — single card + fan-out children ────────────────────
 
-    if (otherAgents.length > 0) {
-      const agentsBackdrop: DashedGroupNodeType = {
-        id: "agents-backdrop",
-        type: "dashedGroup",
-        position: { x: ITEMS_COL_X - GROUP_PADDING_X, y: agentsGroupY },
-        zIndex: -1,
-        selectable: false,
+    {
+      const callAgentsNode: CallAgentsNodeType = {
+        id: "call-agents",
+        type: "callAgents",
+        position: { x: ITEMS_COL_X, y: agentsLayout.parentY },
         draggable: false,
-        data: { label: "Call Agent", color: "var(--edge-call-agent)", width: groupWidth, height: agentsGroupHeight },
+        connectable: false,
+        data: {
+          teams: callAgentTeams,
+          width: groupInnerWidth,
+          onToggleAgent: onToggleCallableAgent,
+        },
       };
-      result.push(agentsBackdrop);
+      result.push(callAgentsNode);
 
-      otherAgents.forEach((ag, i) => {
-        const node: CallableAgentNodeType = {
-          id: `agent-${ag.id}`,
-          type: "callableAgent",
-          position: { x: ITEMS_COL_X, y: agentsGroupY + GROUP_PADDING_TOP + i * ITEM_GAP_Y },
-          data: {
-            name: ag.name,
-            avatar: ag.avatar,
-            aiModel: ag.aiModel,
-            isConnected: callableSet.has(ag.id),
-            width: groupInnerWidth,
-          },
-        };
-        result.push(node);
-      });
+      if (connectedAgents.length > 0) {
+        const childWidth = measureChildWidth(
+          connectedAgents.map((a) => a.name),
+          AGENT_CHILD_CHROME,
+          groupInnerWidth,
+          measureMaxTextWidth,
+        );
+
+        connectedAgents.forEach((ag, i) => {
+          const child: CallableAgentNodeType = {
+            id: `agent-${ag.id}`,
+            type: "callableAgent",
+            position: { x: midX, y: agentsLayout.childTop + i * FANOUT_CHILD_GAP_Y },
+            draggable: false,
+            connectable: false,
+            selectable: false,
+            data: {
+              name: ag.name,
+              avatar: ag.avatar,
+              width: childWidth,
+            },
+          };
+          result.push(child);
+        });
+      }
     }
 
     return result;
   }, [
     agent,
-    agents,
-    allTools,
     mcpServers,
-    toolAssignments,
-    callableAgentIds,
+    toolGroups,
+    callAgentTeams,
     assignedToolIds,
-    callableSet,
-    handleToggleMcpTool,
-    handleToggleAllMcpTools,
+    handleToggleTool,
+    onToggleCallableAgent,
     selectedProviderId,
     aiModel,
     systemPrompt,
@@ -424,6 +611,8 @@ function AgentFlowInner({
     return ids;
   }, [mcpServers]);
 
+  const localAssignedToolIds = useMemo(() => toolAssignments.map((a) => a.toolId).filter((id) => !mcpToolIds.has(id)), [toolAssignments, mcpToolIds]);
+
   const mcpServerConnectedIds = useMemo(() => {
     const byServer = new Map<string, string[]>();
     for (const toolId of assignedToolIds) {
@@ -443,53 +632,142 @@ function AgentFlowInner({
   const edges = useMemo(() => {
     const result: Edge[] = [];
 
-    // Edges from assigned local tools → config
-    for (const assignment of toolAssignments) {
-      if (mcpToolIds.has(assignment.toolId)) continue;
+    // Tools: root → config, root → each connected folder branch → tool leaves
+    if (localAssignedToolIds.length > 0) {
       result.push({
-        id: `edge-tool-${assignment.toolId}`,
-        source: `tool-${assignment.toolId}`,
+        id: "edge-tools",
+        source: "tools",
+        sourceHandle: "to-config",
         target: "config",
         targetHandle: "tools",
         type: "deletable",
         animated: true,
-        selected: selectedEdgeId === `edge-tool-${assignment.toolId}`,
-        data: { onDelete: () => onRemoveToolAssignment(assignment.toolId) },
+        selected: selectedEdgeId === "edge-tools",
+        data: {
+          onDelete: () => {
+            for (const toolId of localAssignedToolIds) onRemoveToolAssignment(toolId);
+          },
+        },
         style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
       });
+
+      // Rebuild folder → tool map from current groups so branch ids match nodes
+      for (const group of toolGroups) {
+        const connected = group.tools.filter((t) => localAssignedToolIds.includes(t.id));
+        if (connected.length === 0) continue;
+        const folderId = String(group.id ?? "__ungrouped__");
+
+        result.push({
+          id: `edge-tool-folder-${folderId}`,
+          source: "tools",
+          sourceHandle: "to-folders",
+          target: `tool-folder-${folderId}`,
+          type: "default",
+          animated: true,
+          selectable: false,
+          deletable: false,
+          focusable: false,
+          style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
+        });
+
+        for (const tool of connected) {
+          result.push({
+            id: `edge-tool-child-${tool.id}`,
+            source: `tool-folder-${folderId}`,
+            sourceHandle: "to-leaves",
+            target: `tool-child-${tool.id}`,
+            type: "default",
+            animated: true,
+            selectable: false,
+            deletable: false,
+            focusable: false,
+            style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
+          });
+        }
+      }
     }
 
-    // One edge per MCP server that has ≥1 connected tool
-    for (const [serverId, toolIds] of mcpServerConnectedIds) {
+    // MCP: root → config, root → each connected server branch → tool leaves
+    const allMcpConnectedIds = [...mcpServerConnectedIds.values()].flat();
+    if (allMcpConnectedIds.length > 0) {
       result.push({
-        id: `edge-mcp-${serverId}`,
-        source: `mcp-server-${serverId}`,
+        id: "edge-mcp-servers",
+        source: "mcp-servers",
+        sourceHandle: "to-config",
         target: "config",
         targetHandle: "tools",
         type: "deletable",
         animated: true,
-        selected: selectedEdgeId === `edge-mcp-${serverId}`,
+        selected: selectedEdgeId === "edge-mcp-servers",
         data: {
-          onDelete: () => onToggleMcpTools(toolIds, false),
+          onDelete: () => onToggleMcpTools(allMcpConnectedIds, false),
         },
         style: { stroke: MCP_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
       });
+
+      for (const [serverId, toolIds] of mcpServerConnectedIds) {
+        result.push({
+          id: `edge-mcp-branch-${serverId}`,
+          source: "mcp-servers",
+          sourceHandle: "to-servers",
+          target: `mcp-branch-${serverId}`,
+          type: "default",
+          animated: true,
+          selectable: false,
+          deletable: false,
+          focusable: false,
+          style: { stroke: MCP_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
+        });
+
+        for (const toolId of toolIds) {
+          result.push({
+            id: `edge-mcp-child-${toolId}`,
+            source: `mcp-branch-${serverId}`,
+            sourceHandle: "to-leaves",
+            target: `tool-child-${toolId}`,
+            type: "default",
+            animated: true,
+            selectable: false,
+            deletable: false,
+            focusable: false,
+            style: { stroke: MCP_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
+          });
+        }
+      }
     }
 
-    // Edges from callable agents → config node (agents handle)
-    for (const agentId of callableAgentIds) {
-      if (agentId === agent.id) continue;
+    // One edge from Call Agents card → config when ≥1 agent is connected
+    if (callableAgentIds.length > 0) {
       result.push({
-        id: `edge-agent-${agentId}`,
-        source: `agent-${agentId}`,
+        id: "edge-call-agents",
+        source: "call-agents",
+        sourceHandle: "to-config",
         target: "config",
         targetHandle: "agents",
         type: "deletable",
         animated: true,
-        selected: selectedEdgeId === `edge-agent-${agentId}`,
-        data: { onDelete: () => onRemoveCallableAgent(agentId) },
+        selected: selectedEdgeId === "edge-call-agents",
+        data: {
+          onDelete: () => onToggleCallableAgents([...callableAgentIds], false),
+        },
         style: { stroke: AGENT_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
       });
+
+      // Fan-out branches: Call Agents → each connected child agent (display only)
+      for (const agentId of callableAgentIds) {
+        result.push({
+          id: `edge-call-child-${agentId}`,
+          source: "call-agents",
+          sourceHandle: "to-agents",
+          target: `agent-${agentId}`,
+          type: "default",
+          animated: true,
+          selectable: false,
+          deletable: false,
+          focusable: false,
+          style: { stroke: AGENT_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
+        });
+      }
     }
 
     // Edge from Publish node → config node (publish handle)
@@ -509,15 +787,14 @@ function AgentFlowInner({
 
     return result;
   }, [
-    agent.id,
-    toolAssignments,
+    localAssignedToolIds,
+    toolGroups,
     callableAgentIds,
     selectedEdgeId,
     onRemoveToolAssignment,
     onToggleMcpTools,
-    onRemoveCallableAgent,
+    onToggleCallableAgents,
     isPublic,
-    mcpToolIds,
     mcpServerConnectedIds,
   ]);
 
@@ -526,58 +803,23 @@ function AgentFlowInner({
   const onEdgesDelete = useCallback(
     (deletedEdges: Edge[]) => {
       for (const edge of deletedEdges) {
-        if (edge.id.startsWith("edge-tool-")) {
-          onRemoveToolAssignment(edge.id.replace("edge-tool-", ""));
-        } else if (edge.id.startsWith("edge-mcp-")) {
-          const serverId = edge.id.replace("edge-mcp-", "");
-          const toolIds = mcpServerConnectedIds.get(serverId) ?? [];
+        if (edge.id === "edge-tools") {
+          for (const toolId of localAssignedToolIds) onRemoveToolAssignment(toolId);
+        } else if (edge.id === "edge-mcp-servers") {
+          const toolIds = [...mcpServerConnectedIds.values()].flat();
           onToggleMcpTools(toolIds, false);
-        } else if (edge.id.startsWith("edge-agent-")) {
-          onRemoveCallableAgent(edge.id.replace("edge-agent-", ""));
+        } else if (edge.id === "edge-call-agents") {
+          onToggleCallableAgents([...callableAgentIds], false);
         }
       }
     },
-    [onRemoveToolAssignment, onToggleMcpTools, onRemoveCallableAgent, mcpServerConnectedIds],
+    [localAssignedToolIds, onRemoveToolAssignment, onToggleMcpTools, onToggleCallableAgents, mcpServerConnectedIds, callableAgentIds],
   );
 
-  // ─── Connection Handler (drag to connect) ─────────────────────────────────
+  // ─── Connection / validation (mostly unused for modal cards) ──────────────
 
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      const sourceId = connection.source;
-      if (!sourceId) return;
-
-      if (sourceId.startsWith("tool-")) {
-        const toolId = sourceId.replace("tool-", "");
-        if (!assignedToolIds.has(toolId)) onAddToolAssignment(toolId);
-      } else if (sourceId.startsWith("agent-")) {
-        const agentId = sourceId.replace("agent-", "");
-        if (!callableSet.has(agentId)) onAddCallableAgent(agentId);
-      }
-    },
-    [assignedToolIds, callableSet, onAddToolAssignment, onAddCallableAgent],
-  );
-
-  // ─── Valid Connection Check ────────────────────────────────────────────────
-
-  const isValidConnection = useCallback(
-    (connection: Connection | Edge) => {
-      const sourceId = connection.source;
-      const targetId = connection.target;
-      if (!sourceId || !targetId || targetId !== "config") return false;
-
-      if (sourceId.startsWith("tool-")) {
-        return !assignedToolIds.has(sourceId.replace("tool-", ""));
-      }
-      if (sourceId.startsWith("agent-")) {
-        return !callableSet.has(sourceId.replace("agent-", ""));
-      }
-      return false;
-    },
-    [assignedToolIds, callableSet],
-  );
-
-  // ─── Edge Selection ────────────────────────────────────────────────────────
+  const onConnect = useCallback((_connection: Connection) => {}, []);
+  const isValidConnection = useCallback((_connection: Connection | Edge) => false, []);
 
   const onEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
     setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id));
@@ -661,6 +903,13 @@ function AgentFlowInner({
     </div>
   );
 }
+
+type ToolToggleLike = {
+  id: string;
+  label: string;
+  connected: boolean;
+  sortOrder: number;
+};
 
 // ─── Exported Component (with ReactFlowProvider) ────────────────────────────
 
