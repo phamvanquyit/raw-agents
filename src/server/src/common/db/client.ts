@@ -27,6 +27,7 @@ export function getDb(dataDir?: string): ReturnType<typeof drizzle<typeof schema
 
   _db = drizzle(_raw, { schema });
   runMigrations(_raw);
+  ensureDatatableColumnName(_raw);
   return _db;
 }
 
@@ -34,6 +35,13 @@ export function closeDb(): void {
   _raw?.close();
   _raw = null;
   _db = null;
+}
+
+/** Raw bun:sqlite handle — for json_extract and parameterized dynamic SQL. */
+export function getRawDb(): Database {
+  if (!_raw) getDb();
+  if (!_raw) throw new Error("Database not initialized");
+  return _raw;
 }
 
 /** @internal — used by test-helpers to inject an in-memory DB */
@@ -80,6 +88,41 @@ function runMigrations(raw: Database): void {
 
     raw.query("INSERT INTO __migrations (name) VALUES (?)").run(file);
   }
+}
+
+/** One-shot: collapse datatable_columns.key+label → name for DBs created before the rename. */
+function ensureDatatableColumnName(raw: Database): void {
+  const table = raw.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'datatable_columns'").get() as
+    | { name: string }
+    | null
+    | undefined;
+  if (!table) return;
+
+  const cols = raw.query("PRAGMA table_info('datatable_columns')").all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  if (!names.has("key") || names.has("name")) return;
+
+  raw.exec("PRAGMA foreign_keys = OFF;");
+  raw.exec(`
+    CREATE TABLE datatable_columns_new (
+      id          TEXT PRIMARY KEY,
+      table_id    TEXT NOT NULL REFERENCES datatable_tables(id) ON DELETE CASCADE,
+      name        TEXT NOT NULL,
+      type        TEXT NOT NULL,
+      options     TEXT,
+      required    INTEGER NOT NULL DEFAULT 0,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+      UNIQUE (table_id, name)
+    );
+    INSERT INTO datatable_columns_new (id, table_id, name, type, options, required, sort_order, created_at)
+    SELECT id, table_id, key, type, options, required, sort_order, created_at
+    FROM datatable_columns;
+    DROP TABLE datatable_columns;
+    ALTER TABLE datatable_columns_new RENAME TO datatable_columns;
+    CREATE INDEX IF NOT EXISTS idx_datatable_columns_table ON datatable_columns(table_id);
+  `);
+  raw.exec("PRAGMA foreign_keys = ON;");
 }
 
 // ─── Re-export schema ─────────────────────────────────────────────────────────

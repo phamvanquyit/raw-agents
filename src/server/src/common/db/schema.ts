@@ -324,3 +324,68 @@ export const secrets = sqliteTable("secrets", {
 
 export type SecretEntry = typeof secrets.$inferSelect;
 export type NewSecretEntry = typeof secrets.$inferInsert;
+
+// ─── Datatables ───────────────────────────────────────────────────────────────
+
+export const COLUMN_TYPES = ["text", "number", "boolean", "datetime", "select", "json"] as const;
+export type ColumnType = (typeof COLUMN_TYPES)[number];
+
+export const datatableProjects = sqliteTable("datatable_projects", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type DatatableProject = typeof datatableProjects.$inferSelect;
+export type NewDatatableProject = typeof datatableProjects.$inferInsert;
+
+export const datatableTables = sqliteTable("datatable_tables", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => datatableProjects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type DatatableTable = typeof datatableTables.$inferSelect;
+export type NewDatatableTable = typeof datatableTables.$inferInsert;
+
+export const datatableColumns = sqliteTable("datatable_columns", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  tableId: text("table_id")
+    .notNull()
+    .references(() => datatableTables.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull().$type<ColumnType>(),
+  options: text("options", { mode: "json" }).$type<string[] | null>(),
+  required: integer("required", { mode: "boolean" }).notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type DatatableColumn = typeof datatableColumns.$inferSelect;
+export type NewDatatableColumn = typeof datatableColumns.$inferInsert;
+
+export const datatableRows = sqliteTable("datatable_rows", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  tableId: text("table_id")
+    .notNull()
+    .references(() => datatableTables.id, { onDelete: "cascade" }),
+  data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type DatatableRow = typeof datatableRows.$inferSelect;
+export type NewDatatableRow = typeof datatableRows.$inferInsert;
