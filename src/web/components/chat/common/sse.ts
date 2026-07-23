@@ -29,6 +29,8 @@ export type ParseSseResult = "done" | "error" | "aborted" | "connection-lost";
 /** Normalize raw JSON into a canonical AgentSseEvent (or null if unknown). */
 export function normalizeSseEvent(raw: Record<string, unknown>): AgentSseEvent | null {
   const type = raw.type;
+  // Keep-alive from server (Bun idleTimeout / proxies) — ignore
+  if (type === "ping") return null;
   if (type === "text-delta" || type === "chunk") {
     return { type: "text-delta", text: String(raw.text ?? "") };
   }

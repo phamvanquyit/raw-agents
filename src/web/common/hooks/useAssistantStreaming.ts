@@ -1,6 +1,11 @@
 /**
  * Ephemeral assistant streaming (prompt / coding panels).
  * Local message history only — no conversation DB / run-registry.
+ *
+ * Message cycles mirror the model loop:
+ *   thinking → (text)? → tool-call → thinking → …
+ * Each thinking / assistant segment becomes its own bubble so multi-round
+ * reasoning is never concatenated into one block.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -71,8 +76,30 @@ function buildAiHistory(messages: ChatAgentMessage[]) {
 
 function finalizeStreamingMessages(prev: ChatAgentMessage[]) {
   return prev
-    .map((m) => (m.role === "assistant" && m.streaming ? { ...m, streaming: false } : m))
+    .map((m) => {
+      if (m.role === "assistant" && m.streaming) {
+        // Thinking-only bubble → standalone completed thinking
+        if (!m.content.trim() && m.meta?.thinking) {
+          const thinking = String(m.meta.thinking);
+          const duration = (m.meta.thinkingDuration as number | undefined) ?? 0;
+          return {
+            ...m,
+            role: "thinking" as const,
+            content: thinking,
+            streaming: false,
+            meta: { thinking, thinkingDuration: duration },
+          };
+        }
+        return { ...m, streaming: false };
+      }
+      return m;
+    })
     .filter((m) => !(m.role === "assistant" && !m.content.trim() && !m.meta?.thinking));
+}
+
+function thinkingDurationSec(startedAt: number): number {
+  if (!startedAt) return 0;
+  return Math.round((Date.now() - startedAt) / 1000);
 }
 
 export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }: UseAssistantStreamingOptions) {
@@ -94,7 +121,10 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
   const cancel = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    setMessages(finalizeStreamingMessages);
     setGenerating(false);
+    thinkingRef.current = "";
+    thinkingStartRef.current = 0;
   }, []);
 
   const send = useCallback(
@@ -133,7 +163,68 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
 
       let assistantText = "";
       let currentAssistantId = assistantId;
-      let toolsStarted = false;
+      /** True after a tool-call until the next text/thinking segment starts a fresh bubble */
+      let needsNewBubble = false;
+      /** toolCallIds already painted — early emit + full-args upsert must not double-bubble */
+      const seenToolCallIds = new Set<string>();
+
+      /** Finalize the open assistant/thinking bubble before a tool-call or segment boundary. */
+      const finalizeOpenBubble = () => {
+        const freezeId = currentAssistantId;
+        const thinkingSnapshot = thinkingRef.current;
+        const duration = thinkingDurationSec(thinkingStartRef.current);
+
+        if (assistantText.trim()) {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== freezeId) return m;
+              const meta = thinkingSnapshot ? { ...m.meta, thinking: thinkingSnapshot, thinkingDuration: duration } : m.meta;
+              return { ...m, content: assistantText, streaming: false, meta };
+            }),
+          );
+        } else if (thinkingSnapshot) {
+          // Pure thinking → role "thinking" so MessageBubble renders CompletedThinking
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === freezeId
+                ? {
+                    id: freezeId,
+                    role: "thinking" as const,
+                    content: thinkingSnapshot,
+                    streaming: false,
+                    timestamp: m.timestamp,
+                    meta: { thinking: thinkingSnapshot, thinkingDuration: duration },
+                  }
+                : m,
+            ),
+          );
+        } else {
+          setMessages((prev) => prev.filter((m) => m.id !== freezeId));
+        }
+
+        thinkingRef.current = "";
+        thinkingStartRef.current = 0;
+        assistantText = "";
+        currentAssistantId = "";
+        needsNewBubble = true;
+      };
+
+      const ensureAssistantBubble = (seed?: { content?: string; thinking?: string }): string => {
+        if (!needsNewBubble && currentAssistantId) return currentAssistantId;
+        const newId = nextId("a");
+        currentAssistantId = newId;
+        needsNewBubble = false;
+        const bubble: ChatAgentMessage = {
+          id: newId,
+          role: "assistant",
+          content: seed?.content ?? "",
+          streaming: true,
+          timestamp: new Date(),
+          meta: seed?.thinking ? { thinking: seed.thinking } : undefined,
+        };
+        setMessages((prev) => [...prev, bubble]);
+        return newId;
+      };
 
       try {
         const response = await fetch(streamUrl, {
@@ -157,34 +248,37 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
           response.body,
           {
             onTextDelta: (delta) => {
+              // Close thinking timer when the model starts writing
               if (thinkingRef.current && thinkingStartRef.current) {
-                const duration = Math.round((Date.now() - thinkingStartRef.current) / 1000);
+                const duration = thinkingDurationSec(thinkingStartRef.current);
                 const targetId = currentAssistantId;
-                setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, meta: { ...m.meta, thinkingDuration: duration } } : m)));
+                if (targetId) {
+                  setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, meta: { ...m.meta, thinkingDuration: duration } } : m)));
+                }
                 thinkingStartRef.current = 0;
               }
 
-              if (toolsStarted) {
-                toolsStarted = false;
+              if (needsNewBubble || !currentAssistantId) {
                 assistantText = delta;
                 thinkingRef.current = "";
                 thinkingStartRef.current = 0;
-                const newId = nextId("a");
-                currentAssistantId = newId;
-                const bubble: ChatAgentMessage = {
-                  id: newId,
-                  role: "assistant",
-                  content: delta,
-                  streaming: true,
-                  timestamp: new Date(),
-                };
-                setMessages((prev) => [...prev, bubble]);
+                ensureAssistantBubble({ content: delta });
               } else {
                 assistantText += delta;
-                setMessages((prev) => prev.map((m) => (m.id === currentAssistantId ? { ...m, content: assistantText, streaming: true } : m)));
+                const targetId = currentAssistantId;
+                setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, content: assistantText, streaming: true } : m)));
               }
             },
             onThinkingDelta: (delta) => {
+              // New model step after tools (or missing bubble) → fresh thinking block
+              if (needsNewBubble || !currentAssistantId) {
+                thinkingRef.current = delta;
+                thinkingStartRef.current = Date.now();
+                assistantText = "";
+                ensureAssistantBubble({ thinking: delta });
+                return;
+              }
+
               if (!thinkingRef.current) {
                 thinkingStartRef.current = Date.now();
               }
@@ -194,30 +288,34 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
               setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, meta: { ...m.meta, thinking } } : m)));
             },
             onToolCall: (event) => {
-              toolsStarted = true;
-
-              if (assistantText.trim()) {
-                const freezeId = currentAssistantId;
-                setMessages((prev) => prev.map((m) => (m.id === freezeId ? { ...m, streaming: false } : m)));
-                assistantText = "";
-                currentAssistantId = nextId("a");
-              } else {
-                const emptyId = currentAssistantId;
-                setMessages((prev) => {
-                  const target = prev.find((m) => m.id === emptyId);
-                  if (target?.meta?.thinking) {
-                    return prev.map((m) => (m.id === emptyId ? { ...m, streaming: false } : m));
-                  }
-                  return prev.filter((m) => m.id !== emptyId);
-                });
-              }
-
               const tLabel = event.toolLabel
                 ? event.toolLabel.includes(" ")
                   ? event.toolLabel
                   : formatToolName(event.toolLabel)
                 : formatToolName(event.toolName);
 
+              const alreadySeen = event.toolCallId ? seenToolCallIds.has(event.toolCallId) : false;
+              if (event.toolCallId) seenToolCallIds.add(event.toolCallId);
+
+              if (alreadySeen) {
+                // Full-args upsert of an already-painted bubble (no second onToolAction)
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.role === "tool-call" && m.toolCallId === event.toolCallId
+                      ? {
+                          ...m,
+                          content: event.toolName,
+                          toolName: event.toolName,
+                          toolLabel: tLabel,
+                          toolInput: event.input !== undefined ? event.input : m.toolInput,
+                        }
+                      : m,
+                  ),
+                );
+                return;
+              }
+
+              finalizeOpenBubble();
               const toolMsg: ChatAgentMessage = {
                 id: nextId("tc"),
                 role: "tool-call",
@@ -280,7 +378,10 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
         );
 
         if (result === "aborted") {
+          setMessages(finalizeStreamingMessages);
           setGenerating(false);
+          thinkingRef.current = "";
+          thinkingStartRef.current = 0;
           return;
         }
 
@@ -289,11 +390,14 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
         setGenerating(false);
       } catch (err: unknown) {
         if ((err as Error)?.name === "AbortError") {
+          setMessages(finalizeStreamingMessages);
           setGenerating(false);
+          thinkingRef.current = "";
+          thinkingStartRef.current = 0;
           return;
         }
         setMessages((prev) => [
-          ...prev,
+          ...finalizeStreamingMessages(prev),
           {
             id: nextId("err"),
             role: "error",

@@ -1,4 +1,5 @@
 import type { ReactNode, RefObject } from "react";
+import { useEffect, useState } from "react";
 import { AppLogo } from "src/components/AppLogo"; // used in empty state
 import { MessageBubble } from "./MessageBubble";
 import { ToolCallBubble } from "./ToolCallBubble";
@@ -112,6 +113,23 @@ export function MessageList({
   const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
   const lastIsAgent = lastMsg ? isAgentRole(lastMsg.role) : false;
 
+  // Elapsed seconds while generating so long "Thinking..." waits don't look frozen
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    if (!generating) {
+      setElapsedSec(0);
+      return;
+    }
+    setElapsedSec(0);
+    const started = Date.now();
+    const id = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [generating, activityStatus]);
+
+  const statusLabel = elapsedSec >= 3 ? `${activityStatus} ${elapsedSec}s` : activityStatus;
+
   return (
     <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-y-auto game-scrollbar ${!hasMessages ? "flex flex-col" : ""}`}>
       <div className={`max-w-[760px] mx-auto ${!hasMessages ? "flex-1 w-full flex flex-col" : ""} ${className}`}>
@@ -168,7 +186,7 @@ export function MessageList({
                         }}
                       />
                     ))}
-                    <span className="text-[10px] text-muted-foreground italic ml-1">{activityStatus}</span>
+                    <span className="text-[10px] text-muted-foreground italic ml-1">{statusLabel}</span>
                   </div>
                 </div>
               </div>
