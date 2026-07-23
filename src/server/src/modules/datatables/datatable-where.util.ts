@@ -1,0 +1,154 @@
+import type { ColumnType, DatatableColumn } from "../../common/db/schema.js";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
+
+export type OrderByItem = { key: string; dir?: "asc" | "desc" };
+
+const OPS = new Set(["$eq", "$neq", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$contains", "$exists"]);
+
+type ColumnMap = Map<string, DatatableColumn>;
+
+function jsonPath(key: string): string {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+    throw new BadRequestException(`Invalid column key in where: "${key}"`);
+  }
+  return `$.${key}`;
+}
+
+function extractExpr(key: string): string {
+  return `json_extract(data, '${jsonPath(key)}')`;
+}
+
+function assertKnownKey(key: string, columns: ColumnMap) {
+  if (!columns.has(key)) {
+    throw new BadRequestException(`Unknown column key in where: "${key}"`);
+  }
+}
+
+function coerceForCompare(col: DatatableColumn, value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  switch (col.type as ColumnType) {
+    case "number":
+      if (typeof value === "number") return value;
+      if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) return Number(value);
+      throw new BadRequestException(`Column "${col.name}" expects a number`);
+    case "boolean":
+      if (typeof value === "boolean") return value;
+      if (value === "true" || value === 1) return true;
+      if (value === "false" || value === 0) return false;
+      throw new BadRequestException(`Column "${col.name}" expects a boolean`);
+    case "datetime":
+    case "text":
+    case "select":
+      return typeof value === "string" ? value : String(value);
+    case "json":
+      return value;
+    default:
+      return value;
+  }
+}
+
+function pushOp(parts: string[], params: unknown[], key: string, op: string, rawValue: unknown, columns: ColumnMap) {
+  assertKnownKey(key, columns);
+  const col = columns.get(key)!;
+  const expr = extractExpr(key);
+
+  if (op === "$exists") {
+    const exists = Boolean(rawValue);
+    parts.push(exists ? `${expr} IS NOT NULL` : `${expr} IS NULL`);
+    return;
+  }
+
+  if (op === "$in" || op === "$nin") {
+    if (!Array.isArray(rawValue) || rawValue.length === 0) {
+      throw new BadRequestException(`${op} requires a non-empty array for "${key}"`);
+    }
+    const values = rawValue.map((v) => coerceForCompare(col, v));
+    const placeholders = values.map(() => "?").join(", ");
+    parts.push(`${expr} ${op === "$in" ? "IN" : "NOT IN"} (${placeholders})`);
+    params.push(...values);
+    return;
+  }
+
+  if (op === "$contains") {
+    if (col.type === "json") {
+      parts.push(`EXISTS (SELECT 1 FROM json_each(${expr}) WHERE json_each.value = ?)`);
+      params.push(typeof rawValue === "string" || typeof rawValue === "number" || typeof rawValue === "boolean" ? rawValue : JSON.stringify(rawValue));
+      return;
+    }
+    const needle = String(coerceForCompare(col, rawValue));
+    parts.push(`LOWER(CAST(${expr} AS TEXT)) LIKE ?`);
+    params.push(`%${needle.toLowerCase()}%`);
+    return;
+  }
+
+  const value = coerceForCompare(col, rawValue);
+  switch (op) {
+    case "$eq":
+      parts.push(`${expr} = ?`);
+      params.push(value);
+      break;
+    case "$neq":
+      parts.push(`(${expr} IS NULL OR ${expr} != ?)`);
+      params.push(value);
+      break;
+    case "$gt":
+      parts.push(`${expr} > ?`);
+      params.push(value);
+      break;
+    case "$gte":
+      parts.push(`${expr} >= ?`);
+      params.push(value);
+      break;
+    case "$lt":
+      parts.push(`${expr} < ?`);
+      params.push(value);
+      break;
+    case "$lte":
+      parts.push(`${expr} <= ?`);
+      params.push(value);
+      break;
+    default:
+      throw new BadRequestException(`Unsupported operator "${op}"`);
+  }
+}
+
+/** Build AND SQL fragments + bind params from shared where contract. */
+export function buildWhereSql(where: Record<string, unknown> | null | undefined, columns: DatatableColumn[]): { sql: string; params: unknown[] } {
+  if (!where || Object.keys(where).length === 0) {
+    return { sql: "", params: [] };
+  }
+
+  const colMap: ColumnMap = new Map(columns.map((c) => [c.name, c]));
+  const parts: string[] = [];
+  const params: unknown[] = [];
+
+  for (const [key, clause] of Object.entries(where)) {
+    if (clause !== null && typeof clause === "object" && !Array.isArray(clause)) {
+      const ops = Object.entries(clause as Record<string, unknown>);
+      if (ops.length === 0) continue;
+      for (const [op, value] of ops) {
+        if (!OPS.has(op)) throw new BadRequestException(`Unsupported operator "${op}" on "${key}"`);
+        pushOp(parts, params, key, op, value, colMap);
+      }
+    } else {
+      pushOp(parts, params, key, "$eq", clause, colMap);
+    }
+  }
+
+  if (parts.length === 0) return { sql: "", params: [] };
+  return { sql: ` AND ${parts.join(" AND ")}`, params };
+}
+
+export function buildOrderBySql(orderBy: OrderByItem[] | null | undefined, columns: DatatableColumn[]): string {
+  if (!orderBy?.length) return " ORDER BY created_at DESC";
+  const colMap = new Map(columns.map((c) => [c.name, c]));
+  const parts: string[] = [];
+  for (const item of orderBy) {
+    if (!item?.key || !colMap.has(item.key)) {
+      throw new BadRequestException(`Invalid order_by key: "${item?.key}"`);
+    }
+    const dir = item.dir === "asc" ? "ASC" : "DESC";
+    parts.push(`${extractExpr(item.key)} ${dir}`);
+  }
+  return ` ORDER BY ${parts.join(", ")}`;
+}

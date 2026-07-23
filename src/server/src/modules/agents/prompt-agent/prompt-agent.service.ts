@@ -3,7 +3,7 @@
  *
  * Handles the business logic for the prompt assistant:
  *   - Resolves AI model
- *   - Builds tools (generate_prompt, browser)
+ *   - Builds tools (generate_prompt, browser, datatable discovery)
  *   - Creates a ReAct agent and streams SSE events
  *   - generate_prompt saves directly to DB and emits agents:updated via WS
  */
@@ -18,6 +18,7 @@ import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
 import { agents as agentsTable, getDb } from "../../../common/db/client.js";
 import { getAgent, listAssignments } from "../agents.service.js";
+import { makeDatatableTool } from "../raw-agent/llm-tools/datatable.tool.js";
 import { makeGeneratePromptTool } from "./llm-tools/generate-prompt.tool.js";
 
 // ── System Prompt ─────────────────────────────────────────────────────────────
@@ -43,11 +44,16 @@ When the user asks to write or edit a prompt:
 - Match the user's language unless they ask otherwise.
 - Keep it as concise as the use case allows.
 - Use available tools and sub-agents listed below so the prompt references real capabilities — do **not** invent tools or agents that are not listed.
+- When the agent has the \`datatable\` tool (or the user mentions workspace tables), use your discovery tools to load real project/table/column names before writing guidance — never invent schema names.
 </principles>
 
 <your_tools>
 - \`generate_prompt\` — Apply the new system prompt to the editor and save it.
 - \`browser\` — Stealth headless Chromium (navigate, click, fill, snapshot, etc.). Use when the user points to a URL/docs you should read before writing or improving the prompt (works for SPA / JS-rendered pages).
+- \`datatable\` — Discover workspace datatables (read-only). Actions:
+  - \`list_projects\` — list projects (\`id\` + \`name\`); prefer using \`id\` afterward
+  - \`get_schema\` with \`project\` (id preferred) — full schema (all tables + columns)
+  Flow: list_projects → get_schema(project). Use before writing prompts that reference real tables/columns.
 </your_tools>`;
 
 interface PromptAgentContext {
@@ -173,7 +179,12 @@ export async function streamPromptAgent(agentId: string, body: PromptStreamReque
   });
 
   // 3. Build tools — generate_prompt saves to DB + emits WS
-  const tools: StructuredToolInterface[] = [makeGeneratePromptTool(agentId), browserTool];
+  // datatable is discovery-only so the prompt writer can reference real projects/tables/columns
+  const tools: StructuredToolInterface[] = [
+    makeGeneratePromptTool(agentId),
+    browserTool,
+    makeDatatableTool(["list_projects", "get_schema"]),
+  ];
 
   // 4. Create agent
   const agent = createAgent({
