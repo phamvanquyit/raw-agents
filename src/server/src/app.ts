@@ -7,6 +7,7 @@ import { logger } from "hono/logger";
 
 import { HttpException } from "./common/exceptions/http.exception.js";
 import { resolveAuth } from "./common/middleware/auth.middleware.js";
+import { buildSpaHtml, requestOrigin } from "./common/spa-html.js";
 
 import agentsRoute from "./modules/agents/agents.route.js";
 import conversationsRoute from "./modules/conversations/conversations.route.js";
@@ -92,15 +93,33 @@ export function createApp(): Hono {
 
   if (webDist) {
     // Unified static handler:
-    // - Nếu path trỏ đến file thật trong dist/ → serve file đó (JS, CSS, SVG, ảnh...)
-    // - Nếu không có → trả index.html để React Router tự xử lý route (SPA fallback)
+    // - Real files in dist/ (JS, CSS, favicon, og-image, …) are served as-is
+    // - Everything else → index.html SPA fallback with absolute OG/Twitter meta
+    //   (required for /chat/:id link previews — crawlers don't run React)
+    const indexPath = join(webDist, "index.html");
     app.get("*", async (c) => {
-      const filePath = join(webDist, c.req.path);
-      if (c.req.path !== "/" && existsSync(filePath)) {
-        return new Response(Bun.file(filePath));
+      const reqPath = c.req.path;
+      const filePath = join(webDist, reqPath);
+      if (reqPath !== "/" && existsSync(filePath)) {
+        const res = new Response(Bun.file(filePath));
+        // OG image is hot-linked by chatrooms — allow long cache once shipped
+        if (reqPath === "/og-image.png") {
+          res.headers.set("Cache-Control", "public, max-age=86400");
+        }
+        return res;
       }
-      return new Response(Bun.file(join(webDist, "index.html")), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+
+      const baseHtml = await Bun.file(indexPath).text();
+      const html = buildSpaHtml(baseHtml, {
+        origin: requestOrigin(c.req.raw),
+        path: reqPath,
+      });
+      return new Response(html, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          // Don't cache HTML so OG title follows agent renames
+          "Cache-Control": "no-cache",
+        },
       });
     });
   } else {
