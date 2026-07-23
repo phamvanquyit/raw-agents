@@ -2,6 +2,7 @@ import { Select, message } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
+import { invalidateAppTimezoneCache } from "src/common/hooks/useAppTimezone";
 import { SectionRow } from "src/components/SectionRow";
 import { getSettingValues, saveSettingValues } from "src/modules/settings/common/settingsApi";
 
@@ -30,6 +31,7 @@ export function TimezoneSection() {
     try {
       setCurrentTz(value);
       await saveSettingValues({ [SettingKey.Timezone]: value });
+      invalidateAppTimezoneCache();
       message.success("Timezone saved");
     } catch {
       message.error("Failed to save timezone");

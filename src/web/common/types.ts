@@ -287,3 +287,41 @@ export interface SecretEntry {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// ─── Datatables ───────────────────────────────────────────────────────────────
+
+export type DatatableColumnType = "text" | "number" | "boolean" | "datetime" | "select" | "json";
+
+export interface DatatableProject {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DatatableTable {
+  id: string;
+  projectId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DatatableColumn {
+  id: string;
+  tableId: string;
+  name: string;
+  type: DatatableColumnType;
+  options: string[] | null;
+  required: boolean;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+export interface DatatableRow {
+  id: string;
+  tableId: string;
+  data: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}

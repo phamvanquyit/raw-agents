@@ -1,12 +1,95 @@
 // ─── Date / time formatting utilities ──────────────────────────────────────────
 
+import { isValid, parseISO } from "date-fns";
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
+
 type DateInput = Date | string | null | undefined;
+
+/**
+ * Display / picker format in app timezone — month as letters.
+ * e.g. "23 Jul 2026 17:30"
+ * Timezone itself is shown on the column header (hover), not per cell.
+ */
+export const DATETIME_DISPLAY_FORMAT = "dd MMM yyyy HH:mm";
+
+/** Alias — same wall-clock format for DatePicker input. */
+export const DATETIME_PICKER_FORMAT = DATETIME_DISPLAY_FORMAT;
+
+/** Short offset label for a timezone at "now", e.g. "UTC+07:00". */
+export function formatTimezoneOffsetLabel(timeZone = "UTC", at: Date = new Date()): string {
+  const tz = timeZone.trim() || "UTC";
+  try {
+    const offset = formatInTimeZone(at, tz, "XXX"); // +07:00 | Z
+    if (offset === "Z") return "UTC";
+    return `UTC${offset}`;
+  } catch {
+    return "UTC";
+  }
+}
+
+/** Human tooltip for a timezone: "Asia/Ho_Chi_Minh (UTC+07:00)". */
+export function formatTimezoneTooltip(timeZone = "UTC", at: Date = new Date()): string {
+  const tz = timeZone.trim() || "UTC";
+  const offset = formatTimezoneOffsetLabel(tz, at);
+  if (tz === "UTC" && offset === "UTC") return "Timezone: UTC";
+  return `Timezone: ${tz} (${offset})`;
+}
 
 /** Parse any DateInput into a valid Date, or null */
 function toDate(d: DateInput): Date | null {
   if (!d) return null;
-  const date = d instanceof Date ? d : new Date(d);
+  if (d instanceof Date) return Number.isNaN(d.getTime()) ? null : d;
+  if (typeof d === "string") {
+    const iso = parseISO(d);
+    if (isValid(iso)) return iso;
+  }
+  const date = new Date(d);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Format an instant in the given IANA timezone.
+ * Falls back to UTC when tz is empty/invalid-looking.
+ */
+export function formatDateTimeInTz(d: DateInput, timeZone = "UTC"): string {
+  const date = toDate(d);
+  if (!date) return "";
+  const tz = timeZone.trim() || "UTC";
+  try {
+    return formatInTimeZone(date, tz, DATETIME_DISPLAY_FORMAT);
+  } catch {
+    return formatInTimeZone(date, "UTC", DATETIME_DISPLAY_FORMAT);
+  }
+}
+
+/**
+ * Build a Date whose *local* Y/M/D/H/M match the instant in `timeZone`.
+ * Feed this to timezone-naive pickers (antd/date-fns) so the wall-clock
+ * matches the app timezone rather than the browser's.
+ */
+export function toPickerDate(d: DateInput, timeZone = "UTC"): Date | null {
+  const date = toDate(d);
+  if (!date) return null;
+  const tz = timeZone.trim() || "UTC";
+  try {
+    return toZonedTime(date, tz);
+  } catch {
+    return toZonedTime(date, "UTC");
+  }
+}
+
+/**
+ * Inverse of {@link toPickerDate}: treat the picker's local wall-clock as
+ * belonging to `timeZone` and return the UTC ISO string to store.
+ */
+export function fromPickerDate(d: Date | null | undefined, timeZone = "UTC"): string | null {
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const tz = timeZone.trim() || "UTC";
+  try {
+    return fromZonedTime(d, tz).toISOString();
+  } catch {
+    return fromZonedTime(d, "UTC").toISOString();
+  }
 }
 
 /** Full date + time: "04/04/2026, 08:30" */

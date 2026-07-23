@@ -23,6 +23,8 @@ const McpServersPage = lazy(() => import("./modules/mcp-servers/McpServersPage")
 const McpServersEditPage = lazy(() => import("./modules/mcp-servers/McpServersEditPage"));
 const KvStorePage = lazy(() => import("./modules/kvstore/KvStorePage"));
 const SecretsPage = lazy(() => import("./modules/secrets/SecretsPage"));
+const DatatablesPage = lazy(() => import("./modules/datatables/DatatablesPage"));
+const DatatableProjectPage = lazy(() => import("./modules/datatables/DatatableProjectPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
 const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
@@ -122,6 +124,8 @@ function AppContent() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/providers" element={<Navigate to="/settings/providers" replace />} />
             <Route path="/kvstore" element={<KvStorePage />} />
+            <Route path="/datatables" element={<DatatablesPage />} />
+            <Route path="/datatables/:projectId" element={<DatatableProjectPage />} />
             <Route
               path="/secrets"
               element={

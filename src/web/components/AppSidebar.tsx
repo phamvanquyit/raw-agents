@@ -3,6 +3,7 @@ import {
   Database,
   FaceScanSquare,
   HomeAngle,
+  KeyMinimalistic,
   LockPassword,
   Logout2,
   MenuDots,
@@ -40,7 +41,10 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: "/mcp-servers", label: "MCP", icon: <PlugCircle {...ICON} /> },
 ];
 
-const STORAGE_NAV_ALL: NavItem[] = [{ to: "/kvstore", label: "KV Store", icon: <Database {...ICON} /> }];
+const STORAGE_NAV_ALL: NavItem[] = [
+  { to: "/datatables", label: "Datatables", icon: <Database {...ICON} /> },
+  { to: "/kvstore", label: "KV Store", icon: <KeyMinimalistic {...ICON} /> },
+];
 
 const STORAGE_NAV_ADMIN: NavItem[] = [{ to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} /> }];
 

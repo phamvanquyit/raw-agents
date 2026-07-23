@@ -30,16 +30,21 @@ export const antdTheme: ThemeConfig = {
     controlHeight: 32,
     controlHeightSM: 28,
     controlHeightLG: 36,
+    // Keep base surfaces flat; elevated overlays (dropdown/popover) need depth
+    // so they separate from content underneath (e.g. datatable select cells).
     boxShadow: "none",
-    boxShadowSecondary: "none",
-    boxShadowTertiary: "none",
-    dropShadowPopover: "none",
+    boxShadowSecondary: "0 0 0 1px rgba(102, 102, 102, 0.32), 0 8px 24px rgba(0, 0, 0, 0.45)",
+    boxShadowTertiary: "0 0 0 1px rgba(102, 102, 102, 0.24), 0 4px 12px rgba(0, 0, 0, 0.35)",
+    dropShadowPopover: "0 0 0 1px rgba(102, 102, 102, 0.32), 0 8px 24px rgba(0, 0, 0, 0.45)",
   } as ThemeConfig["token"],
   components: {
     Button: {
       primaryShadow: "none",
       defaultShadow: "none",
       dangerShadow: "none",
+    },
+    Dropdown: {
+      paddingBlock: 4,
     },
     Modal: {
       contentBg: "#191919",
