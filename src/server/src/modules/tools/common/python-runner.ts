@@ -2,7 +2,8 @@ import { execFile, execSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
-import { getSecretValueByKey } from "../../secrets/secrets.service.js";
+import { startRawagentsProxy } from "./rawagents-proxy.js";
+import { writeRawagentsPackage } from "./rawagents-python.js";
 
 // ─── Python stdlib (skip auto-install) ───────────────────────────────────────
 const PYTHON_STDLIB = new Set([
@@ -201,7 +202,7 @@ function detectPackages(code: string): string[] {
     if (fromMatch && !fromMatch[1].startsWith(".")) pkgs.add(fromMatch[1].split(".")[0]);
   }
 
-  const fromImports = [...pkgs].filter((p) => !PYTHON_STDLIB.has(p));
+  const fromImports = [...pkgs].filter((p) => !PYTHON_STDLIB.has(p) && p !== "rawagents");
   // If pip overrides exist, use them; also include any import-detected packages not covered by overrides
   if (pipOverrides.size > 0) {
     for (const p of fromImports) pipOverrides.add(p);
@@ -314,57 +315,13 @@ function buildScript(userCode: string): string {
 _capture = io.StringIO()
 sys.stdout = _capture
 
-class _Store:
-    def __init__(self, data):
-        self._data = data if isinstance(data, dict) else {}
-    def get(self, key, default=None):
-        return self._data.get(key, default)
-
-class _SecretsStore:
-    """Lazy decrypt: each get() asks the local Node proxy; values are never bulk-injected."""
-    def __init__(self, base_url, token):
-        self._base_url = base_url
-        self._token = token
-        self._cache = {}
-    def get(self, key, default=None):
-        import urllib.parse, urllib.request
-        k = str(key).strip().upper() if key is not None else ""
-        if not k:
-            return default
-        if k in self._cache:
-            return self._cache[k]
-        try:
-            req = urllib.request.Request(
-                f"{self._base_url}/get?key={urllib.parse.quote(k)}",
-                headers={"X-Secrets-Token": self._token},
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode())
-            if not data.get("ok"):
-                return default
-            val = data.get("value")
-            self._cache[k] = val
-            return val
-        except Exception:
-            return default
-
-class _Ctx:
-    def __init__(self, kv, secrets):
-        self.kv = _Store(kv)
-        self.secrets = secrets
-
-def main(input, ctx):
+def main(input):
 ${indented}
 
 try:
     _input_raw = os.environ.get("INPUT_JSON", "{}")
     _input = json.loads(_input_raw)
-    _kv = json.loads(os.environ.get("CTX_KV_JSON", "{}"))
-    _secrets_url = os.environ.get("CTX_SECRETS_URL", "")
-    _secrets_token = os.environ.get("CTX_SECRETS_TOKEN", "")
-    _secrets = _SecretsStore(_secrets_url, _secrets_token) if _secrets_url and _secrets_token else _Store({})
-    _ctx = _Ctx(_kv, _secrets)
-    _result = main(_input, _ctx)
+    _result = main(_input)
 
     # Restore real stdout now
     sys.stdout = sys.__stdout__
@@ -389,53 +346,9 @@ except Exception as _e:
 `;
 }
 
-export type ToolRuntimeCtx = {
-  kv?: Record<string, string>;
-};
-
-/** Localhost-only proxy: decrypt a secret only when Python calls ctx.secrets.get(key). */
-function startSecretsProxy(): { url: string; token: string; stop: () => void } {
-  const token = crypto.randomUUID();
-  const server = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch(req) {
-      if (req.headers.get("X-Secrets-Token") !== token) {
-        return new Response("Forbidden", { status: 403 });
-      }
-      const url = new URL(req.url);
-      if (url.pathname !== "/get") {
-        return new Response("Not Found", { status: 404 });
-      }
-      const key = (url.searchParams.get("key") ?? "").trim().toUpperCase();
-      if (!key) {
-        return Response.json({ ok: false });
-      }
-      try {
-        const value = getSecretValueByKey(key);
-        if (value === null) return Response.json({ ok: false });
-        return Response.json({ ok: true, value });
-      } catch {
-        return Response.json({ ok: false });
-      }
-    },
-  });
-  return {
-    url: `http://127.0.0.1:${server.port}`,
-    token,
-    stop: () => {
-      try {
-        server.stop(true);
-      } catch {
-        /* ignore */
-      }
-    },
-  };
-}
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function executeTool(toolId: string, code: string, inputJson: string, dataDir: string, ctx: ToolRuntimeCtx = {}): Promise<string> {
+export async function executeTool(toolId: string, code: string, inputJson: string, dataDir: string): Promise<string> {
   const sandboxDir = join(dataDir, "tool_envs", toolId);
   mkdirSync(sandboxDir, { recursive: true });
 
@@ -474,19 +387,21 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
     installedCache.set(toolId, updated);
   }
 
+  writeRawagentsPackage(sandboxDir);
+
   const script = buildScript(code);
   const scriptId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const scriptPath = join(sandboxDir, `run_${scriptId}.py`);
   writeFileSync(scriptPath, script, "utf-8");
 
-  const secretsProxy = startSecretsProxy();
+  const proxy = startRawagentsProxy();
 
   try {
     const result = await runCmd(venvPython, [scriptPath], sandboxDir, {
       INPUT_JSON: inputJson,
-      CTX_KV_JSON: JSON.stringify(ctx.kv ?? {}),
-      CTX_SECRETS_URL: secretsProxy.url,
-      CTX_SECRETS_TOKEN: secretsProxy.token,
+      RAWAGENTS_URL: proxy.url,
+      RAWAGENTS_TOKEN: proxy.token,
+      PYTHONPATH: sandboxDir,
       PYTHONDONTWRITEBYTECODE: "1",
       PYTHONUNBUFFERED: "1",
     });
@@ -523,7 +438,7 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
       return JSON.stringify(attachConsole({ ok: true, result: stdout }));
     }
   } finally {
-    secretsProxy.stop();
+    proxy.stop();
     try {
       unlinkSync(scriptPath);
     } catch {

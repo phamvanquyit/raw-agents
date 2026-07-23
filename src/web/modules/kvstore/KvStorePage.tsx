@@ -1,4 +1,4 @@
-import { AddCircle, Database, Magnifier, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import { AddCircle, KeyMinimalistic, Magnifier, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
 import { Alert, Button, Empty, Form, Input, Modal, Pagination, Popconfirm, Table, Tooltip, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useRef, useState } from "react";
@@ -184,7 +184,7 @@ export default function KvStorePage() {
           <Button type="text" size="small" icon={<PenNewSquare width={16} height={16} />} onClick={() => setDialog(row)} />
           <Popconfirm
             title={`Delete ${row.key}?`}
-            description="Tools using this key will get null from ctx.kv.get."
+            description="Tools using this key will get null from rawagents.kv.get."
             okText="Delete"
             okType="danger"
             onConfirm={() => handleDelete(row)}
@@ -203,7 +203,7 @@ export default function KvStorePage() {
         <div>
           <h1 className="m-0 text-xl font-semibold leading-tight text-foreground">KV Store</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Shared key-value for tools via <code className="text-xs">ctx.kv.get(&quot;KEY&quot;)</code>
+            Shared key-value for tools via <code className="text-xs">rawagents.kv.get(&quot;KEY&quot;)</code>
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -226,7 +226,7 @@ export default function KvStorePage() {
         fallback={
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-5 py-16">
             <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-              <Database width={28} height={28} />
+              <KeyMinimalistic width={28} height={28} />
             </div>
             <Empty description="No entries yet" />
           </div>

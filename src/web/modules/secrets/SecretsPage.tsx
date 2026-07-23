@@ -77,7 +77,7 @@ function SecretDialog({
         <Alert type="error" description={error} showIcon className="mb-3" />
       </RenderIf>
       <p className="mb-3 text-sm text-muted-foreground">
-        Encrypted at rest — value cannot be viewed again after save. Tools read via <code className="text-xs">ctx.secrets.get(&quot;KEY&quot;)</code>.
+        Encrypted at rest — value cannot be viewed again after save. Tools read via <code className="text-xs">rawagents.secrets.get(&quot;KEY&quot;)</code>.
       </p>
       <Form layout="vertical">
         <Form.Item label="Key" required>
@@ -202,7 +202,7 @@ export default function SecretsPage() {
         <div>
           <h1 className="m-0 text-xl font-semibold leading-tight text-foreground">Secrets</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Encrypted values for tools via <code className="text-xs">ctx.secrets.get(&quot;KEY&quot;)</code>
+            Encrypted values for tools via <code className="text-xs">rawagents.secrets.get(&quot;KEY&quot;)</code>
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">

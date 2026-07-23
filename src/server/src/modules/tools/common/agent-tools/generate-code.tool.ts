@@ -22,12 +22,12 @@ export function makeGenerateCodeTool(toolId: string) {
     {
       name: "generate_code",
       description:
-        "Write the entire Python function body into the editor (COMPLETELY replacing the old content). The 'code' field is the raw Python body — NO 'def main(input, ctx):', NO markdown fences. You must call this tool to apply the code; NEVER return code as text in the conversation.",
+        "Write the entire Python function body into the editor (COMPLETELY replacing the old content). The 'code' field is the raw Python body — NO 'def main(input):', NO markdown fences. You must call this tool to apply the code; NEVER return code as text in the conversation.",
       schema: z.object({
         code: z
           .string()
           .describe(
-            "THE ENTIRE Python function body (raw code, NO 'def main(input, ctx):' header, NO markdown fences). This is the content that will be placed INSIDE def main(input, ctx) by the system. Use ctx.kv.get / ctx.secrets.get for workspace stores.",
+            "THE ENTIRE Python function body (raw code, NO 'def main(input):' header, NO markdown fences). This is the content that will be placed INSIDE def main(input) by the system. Use import rawagents for kv/secrets/datatable.",
           ),
         summary: z.string().optional().describe("Short description of changes made (shown to the user)."),
       }),
