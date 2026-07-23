@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-07-23
+
+### Added
+- Datatables — projects, tables, columns, and rows with REST API, WebSocket events, sidebar UI, and an agent `datatable` tool
+- Timezone-aware datetime columns in the Datatables UI (app timezone + date-fns helpers)
+- Open Graph / Twitter meta for shared public chat links (`/chat/:id`), including `og-image.png` and public agent title when available
+- Python workspace runtime via `import rawagents` (`rawagents.kv`, `rawagents.secrets`, `rawagents.datatable`) generated into the tool sandbox
+
+### Changed
+- Agent flow canvas redesigned: branch/tool hub nodes and richer MCP/tools assignment controls (replaces group-node layout)
+- Python tools no longer use injected `ctx.kv` / `ctx.secrets` — use `import rawagents` instead
+- Multi-round chat streaming: per-step thinking/assistant segments, earlier optimistic tool-call paint, and activity elapsed status; SSE pings ignored in the UI
+
+### Fixed
+- Agent run cancel, stall watchdog, and timeouts for tools / MCP / browser / `call_agent`; early tool-call emission and SSE keep-alive pings so long runs stay cancelable and connected
+
+### Upgrade notes
+- SQLite migrations `0032_datatables.sql` and `0033_datatable_column_name.sql` run automatically on startup
+- **Breaking (Python tools):** replace `ctx.kv` / `ctx.secrets` with `import rawagents` — e.g. `rawagents.kv.get("KEY")`, `rawagents.secrets.get("KEY")`, and `rawagents.datatable.*` for tables
+- Rebuild/re-pull the Docker image for the UI and server changes
+
 ## [0.10.0] - 2026-07-22
 
 ### Added
@@ -114,6 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.11.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.8.2...v0.9.0
 [0.8.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.7.0...v0.8.0
