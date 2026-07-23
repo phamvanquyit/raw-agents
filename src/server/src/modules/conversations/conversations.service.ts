@@ -3,8 +3,10 @@ import { type AgentConversation, type NewAgentConversation, type NewAgentMessage
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException, ForbiddenException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { runRegistry } from "../agents/raw-agent/utils/run-registry.js";
 
-const STALE_MS = 60_000;
+/** Orphan "running" rows (process crashed / lost registry) older than this become done. */
+const STALE_MS = 15 * 60_000;
 
 export function listConversations(ownerId: string, query: RawQuery = {}) {
   // Build static WHERE: owner + exclude "public" trigger, optionally filter by agentId
@@ -18,12 +20,15 @@ export function listConversations(ownerId: string, query: RawQuery = {}) {
 
   const result = listQuery({ table: agentConversations, where: staticWhere }, cleanQuery);
 
-  // Heal stale "running" conversations
+  // Heal orphan "running" conversations (no live registry entry, last start older than STALE_MS)
   const now = new Date();
   const db = getDb();
   result.items = result.items.map((conv: any) => {
     if (conv.status !== "running") return conv;
-    const age = now.getTime() - (conv.createdAt ?? now).getTime();
+    // Active background run — never force-done mid-stream
+    if (runRegistry.isActive(conv.id)) return conv;
+    const anchor = conv.startedAt ?? conv.createdAt ?? now;
+    const age = now.getTime() - new Date(anchor as Date | string | number).getTime();
     if (age < STALE_MS) return conv;
     db.update(agentConversations).set({ status: "done", finishedAt: now }).where(eq(agentConversations.id, conv.id)).run();
     return { ...conv, status: "done" as const, finishedAt: now };

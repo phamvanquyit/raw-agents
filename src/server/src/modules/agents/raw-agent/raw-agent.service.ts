@@ -106,6 +106,10 @@ interface BackgroundRunInput {
   runId: symbol;
 }
 
+/** Kill hung runs that emit nothing for this long (tools/LLM true hangs). */
+const RUN_STALL_MS = 5 * 60_000;
+const RUN_STALL_CHECK_MS = 30_000;
+
 async function runChatBackground(input: BackgroundRunInput): Promise<void> {
   const { agentId, conversationId, msgAgentId, message, history, ownerId, isGuest, abortSignal, runId } = input;
   const db = getDb();
@@ -123,6 +127,17 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
   const emit = (event: AgentStreamEvent) => {
     runRegistry.emit(conversationId, event, runId);
   };
+
+  // Stall watchdog — if LangGraph/tools stop emitting, unblock SSE + free status
+  const stallTimer = setInterval(() => {
+    if (!stillCurrent()) return;
+    const last = runRegistry.lastEventAt(conversationId);
+    if (last != null && Date.now() - last >= RUN_STALL_MS) {
+      failed = true;
+      terminalSent = true;
+      runRegistry.stall(conversationId, runId);
+    }
+  }, RUN_STALL_CHECK_MS);
 
   try {
     const messages = [...history, { role: "user" as const, content: message }];
@@ -164,6 +179,16 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
           break;
 
         case "tool-call": {
+          // Upsert: early tool_call_chunk may already have saved a row; complete args follow
+          const existingToolMsgId = toolMsgIds.get(event.toolCallId);
+          if (existingToolMsgId) {
+            patchMessageMetadata(existingToolMsgId, {
+              toolInput: event.input,
+              toolLabel: event.toolLabel,
+              toolName: event.toolName,
+            });
+            break;
+          }
           if (thinkingText) {
             saveMessage({
               agentId: msgAgentId,
@@ -241,17 +266,39 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const isAbort = msg.includes("AbortError") || msg === "AbortError" || (err instanceof Error && err.name === "AbortError");
+    const isAbort =
+      abortSignal.aborted ||
+      msg.includes("AbortError") ||
+      msg === "AbortError" ||
+      (err instanceof Error && err.name === "AbortError");
     failed = true;
-    // Only emit cancel/error if we still own the run (superseded runs already got "cancelled" from create())
+    // Only emit cancel/error if we still own the run (superseded / cancel already terminalized)
     if (stillCurrent()) {
       const errorMsg = isAbort ? "cancelled" : msg;
       emit({ type: "error", error: errorMsg });
       terminalSent = true;
+    } else if (abortSignal.aborted) {
+      // cancel() already finished the run + notified subscribers; still mark for DB cleanup below
+      failed = true;
+      terminalSent = true;
     }
   } finally {
+    clearInterval(stallTimer);
+
+    const runStillOurs = () => {
+      // isCurrent requires !finished — after cancel/stall the run is finished but may still be ours in grace.
+      // Prefer finishing DB when this runId still owns the registry entry OR entry already dropped after grace.
+      if (runRegistry.isCurrent(conversationId, runId)) return true;
+      // Finished by cancel()/stall() while we were blocked in a tool — still need DB status
+      if (abortSignal.aborted && !runRegistry.isActive(conversationId)) return true;
+      return false;
+    };
+
     // Superseded by a newer create() — do not touch status / messages / registry
-    if (stillCurrent()) {
+    if (runStillOurs()) {
+      // If cancel already marked finished mid-tool, treat as failed/cancelled
+      if (abortSignal.aborted) failed = true;
+
       if (failed) {
         for (const [, toolMsgId] of toolMsgIds.entries()) {
           const row = db.select().from(agentMessages).where(eq(agentMessages.id, toolMsgId)).get();
@@ -280,17 +327,34 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
 
       updateConversationStatus(conversationId, { status: failed ? "failed" : "done", finishedAt: new Date() });
 
-      if (!terminalSent) {
-        if (failed) {
-          emit({ type: "error", error: "Stream ended unexpectedly" });
-        } else {
-          emit({ type: "done", text: fullText });
+      if (stillCurrent()) {
+        if (!terminalSent) {
+          if (failed) {
+            emit({ type: "error", error: "Stream ended unexpectedly" });
+          } else {
+            emit({ type: "done", text: fullText });
+          }
         }
+        runRegistry.finish(conversationId, runId);
       }
-
-      runRegistry.finish(conversationId, runId);
     }
   }
+}
+
+/**
+ * Stop a running stream. Unblocks SSE immediately and marks conversation failed
+ * so the UI does not stay on spinner while a hung tool ignores abort.
+ */
+export function stopStream(conversationId: string) {
+  const cancelled = runRegistry.cancel(conversationId);
+  if (cancelled) {
+    updateConversationStatus(conversationId, {
+      status: "failed",
+      finishedAt: new Date(),
+      errorMessage: "cancelled",
+    });
+  }
+  return cancelled;
 }
 
 // ─── Generate (non-streaming) ─────────────────────────────────────────────────
@@ -299,10 +363,4 @@ export async function generateResponse(agentId: string, message: string, convers
   const history = conversationId ? loadHistory(conversationId) : [];
   const messages = [...history, { role: "user" as const, content: message }];
   return generateAgent(agentId, messages, { maxSteps });
-}
-
-// ─── Stop ─────────────────────────────────────────────────────────────────────
-
-export function stopStream(conversationId: string) {
-  return runRegistry.cancel(conversationId);
 }

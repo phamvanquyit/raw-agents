@@ -128,30 +128,69 @@ export async function listMcpTools(serverId: string, url: string, headers: Recor
   }));
 }
 
+/** Default wall-clock for a single MCP tool invocation (keeps agent streams from hanging forever). */
+export const MCP_TOOL_TIMEOUT_MS = 60_000;
+
 export async function callMcpTool(
   serverId: string,
   url: string,
   headers: Record<string, string>,
   toolName: string,
   args: Record<string, unknown> = {},
+  options?: { timeoutMs?: number; abortSignal?: AbortSignal },
 ): Promise<unknown> {
+  const timeoutMs = options?.timeoutMs ?? MCP_TOOL_TIMEOUT_MS;
   const client = await getClient(serverId, url, headers);
 
-  const result = await client.callTool({ name: toolName, arguments: args });
+  const callPromise = client.callTool({ name: toolName, arguments: args });
 
-  if (result.content && Array.isArray(result.content)) {
-    const texts = result.content.filter((c: any) => c.type === "text").map((c: any) => c.text);
-    if (texts.length === 1) {
-      try {
-        return JSON.parse(texts[0]);
-      } catch {
-        return texts[0];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`MCP tool "${toolName}" timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
+  });
+
+  const onAbort = () => {
+    /* race settle via abortPromise */
+  };
+  const abortPromise =
+    options?.abortSignal &&
+    new Promise<never>((_, reject) => {
+      if (options.abortSignal!.aborted) {
+        reject(new Error(`MCP tool "${toolName}" aborted`));
+        return;
       }
-    }
-    if (texts.length > 1) return texts.join("\n");
-  }
+      options.abortSignal!.addEventListener(
+        "abort",
+        () => {
+          onAbort();
+          reject(new Error(`MCP tool "${toolName}" aborted`));
+        },
+        { once: true },
+      );
+    });
 
-  return result.content ?? result;
+  try {
+    const result = await Promise.race([callPromise, timeoutPromise, ...(abortPromise ? [abortPromise] : [])]);
+
+    if (result && typeof result === "object" && "content" in result && Array.isArray((result as any).content)) {
+      const texts = (result as any).content.filter((c: any) => c.type === "text").map((c: any) => c.text);
+      if (texts.length === 1) {
+        try {
+          return JSON.parse(texts[0]);
+        } catch {
+          return texts[0];
+        }
+      }
+      if (texts.length > 1) return texts.join("\n");
+      return (result as any).content ?? result;
+    }
+
+    return (result as any)?.content ?? result;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** Disconnect and remove a cached connection for one server. */

@@ -6,6 +6,7 @@
  *   - AI text token streaming   (messages mode)
  *   - tool-call / tool-result   (updates mode)
  *   - done / error events
+ *   - SSE heartbeat pings so long tool/model waits do not hit idleTimeout
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
@@ -26,6 +27,8 @@ export interface StreamAgentSSEOptions {
   abortSignal?: AbortSignal;
 }
 
+const SSE_HEARTBEAT_MS = 15_000;
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 /**
@@ -38,9 +41,28 @@ export interface StreamAgentSSEOptions {
  *   - `{ type: "tool-result",    toolCallId, toolName, result }`
  *   - `{ type: "done" }`
  *   - `{ type: "error",          error }`
+ *   - `{ type: "ping" }` — keep-alive (clients ignore)
  */
 export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, abortSignal }: StreamAgentSSEOptions): Promise<void> {
+  let heartbeat: ReturnType<typeof setInterval> | null = setInterval(() => {
+    stream.writeSSE({ data: JSON.stringify({ type: "ping" }) }).catch(() => {
+      /* client gone */
+    });
+  }, SSE_HEARTBEAT_MS);
+
+  const stopHeartbeat = () => {
+    if (heartbeat) {
+      clearInterval(heartbeat);
+      heartbeat = null;
+    }
+  };
+
   try {
+    if (abortSignal?.aborted) {
+      await stream.writeSSE({ data: JSON.stringify({ type: "error", error: "cancelled" }) });
+      return;
+    }
+
     const agentStream = await agent.stream(
       { messages },
       {
@@ -51,10 +73,24 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
     );
 
     const emittedToolCalls = new Set<string>();
+    // Accumulate streamed tool_call_chunks until updates provides full args
+    const pendingToolCalls = new Map<string, { name: string; argsStr: string }>();
+
+    const tryParseToolArgs = (argsStr: string): unknown => {
+      if (!argsStr) return {};
+      try {
+        return JSON.parse(argsStr);
+      } catch {
+        return {};
+      }
+    };
 
     for await (const chunk of agentStream) {
       // Check abort between chunks
-      if (abortSignal?.aborted) break;
+      if (abortSignal?.aborted) {
+        await stream.writeSSE({ data: JSON.stringify({ type: "error", error: "cancelled" }) });
+        return;
+      }
       const [mode, data] = chunk as unknown as [string, any];
 
       if (mode === "messages") {
@@ -116,27 +152,51 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
               data: JSON.stringify({ type: "thinking-delta", text: reasoning }),
             });
           }
+
+          // Early tool-call: first chunk with id+name → paint Running… immediately
+          if (msgChunk?.tool_call_chunks) {
+            for (const tc of msgChunk.tool_call_chunks) {
+              if (tc.id) {
+                const pending = pendingToolCalls.get(tc.id);
+                if (pending) {
+                  if (tc.args) pending.argsStr += tc.args;
+                } else if (tc.name) {
+                  pendingToolCalls.set(tc.id, { name: tc.name, argsStr: tc.args ?? "" });
+                  if (!emittedToolCalls.has(tc.id)) {
+                    emittedToolCalls.add(tc.id);
+                    await stream.writeSSE({
+                      data: JSON.stringify({
+                        type: "tool-call",
+                        toolCallId: tc.id,
+                        toolName: tc.name,
+                        input: tryParseToolArgs(tc.args ?? ""),
+                      }),
+                    });
+                  }
+                }
+              }
+            }
+          }
         }
       } else if (mode === "updates") {
         for (const [, state] of Object.entries(data as Record<string, any>)) {
           if (!state?.messages) continue;
 
           for (const msg of state.messages as any[]) {
-            // Agent node: AI message with tool_calls → emit tool-call
+            // Agent node: full tool_calls → first paint or upsert full args
             if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
               for (const tc of msg.tool_calls) {
                 const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
-                if (!emittedToolCalls.has(tcId)) {
-                  emittedToolCalls.add(tcId);
-                  await stream.writeSSE({
-                    data: JSON.stringify({
-                      type: "tool-call",
-                      toolCallId: tcId,
-                      toolName: tc.name,
-                      input: tc.args,
-                    }),
-                  });
-                }
+                emittedToolCalls.add(tcId);
+                pendingToolCalls.delete(tcId);
+                await stream.writeSSE({
+                  data: JSON.stringify({
+                    type: "tool-call",
+                    toolCallId: tcId,
+                    toolName: tc.name,
+                    input: tc.args,
+                  }),
+                });
               }
             }
 
@@ -169,9 +229,26 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
       }
     }
 
+    if (abortSignal?.aborted) {
+      await stream.writeSSE({ data: JSON.stringify({ type: "error", error: "cancelled" }) });
+      return;
+    }
+
     await stream.writeSSE({ data: JSON.stringify({ type: "done" }) });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    const isAbort =
+      abortSignal?.aborted ||
+      (err as Error)?.name === "AbortError" ||
+      msg.includes("AbortError") ||
+      msg === "AbortError" ||
+      msg.toLowerCase().includes("aborted");
+
+    if (isAbort) {
+      await stream.writeSSE({ data: JSON.stringify({ type: "error", error: "cancelled" }) });
+      return;
+    }
+
     const isRecursionLimit = (err as any)?.constructor?.name === "GraphRecursionError" || msg.includes("Recursion limit");
 
     if (isRecursionLimit) {
@@ -187,5 +264,7 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
         data: JSON.stringify({ type: "error", error: msg }),
       });
     }
+  } finally {
+    stopHeartbeat();
   }
 }

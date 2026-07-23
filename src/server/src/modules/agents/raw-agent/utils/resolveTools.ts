@@ -20,6 +20,7 @@ import { runTool } from "../../../tools/tools.service.js";
 
 import { browserTool } from "../../../../common/ai/agent-tools/browser.tool.js";
 import { type CallAgentTarget, isCallAgentToolName, makeCallAgentTools, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
+import { datatableTool } from "../llm-tools/datatable.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
 import { kvStoreTool } from "../llm-tools/kv-store.tool.js";
 import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
@@ -28,6 +29,7 @@ const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   get_current_time: getCurrentTimeTool,
   browser: browserTool,
   kv_store: kvStoreTool,
+  datatable: datatableTool,
 };
 
 export function formatToolName(name: string): string {
@@ -47,6 +49,7 @@ export function getToolLabel(toolName: string): string {
     get_current_time: "Get Current Time",
     browser: "Browser",
     kv_store: "KV Store",
+    datatable: "Datatable",
     call_agent: "Call Agent",
     manage_memory: "Manage Memory",
   };
@@ -160,6 +163,7 @@ function buildMcpTool(opts: {
   parameters: object;
   serverId: string;
   mcpToolName: string;
+  abortSignal?: AbortSignal;
 }): StructuredToolInterface {
   const schema = buildZodSchema(opts.parameters);
 
@@ -181,6 +185,7 @@ function buildMcpTool(opts: {
           (server.headers ?? {}) as Record<string, string>,
           opts.mcpToolName,
           (input ?? {}) as Record<string, unknown>,
+          { abortSignal: opts.abortSignal },
         );
         return typeof result === "string" ? result : JSON.stringify(result);
       } catch (err) {
@@ -237,6 +242,7 @@ export function resolveAgentTools(
           parameters: def.inputSchema,
           serverId: server.id,
           mcpToolName: def.name,
+          abortSignal: options.abortSignal,
         }),
       );
       continue;

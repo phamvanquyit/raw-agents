@@ -38,7 +38,25 @@ export interface BrowserRunResult {
 
 const MAX_ACTIONS = 30;
 const DEFAULT_TIMEOUT_MS = 30_000;
+/** Chromium launch can hang on missing deps / sandbox — fail fast instead of freezing the whole agent stream. */
+const LAUNCH_TIMEOUT_MS = 45_000;
 const MAX_SNAPSHOT_CHARS = 40_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 
 function requireSelector(action: BrowserAction, index: number): string {
   if (!action.selector?.trim()) {
@@ -152,10 +170,14 @@ export async function runBrowserActions(actions: BrowserAction[]): Promise<Brows
   const results: BrowserActionResult[] = [];
 
   try {
-    browser = await launch({
-      headless: true,
-      humanize: true,
-    });
+    browser = await withTimeout(
+      launch({
+        headless: true,
+        humanize: true,
+      }),
+      LAUNCH_TIMEOUT_MS,
+      "Browser launch",
+    );
     const page = await browser.newPage();
     page.setDefaultTimeout(DEFAULT_TIMEOUT_MS);
 

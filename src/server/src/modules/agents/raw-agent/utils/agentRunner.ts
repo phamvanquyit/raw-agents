@@ -46,6 +46,16 @@ export type AgentStreamEvent =
   | { type: "done"; text: string }
   | { type: "error"; error: string };
 
+/** Best-effort JSON parse of streamed tool-call arg fragments (often empty/partial). */
+function tryParseToolArgs(argsStr: string): unknown {
+  if (!argsStr) return {};
+  try {
+    return JSON.parse(argsStr);
+  } catch {
+    return {};
+  }
+}
+
 export type MessageParam =
   | { role: "user"; content: string }
   | { role: "assistant"; content: string }
@@ -374,9 +384,9 @@ export async function* streamAgent(
             yield { type: "thinking-delta", text: reasoning };
           }
 
-          // Tool call chunks — accumulate args, DON'T emit yet.
-          // LangChain streams tool_call_chunks incrementally: first chunk has name+id
-          // but empty/partial args. We buffer until updates mode gives us the complete args.
+          // Tool call chunks — emit early on first id+name so UI can show Running… while
+          // the model finishes args and the tools node executes. updates mode later
+          // re-yields the same toolCallId with full args (client/service upsert).
           if (msgChunk?.tool_call_chunks) {
             for (const tc of msgChunk.tool_call_chunks) {
               if (tc.id) {
@@ -385,8 +395,19 @@ export async function* streamAgent(
                   // Append incremental args fragment
                   if (tc.args) pending.argsStr += tc.args;
                 } else if (tc.name) {
-                  // First chunk for this tool call — register it
+                  // First chunk for this tool call — register + notify UI immediately
                   pendingToolCalls.set(tc.id, { name: tc.name, argsStr: tc.args ?? "" });
+                  if (!emittedToolCalls.has(tc.id)) {
+                    emittedToolCalls.add(tc.id);
+                    const earlyArgs = tryParseToolArgs(tc.args ?? "");
+                    yield {
+                      type: "tool-call",
+                      toolCallId: tc.id,
+                      toolName: tc.name,
+                      toolLabel: getToolLabel(tc.name),
+                      input: enrichToolCallInput(tc.name, earlyArgs),
+                    };
+                  }
                 }
               }
             }
@@ -400,22 +421,21 @@ export async function* streamAgent(
           if (!state?.messages) continue;
 
           for (const msg of state.messages) {
-            // Agent node: AI message with tool_calls → emit tool-call
+            // Agent node: AI message with tool_calls → emit/upsert tool-call with full args
             if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
               for (const tc of msg.tool_calls) {
                 const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
-                if (!emittedToolCalls.has(tcId)) {
-                  emittedToolCalls.add(tcId);
-                  // Remove from pending since we're emitting the complete version
-                  pendingToolCalls.delete(tcId);
-                  yield {
-                    type: "tool-call",
-                    toolCallId: tcId,
-                    toolName: tc.name,
-                    toolLabel: getToolLabel(tc.name),
-                    input: enrichToolCallInput(tc.name, tc.args),
-                  };
-                }
+                emittedToolCalls.add(tcId);
+                // Remove from pending since we have the complete version
+                pendingToolCalls.delete(tcId);
+                // Always yield: first paint or arg-complete upsert (same toolCallId)
+                yield {
+                  type: "tool-call",
+                  toolCallId: tcId,
+                  toolName: tc.name,
+                  toolLabel: getToolLabel(tc.name),
+                  input: enrichToolCallInput(tc.name, tc.args),
+                };
               }
             }
 

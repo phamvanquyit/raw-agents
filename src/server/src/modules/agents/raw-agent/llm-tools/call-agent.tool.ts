@@ -37,6 +37,9 @@ export type CallAgentTarget = {
   description: string | null;
 };
 
+/** Nested non-stream sub-agent wall clock — keeps parent SSE from hanging forever. */
+const CALL_AGENT_TIMEOUT_MS = 5 * 60_000;
+
 export type MakeCallAgentToolsOptions = {
   callerAgentId: string;
   targets: CallAgentTarget[];
@@ -80,19 +83,37 @@ ${baseMessage}`;
 
   try {
     const { generateAgent } = await import("../utils/agentRunner.js");
-    const { text } = await generateAgent(opts.targetId, [{ role: "user", content: fullMessage }], {
-      allowCallAgent: false,
-      ownerId: opts.ownerId,
-      isGuest: opts.isGuest,
-      abortSignal: opts.abortSignal,
-    });
-    return { success: true, agent_id: opts.targetId, response: text, error: null };
+
+    // Combine caller abort with a wall-clock so a hung sub-agent cannot stall the parent forever
+    const timeoutAbort = new AbortController();
+    const timer = setTimeout(() => timeoutAbort.abort(), CALL_AGENT_TIMEOUT_MS);
+    const onParentAbort = () => timeoutAbort.abort();
+    if (opts.abortSignal) {
+      if (opts.abortSignal.aborted) timeoutAbort.abort();
+      else opts.abortSignal.addEventListener("abort", onParentAbort, { once: true });
+    }
+
+    try {
+      const { text } = await generateAgent(opts.targetId, [{ role: "user", content: fullMessage }], {
+        allowCallAgent: false,
+        ownerId: opts.ownerId,
+        isGuest: opts.isGuest,
+        abortSignal: timeoutAbort.signal,
+      });
+      return { success: true, agent_id: opts.targetId, response: text, error: null };
+    } finally {
+      clearTimeout(timer);
+      opts.abortSignal?.removeEventListener("abort", onParentAbort);
+    }
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const timedOut =
+      (err instanceof Error && err.name === "AbortError") || msg.includes("AbortError") || opts.abortSignal?.aborted;
     return {
       success: false,
       agent_id: opts.targetId,
       response: null,
-      error: err instanceof Error ? err.message : String(err),
+      error: timedOut && !opts.abortSignal?.aborted ? `call_agent timed out after ${CALL_AGENT_TIMEOUT_MS / 1000}s` : msg,
     };
   }
 }

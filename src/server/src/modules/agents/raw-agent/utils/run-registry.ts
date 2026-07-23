@@ -28,9 +28,13 @@ interface ActiveRun {
   /** Unsaved thinking text since last flush */
   liveThinking: string;
   finished: boolean;
+  /** Last time any event was emitted (for stall watchdog) */
+  lastEventAt: number;
 }
 
 const REPLAY_GRACE_MS = 60_000;
+/** Keep SSE sockets warm through proxies / Bun idleTimeout (120s). */
+export const SSE_HEARTBEAT_MS = 15_000;
 
 class RunRegistry {
   private runs = new Map<string, ActiveRun>();
@@ -38,6 +42,21 @@ class RunRegistry {
   isCurrent(conversationId: string, runId: symbol): boolean {
     const run = this.runs.get(conversationId);
     return !!run && run.runId === runId && !run.finished;
+  }
+
+  /** True while a run exists and is not finished (or still in replay grace if finished). */
+  has(conversationId: string): boolean {
+    return this.runs.has(conversationId);
+  }
+
+  /** True when there is an unfinished run for this conversation. */
+  isActive(conversationId: string): boolean {
+    const run = this.runs.get(conversationId);
+    return !!run && !run.finished;
+  }
+
+  lastEventAt(conversationId: string): number | null {
+    return this.runs.get(conversationId)?.lastEventAt ?? null;
   }
 
   /** Register a new run. Cancels any existing run and unblocks its relays. */
@@ -71,6 +90,7 @@ class RunRegistry {
       liveText: "",
       liveThinking: "",
       finished: false,
+      lastEventAt: Date.now(),
     });
     return { abort, runId };
   }
@@ -125,6 +145,8 @@ class RunRegistry {
     const run = this.runs.get(conversationId);
     if (!run || run.runId !== runId || run.finished) return;
 
+    run.lastEventAt = Date.now();
+
     if (event.type === "text-delta") {
       // Thinking was flushed to DB before text starts
       run.liveThinking = "";
@@ -169,11 +191,40 @@ class RunRegistry {
     }
   }
 
-  /** Abort the background AI task (called by stop endpoint). */
+  /**
+   * Abort the background AI task and immediately unblock SSE relays with a
+   * terminal `cancelled` event. Background finally may still run later; it
+   * no-ops DB writes if the run is already finished here — callers that need
+   * DB status should update status themselves (watchdog / forced finish).
+   */
   cancel(conversationId: string): boolean {
     const run = this.runs.get(conversationId);
     if (!run || run.finished) return false;
     run.abort.abort();
+
+    const cancelEvent: AgentStreamEvent = { type: "error", error: "cancelled" };
+    run.eventBuffer.push(cancelEvent);
+    run.finished = true;
+    run.liveText = "";
+    run.liveThinking = "";
+    run.lastEventAt = Date.now();
+
+    for (const sub of run.subscribers) {
+      try {
+        sub(cancelEvent);
+      } catch {
+        /* ignore */
+      }
+    }
+    run.subscribers.clear();
+
+    // Keep briefly for late F5 reconnects (same grace as finish)
+    const runId = run.runId;
+    setTimeout(() => {
+      const current = this.runs.get(conversationId);
+      if (current?.runId === runId) this.runs.delete(conversationId);
+    }, REPLAY_GRACE_MS);
+
     return true;
   }
 
@@ -193,8 +244,14 @@ class RunRegistry {
     }, REPLAY_GRACE_MS);
   }
 
-  has(conversationId: string): boolean {
-    return this.runs.has(conversationId);
+  /** Abort + emit stalled error + finish if still the current unfinished run. */
+  stall(conversationId: string, runId: symbol, message = "Stream stalled (no activity)"): boolean {
+    const run = this.runs.get(conversationId);
+    if (!run || run.runId !== runId || run.finished) return false;
+    run.abort.abort();
+    this.emit(conversationId, { type: "error", error: message }, runId);
+    this.finish(conversationId, runId);
+    return true;
   }
 }
 
@@ -203,13 +260,20 @@ export const runRegistry = new RunRegistry();
 /**
  * Relay runRegistry events into an SSE response.
  * Client disconnect only unsubscribes — it does NOT cancel the background run.
+ * Sends periodic ping events so Bun/proxy idleTimeouts do not kill long tool waits.
  */
 export async function relayRunToSSE(conversationId: string, stream: SSEStreamingApi): Promise<void> {
   await new Promise<void>((resolve) => {
     let settled = false;
+    let heartbeat: ReturnType<typeof setInterval> | null = null;
+
     const finish = () => {
       if (settled) return;
       settled = true;
+      if (heartbeat) {
+        clearInterval(heartbeat);
+        heartbeat = null;
+      }
       resolve();
     };
 
@@ -232,6 +296,13 @@ export async function relayRunToSSE(conversationId: string, stream: SSEStreaming
       stream.writeSSE({ data: JSON.stringify({ type: "error", error: "No active stream" }) }).finally(() => finish());
       return;
     }
+
+    heartbeat = setInterval(() => {
+      stream.writeSSE({ data: JSON.stringify({ type: "ping" }) }).catch(() => {
+        unsub();
+        finish();
+      });
+    }, SSE_HEARTBEAT_MS);
 
     stream.onAbort(() => {
       unsub();

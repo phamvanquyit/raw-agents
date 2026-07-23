@@ -140,13 +140,36 @@ describe("SSE Chat & Streaming API", () => {
     runRegistry.finish(id, second.runId);
   });
 
-  test("runRegistry — cancel only works on active (unfinished) runs", () => {
+  test("runRegistry — cancel emits cancelled terminal and finishes run", () => {
     const id = `cancel-${crypto.randomUUID()}`;
-    const { runId } = runRegistry.create(id, agentId);
+    runRegistry.create(id, agentId);
+    const received: AgentStreamEvent[] = [];
+    runRegistry.subscribe(id, (e) => received.push(e));
+
+    expect(runRegistry.isActive(id)).toBe(true);
     expect(runRegistry.cancel(id)).toBe(true);
-    runRegistry.emit(id, { type: "error", error: "cancelled" }, runId);
-    runRegistry.finish(id, runId);
+    expect(received.at(-1)).toEqual({ type: "error", error: "cancelled" });
+    expect(runRegistry.isActive(id)).toBe(false);
+    // Still in grace window for replay
+    expect(runRegistry.has(id)).toBe(true);
     expect(runRegistry.cancel(id)).toBe(false);
+
+    // Late subscriber gets cancellation via buffer
+    const late: AgentStreamEvent[] = [];
+    runRegistry.subscribe(id, (e) => late.push(e));
+    expect(late.some((e) => e.type === "error" && (e as { error: string }).error === "cancelled")).toBe(true);
+  });
+
+  test("runRegistry — stall emits error and finishes", () => {
+    const id = `stall-${crypto.randomUUID()}`;
+    const { runId } = runRegistry.create(id, agentId);
+    const received: AgentStreamEvent[] = [];
+    runRegistry.subscribe(id, (e) => received.push(e));
+
+    expect(runRegistry.stall(id, runId, "Stream stalled (no activity)")).toBe(true);
+    expect(received.at(-1)).toEqual({ type: "error", error: "Stream stalled (no activity)" });
+    expect(runRegistry.isActive(id)).toBe(false);
+    expect(runRegistry.stall(id, runId)).toBe(false);
   });
 
   // ═══════════════════════════════════════════════════════════════════════
