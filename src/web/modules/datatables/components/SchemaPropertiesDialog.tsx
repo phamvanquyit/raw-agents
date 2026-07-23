@@ -586,14 +586,14 @@ export function SchemaPropertiesDialog({
         </RenderIf>
         <RenderIf condition={changeCount > 0 && !error}>
           <p className="mb-0 text-xs text-muted-foreground">
-            {[
+            {`${[
               tableNameDirty ? "table renamed" : null,
               deleteCount > 0 ? (deleteCount === 1 ? "1 will be deleted" : `${deleteCount} will be deleted`) : null,
               newCount > 0 ? (newCount === 1 ? "1 new" : `${newCount} new`) : null,
               updateCount > 0 ? (updateCount === 1 ? "1 modified" : `${updateCount} modified`) : null,
             ]
               .filter(Boolean)
-              .join(", ") + " — applied when you save."}
+              .join(", ")} — applied when you save.`}
           </p>
         </RenderIf>
       </div>

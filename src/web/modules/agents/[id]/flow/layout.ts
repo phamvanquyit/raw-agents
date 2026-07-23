@@ -75,7 +75,7 @@ export type TwoLevelFanoutLayout = {
 export function layoutTwoLevelFanout(
   startY: number,
   rootH: number,
-  branchChildCounts: ReadonlyArray<number>,
+  branchChildCounts: readonly number[],
   midH: number,
   leafGapY: number,
   leafH: number,
@@ -137,7 +137,7 @@ export function resolveVerticalCollisions(
     .sort((a, b) => a.top - b.top || a.i - b.i);
 
   const resolved = new Array<number>(stacks.length);
-  let prevBottom = -Infinity;
+  let prevBottom = Number.NEGATIVE_INFINITY;
 
   for (const s of order) {
     const top = Number.isFinite(prevBottom) ? Math.max(s.top, prevBottom + minGap) : s.top;

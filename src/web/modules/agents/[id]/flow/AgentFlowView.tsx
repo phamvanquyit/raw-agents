@@ -331,7 +331,7 @@ function AgentFlowInner({
     );
     cursorY = toolsLayout.sectionBottom + SECTION_GAP;
 
-    let mcpLayout = layoutTwoLevelFanout(
+    const mcpLayout = layoutTwoLevelFanout(
       cursorY,
       SIDE_CARD_H,
       connectedMcpBranches.map((b) => b.tools.length),
