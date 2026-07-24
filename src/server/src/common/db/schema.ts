@@ -389,3 +389,31 @@ export const datatableRows = sqliteTable("datatable_rows", {
 
 export type DatatableRow = typeof datatableRows.$inferSelect;
 export type NewDatatableRow = typeof datatableRows.$inferInsert;
+
+// ─── Token Usage ──────────────────────────────────────────────────────────────
+
+export const tokenUsage = sqliteTable("token_usage", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  agentId: text("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  conversationId: text("conversation_id").references(() => agentConversations.id, { onDelete: "set null" }),
+  ownerId: text("owner_id").notNull().default("user"),
+  providerId: text("provider_id"),
+  model: text("model"),
+  /** Provider-reported prompt/input tokens (null if unavailable) */
+  inputTokens: integer("input_tokens"),
+  /** Provider-reported completion/output tokens */
+  outputTokens: integer("output_tokens"),
+  /** Provider-reported total tokens */
+  totalTokens: integer("total_tokens"),
+  /** Estimated breakdown (chars/4) */
+  systemPromptTokens: integer("system_prompt_tokens").notNull().default(0),
+  toolDefTokens: integer("tool_def_tokens").notNull().default(0),
+  conversationTokens: integer("conversation_tokens").notNull().default(0),
+  estimatedTotal: integer("estimated_total").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type TokenUsage = typeof tokenUsage.$inferSelect;
+export type NewTokenUsage = typeof tokenUsage.$inferInsert;

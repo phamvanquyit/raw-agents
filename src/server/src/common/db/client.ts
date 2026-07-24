@@ -92,10 +92,7 @@ function runMigrations(raw: Database): void {
 
 /** One-shot: collapse datatable_columns.key+label → name for DBs created before the rename. */
 function ensureDatatableColumnName(raw: Database): void {
-  const table = raw.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'datatable_columns'").get() as
-    | { name: string }
-    | null
-    | undefined;
+  const table = raw.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'datatable_columns'").get() as { name: string } | null | undefined;
   if (!table) return;
 
   const cols = raw.query("PRAGMA table_info('datatable_columns')").all() as Array<{ name: string }>;
