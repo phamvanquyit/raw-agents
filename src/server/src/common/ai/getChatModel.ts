@@ -29,6 +29,7 @@ export async function getChatModel(providerId: string, modelId: string): Promise
     return new ChatOpenAI({
       model: modelId,
       apiKey,
+      streamUsage: true,
       ...(baseURL ? { configuration: { baseURL } } : {}),
       ...(isReasoningModel
         ? {
@@ -46,20 +47,32 @@ export async function getChatModel(providerId: string, modelId: string): Promise
     return new ChatOpenAI({
       model: modelId,
       apiKey: apiKey || "ollama",
+      streamUsage: true,
       configuration: { baseURL: `${base}/v1` },
     });
   }
 
   if (provider === "openrouter") {
     const { ChatOpenRouter } = await import("@langchain/openrouter");
+    // Only request reasoning for models that separate CoT from the final answer.
+    // Blanket enable makes some models (e.g. deepseek-v4-flash) put the entire
+    // reply into delta.reasoning / reasoning_content with empty content — UI then
+    // shows Thinking only and never an assistant message.
+    const wantsReasoning =
+      /(?:^|\/)(o[134][\w.-]*|gpt-5[\w.-]*|deepseek-r1[\w.-]*|qwq[\w.-]*|claude[\w.-]*)/i.test(modelId) || /thinking|reason/i.test(modelId);
     return new ChatOpenRouter({
       model: modelId,
       apiKey,
-      // Always request reasoning — OpenRouter ignores it for non-thinking models
-      modelKwargs: {
-        reasoning: { enabled: true, effort: "medium" },
-      },
-    });
+      streamUsage: true,
+      ...(wantsReasoning
+        ? {
+            modelKwargs: {
+              reasoning: { enabled: true, effort: "medium" },
+            },
+          }
+        : {}),
+      // streamUsage accepted at runtime; package typings may lag
+    } as never);
   }
 
   if (provider === "anthropic") {
@@ -67,6 +80,7 @@ export async function getChatModel(providerId: string, modelId: string): Promise
     return new ChatAnthropic({
       model: modelId,
       apiKey,
+      streamUsage: true,
       ...(baseURL ? { clientOptions: { baseURL } } : {}),
     });
   }
@@ -76,6 +90,7 @@ export async function getChatModel(providerId: string, modelId: string): Promise
     return new ChatGoogleGenerativeAI({
       model: modelId,
       apiKey,
+      streamUsage: true,
       ...(baseURL ? { baseUrl: baseURL } : {}),
     });
   }
@@ -85,6 +100,7 @@ export async function getChatModel(providerId: string, modelId: string): Promise
     return new ChatOpenAI({
       model: modelId,
       apiKey,
+      streamUsage: true,
       configuration: { baseURL },
     });
   }

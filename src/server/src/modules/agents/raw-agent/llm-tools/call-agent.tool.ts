@@ -46,6 +46,7 @@ export type MakeCallAgentToolsOptions = {
   ownerId: string;
   isGuest?: boolean;
   abortSignal?: AbortSignal;
+  conversationId?: string | null;
 };
 
 async function runSubAgent(opts: {
@@ -56,6 +57,7 @@ async function runSubAgent(opts: {
   ownerId: string;
   isGuest: boolean;
   abortSignal?: AbortSignal;
+  conversationId?: string | null;
 }): Promise<{ success: boolean; agent_id: string; response: string | null; error: string | null }> {
   const baseMessage = opts.context ? `${opts.message}\n\n---\n**Additional context:**\n${opts.context}` : opts.message;
 
@@ -94,21 +96,42 @@ ${baseMessage}`;
     }
 
     try {
-      const { text } = await generateAgent(opts.targetId, [{ role: "user", content: fullMessage }], {
+      const result = await generateAgent(opts.targetId, [{ role: "user", content: fullMessage }], {
         allowCallAgent: false,
         ownerId: opts.ownerId,
         isGuest: opts.isGuest,
         abortSignal: timeoutAbort.signal,
+        conversationId: opts.conversationId,
       });
-      return { success: true, agent_id: opts.targetId, response: text, error: null };
+      if (result.usage) {
+        try {
+          const { recordTokenUsage } = await import("../../../usage/usage.service.js");
+          recordTokenUsage({
+            agentId: opts.targetId,
+            conversationId: opts.conversationId ?? null,
+            ownerId: opts.ownerId,
+            providerId: result.usage.providerId,
+            model: result.usage.model,
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            totalTokens: result.usage.totalTokens,
+            systemPromptTokens: result.usage.systemPromptTokens,
+            toolDefTokens: result.usage.toolDefTokens,
+            conversationTokens: result.usage.conversationTokens,
+            estimatedTotal: result.usage.estimatedTotal,
+          });
+        } catch {
+          /* best-effort */
+        }
+      }
+      return { success: true, agent_id: opts.targetId, response: result.text, error: null };
     } finally {
       clearTimeout(timer);
       opts.abortSignal?.removeEventListener("abort", onParentAbort);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const timedOut =
-      (err instanceof Error && err.name === "AbortError") || msg.includes("AbortError") || opts.abortSignal?.aborted;
+    const timedOut = (err instanceof Error && err.name === "AbortError") || msg.includes("AbortError") || opts.abortSignal?.aborted;
     return {
       success: false,
       agent_id: opts.targetId,
@@ -123,7 +146,7 @@ ${baseMessage}`;
  * Schema is only message/context — target agent is bound in the closure.
  */
 export function makeCallAgentTools(options: MakeCallAgentToolsOptions): StructuredToolInterface[] {
-  const { callerAgentId, targets, ownerId, isGuest = false, abortSignal } = options;
+  const { callerAgentId, targets, ownerId, isGuest = false, abortSignal, conversationId } = options;
 
   return targets.map((target) => {
     const toolName = callAgentToolName(target.id);
@@ -149,6 +172,7 @@ export function makeCallAgentTools(options: MakeCallAgentToolsOptions): Structur
           ownerId,
           isGuest,
           abortSignal,
+          conversationId,
         });
         return JSON.stringify(result);
       },

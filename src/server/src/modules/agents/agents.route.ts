@@ -111,7 +111,10 @@ app.post("/:id/generate", async (c) => {
     maxSteps?: number;
   }>();
   try {
-    const result = await generateResponse(agentId, body.message, body.conversationId, body.maxSteps);
+    const user = (c as any).get("user") as { id: string } | undefined;
+    const result = await generateResponse(agentId, body.message, body.conversationId, body.maxSteps, {
+      ownerId: user?.id,
+    });
     return c.json({ ok: true, text: result.text });
   } catch (err) {
     throw new InternalServerErrorException(err instanceof Error ? err.message : String(err));

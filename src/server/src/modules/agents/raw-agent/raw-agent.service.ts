@@ -4,6 +4,7 @@ import { agentConversations, agentMessages, agents, getDb } from "../../../commo
 import { wsHub } from "../../../common/ws/wsHub.js";
 import { patchMessageMetadata, saveMessage, updateConversationStatus } from "../../conversations/conversations.service.js";
 import { verifyPublicToken } from "../../public/public.service.js";
+import { recordTokenUsage } from "../../usage/usage.service.js";
 import type { AgentStreamEvent, MessageParam } from "./utils/agentRunner.js";
 import { generateAgent, streamAgent } from "./utils/agentRunner.js";
 import { loadHistory } from "./utils/loadHistory.js";
@@ -146,6 +147,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
       abortSignal,
       ownerId,
       isGuest,
+      conversationId,
     })) {
       // Superseded by a newer run — stop mutating DB / registry
       if (!stillCurrent()) break;
@@ -248,6 +250,30 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
           break;
         }
 
+        case "context-usage":
+        case "token-usage":
+          if (event.type === "token-usage") {
+            try {
+              recordTokenUsage({
+                agentId: msgAgentId,
+                conversationId,
+                ownerId,
+                providerId: event.providerId,
+                model: event.model,
+                inputTokens: event.inputTokens,
+                outputTokens: event.outputTokens,
+                totalTokens: event.totalTokens,
+                systemPromptTokens: event.systemPromptTokens,
+                toolDefTokens: event.toolDefTokens,
+                conversationTokens: event.conversationTokens,
+                estimatedTotal: event.estimatedTotal,
+              });
+            } catch {
+              /* best-effort */
+            }
+          }
+          break;
+
         case "done":
           if (!fullText && !hasSavedSegments) fullText = event.text || "";
           break;
@@ -266,11 +292,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const isAbort =
-      abortSignal.aborted ||
-      msg.includes("AbortError") ||
-      msg === "AbortError" ||
-      (err instanceof Error && err.name === "AbortError");
+    const isAbort = abortSignal.aborted || msg.includes("AbortError") || msg === "AbortError" || (err instanceof Error && err.name === "AbortError");
     failed = true;
     // Only emit cancel/error if we still own the run (superseded / cancel already terminalized)
     if (stillCurrent()) {
@@ -310,6 +332,14 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
             });
           }
         }
+      }
+
+      // Some providers put the final reply only in the reasoning channel (empty content).
+      // Promote so the user still gets an assistant message instead of Thinking-only.
+      if (!fullText.trim() && thinkingText.trim()) {
+        fullText = thinkingText;
+        thinkingText = "";
+        thinkingStart = 0;
       }
 
       if (thinkingText) {
@@ -359,8 +389,40 @@ export function stopStream(conversationId: string) {
 
 // ─── Generate (non-streaming) ─────────────────────────────────────────────────
 
-export async function generateResponse(agentId: string, message: string, conversationId?: string, maxSteps = 8) {
+export async function generateResponse(agentId: string, message: string, conversationId?: string, maxSteps = 8, opts: { ownerId?: string } = {}) {
   const history = conversationId ? loadHistory(conversationId) : [];
   const messages = [...history, { role: "user" as const, content: message }];
-  return generateAgent(agentId, messages, { maxSteps });
+
+  let ownerId = opts.ownerId ?? "user";
+  if (conversationId) {
+    const conv = getDb().select({ ownerId: agentConversations.ownerId }).from(agentConversations).where(eq(agentConversations.id, conversationId)).get();
+    if (conv?.ownerId) ownerId = conv.ownerId;
+  }
+
+  const result = await generateAgent(agentId, messages, {
+    maxSteps,
+    ownerId,
+    conversationId: conversationId ?? null,
+  });
+  if (result.usage) {
+    try {
+      recordTokenUsage({
+        agentId,
+        conversationId: conversationId ?? null,
+        ownerId,
+        providerId: result.usage.providerId,
+        model: result.usage.model,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        totalTokens: result.usage.totalTokens,
+        systemPromptTokens: result.usage.systemPromptTokens,
+        toolDefTokens: result.usage.toolDefTokens,
+        conversationTokens: result.usage.conversationTokens,
+        estimatedTotal: result.usage.estimatedTotal,
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
+  return result;
 }

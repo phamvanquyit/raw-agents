@@ -21,6 +21,7 @@ import statsRoute from "./modules/stats/stats.route.js";
 import teamsRoute from "./modules/teams/teams.route.js";
 import toolFoldersRoute from "./modules/tool-folders/tool-folders.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
+import usageRoute from "./modules/usage/usage.route.js";
 
 import publicRoute from "./modules/public/public.route.js";
 
@@ -71,6 +72,7 @@ export function createApp(): Hono {
   app.route("/api/settings", settingsRoute);
   app.route("/api/teams", teamsRoute);
   app.route("/api/stats", statsRoute);
+  app.route("/api/usage", usageRoute);
 
   app.route("/api/users", usersRoute);
 

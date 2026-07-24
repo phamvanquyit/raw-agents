@@ -200,6 +200,8 @@ export type ResolveAgentToolsOptions = {
   callableAgents?: CallAgentTarget[];
   allowCallAgent?: boolean;
   abortSignal?: AbortSignal;
+  /** Parent conversation — attached to nested call_agent usage rows. */
+  conversationId?: string | null;
 };
 
 /**
@@ -262,6 +264,7 @@ export function resolveAgentTools(
         ownerId,
         isGuest,
         abortSignal: options.abortSignal,
+        conversationId: options.conversationId ?? null,
       }),
     );
   }

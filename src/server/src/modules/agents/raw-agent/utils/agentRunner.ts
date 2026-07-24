@@ -19,6 +19,14 @@ import { eq } from "drizzle-orm";
 import { createAgent } from "langchain";
 import { getChatModel } from "../../../../common/ai/getChatModel.js";
 import { agents, getDb } from "../../../../common/db/client.js";
+import {
+  type ContextUsageEstimate,
+  type MessageLike,
+  type ProviderUsageMessage,
+  estimateContextUsage,
+  extractProviderUsage,
+  providerUsageDedupeKey,
+} from "../../../usage/estimate-context-usage.js";
 import { type AssignmentWithTool, listAssignments } from "../../agents.service.js";
 import { isCallAgentToolName, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { resolveSystemPrompt } from "./buildSystemPrompt.js";
@@ -38,11 +46,21 @@ function isParentModelStreamChunk(metadata: Record<string, unknown> | undefined)
 
 // ─── Event types for streaming ────────────────────────────────────────────────
 
+export type TokenUsageEvent = ContextUsageEstimate & {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  providerId: string | null;
+  model: string | null;
+};
+
 export type AgentStreamEvent =
   | { type: "text-delta"; text: string }
   | { type: "thinking-delta"; text: string }
   | { type: "tool-call"; toolCallId: string; toolName: string; toolLabel: string; input: unknown }
   | { type: "tool-result"; toolCallId: string; toolName: string; result: unknown }
+  | ({ type: "context-usage" } & ContextUsageEstimate)
+  | ({ type: "token-usage" } & TokenUsageEvent)
   | { type: "done"; text: string }
   | { type: "error"; error: string };
 
@@ -54,6 +72,72 @@ function tryParseToolArgs(argsStr: string): unknown {
   } catch {
     return {};
   }
+}
+
+function toolResultToString(result: unknown): string {
+  if (typeof result === "string") return result;
+  try {
+    return JSON.stringify(result);
+  } catch {
+    return String(result);
+  }
+}
+
+/** Convert LangChain messages into MessageLike rows for context estimation. */
+function baseMessagesToMessageLikes(msgs: BaseMessage[]): MessageLike[] {
+  const out: MessageLike[] = [];
+  for (const msg of msgs) {
+    const type = msg._getType();
+    if (type === "human") {
+      out.push({ role: "user", content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content) });
+      continue;
+    }
+    if (type === "ai") {
+      const ai = msg as AIMessage;
+      let content = "";
+      let thinking = "";
+      if (typeof ai.content === "string") {
+        content = ai.content;
+      } else if (Array.isArray(ai.content)) {
+        for (const block of ai.content as Record<string, unknown>[]) {
+          if (block?.type === "text" && typeof block.text === "string") content += block.text;
+          else if (block?.type === "output_text" && typeof block.text === "string") content += block.text;
+          else if (block?.type === "thinking" && typeof block.thinking === "string") thinking += block.thinking;
+          else if (block?.type === "reasoning") {
+            if (typeof block.reasoning === "string") thinking += block.reasoning;
+            else if (typeof block.text === "string") thinking += block.text;
+          }
+        }
+        if (!content && !thinking) content = JSON.stringify(ai.content ?? "");
+      } else {
+        content = JSON.stringify(ai.content ?? "");
+      }
+      const reasoningKw = (ai.additional_kwargs?.reasoning_content as string | undefined) ?? (ai.additional_kwargs?.reasoning as string | undefined);
+      if (typeof reasoningKw === "string" && reasoningKw) thinking += reasoningKw;
+
+      if (ai.tool_calls && ai.tool_calls.length > 0) {
+        out.push({
+          role: "assistant",
+          content,
+          thinking: thinking || undefined,
+          toolCalls: ai.tool_calls.map((tc) => ({ id: tc.id, name: tc.name, args: tc.args })),
+        });
+      } else {
+        out.push({ role: "assistant", content, thinking: thinking || undefined });
+      }
+      continue;
+    }
+    if (type === "tool") {
+      const toolMsg = msg as ToolMessage;
+      out.push({
+        role: "tool-result",
+        toolCallId: toolMsg.tool_call_id,
+        toolName: toolMsg.name ?? "unknown",
+        result: toolResultToString(toolMsg.content),
+      });
+    }
+  }
+  return out;
 }
 
 export type MessageParam =
@@ -71,6 +155,7 @@ export type AgentStepSummary = {
 export type AgentResult = {
   text: string;
   steps: AgentStepSummary[];
+  usage?: TokenUsageEvent;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -200,7 +285,14 @@ function parseAgentResult(resultMessages: BaseMessage[]): AgentResult {
 export async function generateAgent(
   agentId: string,
   messages: MessageParam[],
-  options: { maxSteps?: number; abortSignal?: AbortSignal; allowCallAgent?: boolean; ownerId?: string; isGuest?: boolean } = {},
+  options: {
+    maxSteps?: number;
+    abortSignal?: AbortSignal;
+    allowCallAgent?: boolean;
+    ownerId?: string;
+    isGuest?: boolean;
+    conversationId?: string | null;
+  } = {},
 ): Promise<AgentResult> {
   const db = getDb();
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
@@ -229,6 +321,7 @@ export async function generateAgent(
         callableAgents,
         allowCallAgent,
         abortSignal: options.abortSignal,
+        conversationId: options.conversationId ?? null,
       }),
     ),
   ]);
@@ -254,7 +347,23 @@ export async function generateAgent(
   // Skip the original input messages (system prompt is handled internally by createAgent)
   const originalCount = messages.length;
   const newMessages = result.messages.slice(originalCount);
-  return parseAgentResult(newMessages);
+  const parsed = parseAgentResult(newMessages);
+  const providerUsage = extractProviderUsage(result.messages as Array<{ usage_metadata?: Record<string, unknown> | null }>);
+  const estimate = estimateContextUsage({
+    systemPrompt,
+    tools,
+    messages: baseMessagesToMessageLikes(result.messages as BaseMessage[]),
+  });
+
+  return {
+    ...parsed,
+    usage: {
+      ...estimate,
+      ...providerUsage,
+      providerId: agent.aiProvider,
+      model: agent.aiModel,
+    },
+  };
 }
 
 // ─── streamAgent ──────────────────────────────────────────────────────────────
@@ -266,7 +375,13 @@ export async function generateAgent(
 export async function* streamAgent(
   agentId: string,
   messages: MessageParam[],
-  options: { maxSteps?: number; abortSignal?: AbortSignal; ownerId?: string; isGuest?: boolean } = {},
+  options: {
+    maxSteps?: number;
+    abortSignal?: AbortSignal;
+    ownerId?: string;
+    isGuest?: boolean;
+    conversationId?: string | null;
+  } = {},
 ): AsyncGenerator<AgentStreamEvent> {
   const db = getDb();
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
@@ -304,9 +419,13 @@ export async function* streamAgent(
           callableAgents,
           allowCallAgent: true,
           abortSignal: options.abortSignal,
+          conversationId: options.conversationId ?? null,
         }),
       ),
     ]);
+
+    const initialEstimate = estimateContextUsage({ systemPrompt, tools, messages });
+    yield { type: "context-usage", ...initialEstimate };
 
     const reactAgent = createAgent({
       model,
@@ -331,161 +450,299 @@ export async function* streamAgent(
     // Accumulate tool_call_chunks args (streamed incrementally by LangChain)
     // Key: toolCallId, Value: { name, argsStr (accumulated) }
     const pendingToolCalls = new Map<string, { name: string; argsStr: string }>();
+    const usageMessages: ProviderUsageMessage[] = [];
+    const seenUsageKeys = new Set<string>();
 
-    for await (const chunk of stream) {
-      const [mode, data] = chunk as unknown as [string, any];
+    const pushUsageMessage = (msg: ProviderUsageMessage) => {
+      const key = providerUsageDedupeKey(msg);
+      if (!key || seenUsageKeys.has(key)) return;
+      seenUsageKeys.add(key);
+      usageMessages.push(msg);
+    };
 
-      if (mode === "messages") {
-        const [msgChunk, metadata] = data as [any, Record<string, unknown> | undefined];
-        if (!isParentModelStreamChunk(metadata)) continue;
+    // Grow context estimate across the ReAct loop (tool args/results are most of the window).
+    const runtimeMessages: MessageLike[] = messages.map((m) => ({ ...m }));
+    let pendingAssistantText = "";
+    let pendingThinkingText = "";
+    const pendingAssistantToolCalls: Array<{ id: string; name: string; args: unknown }> = [];
 
-        const msgType = msgChunk?._getType?.() ?? msgChunk?.type;
+    const trackToolCall = (tcId: string, name: string, args: unknown) => {
+      const existing = pendingAssistantToolCalls.find((t) => t.id === tcId);
+      if (existing) {
+        existing.name = name;
+        existing.args = args;
+      } else {
+        pendingAssistantToolCalls.push({ id: tcId, name, args });
+      }
+    };
 
-        if (msgType === "ai" || msgType === "AIMessageChunk") {
-          const content = msgChunk?.content;
+    const appendThinking = (text: string) => {
+      if (!text) return;
+      pendingThinkingText += text;
+    };
 
-          // ── Extract text + thinking from content ──
-          if (typeof content === "string" && content) {
-            fullText += content;
-            yield { type: "text-delta", text: content };
-          } else if (Array.isArray(content)) {
-            for (const block of content) {
-              // Claude: {type:"thinking", thinking:"..."}
-              if (block.type === "thinking" && block.thinking) {
-                yield { type: "thinking-delta", text: block.thinking };
-              }
-              // OpenAI Responses API: {type:"reasoning", summary:[{type:"summary_text",text:"..."}]}
-              else if (block.type === "reasoning") {
-                const summaries = block.summary ?? block.content ?? [];
-                if (Array.isArray(summaries)) {
-                  for (const s of summaries) {
-                    if (s.text) yield { type: "thinking-delta", text: s.text };
-                  }
-                } else if (typeof block.text === "string" && block.text) {
-                  yield { type: "thinking-delta", text: block.text };
-                }
-              }
-              // Standard text block
-              else if (block.type === "text" && block.text) {
-                fullText += block.text;
-                yield { type: "text-delta", text: block.text };
-              }
-              // Output text block (Responses API)
-              else if (block.type === "output_text" && block.text) {
-                fullText += block.text;
-                yield { type: "text-delta", text: block.text };
-              }
-            }
-          }
+    const flushPendingAssistant = () => {
+      if (!pendingAssistantText && !pendingThinkingText && pendingAssistantToolCalls.length === 0) return;
+      if (pendingAssistantToolCalls.length > 0) {
+        runtimeMessages.push({
+          role: "assistant",
+          content: pendingAssistantText,
+          thinking: pendingThinkingText || undefined,
+          toolCalls: pendingAssistantToolCalls.map((t) => ({ ...t })),
+        });
+      } else {
+        runtimeMessages.push({
+          role: "assistant",
+          content: pendingAssistantText,
+          thinking: pendingThinkingText || undefined,
+        });
+      }
+      pendingAssistantText = "";
+      pendingThinkingText = "";
+      pendingAssistantToolCalls.length = 0;
+    };
 
-          // Fallback: reasoning in additional_kwargs (older LangChain or non-Responses API)
-          const reasoning = msgChunk?.additional_kwargs?.reasoning_content ?? msgChunk?.additional_kwargs?.reasoning;
-          if (typeof reasoning === "string" && reasoning) {
-            yield { type: "thinking-delta", text: reasoning };
-          }
-
-          // Tool call chunks — emit early on first id+name so UI can show Running… while
-          // the model finishes args and the tools node executes. updates mode later
-          // re-yields the same toolCallId with full args (client/service upsert).
-          if (msgChunk?.tool_call_chunks) {
-            for (const tc of msgChunk.tool_call_chunks) {
-              if (tc.id) {
-                const pending = pendingToolCalls.get(tc.id);
-                if (pending) {
-                  // Append incremental args fragment
-                  if (tc.args) pending.argsStr += tc.args;
-                } else if (tc.name) {
-                  // First chunk for this tool call — register + notify UI immediately
-                  pendingToolCalls.set(tc.id, { name: tc.name, argsStr: tc.args ?? "" });
-                  if (!emittedToolCalls.has(tc.id)) {
-                    emittedToolCalls.add(tc.id);
-                    const earlyArgs = tryParseToolArgs(tc.args ?? "");
-                    yield {
-                      type: "tool-call",
-                      toolCallId: tc.id,
-                      toolName: tc.name,
-                      toolLabel: getToolLabel(tc.name),
-                      input: enrichToolCallInput(tc.name, earlyArgs),
-                    };
-                  }
-                }
-              }
-            }
-          }
+    const currentEstimate = () => {
+      const msgs = [...runtimeMessages];
+      if (pendingAssistantText || pendingThinkingText || pendingAssistantToolCalls.length > 0) {
+        if (pendingAssistantToolCalls.length > 0) {
+          msgs.push({
+            role: "assistant",
+            content: pendingAssistantText,
+            thinking: pendingThinkingText || undefined,
+            toolCalls: pendingAssistantToolCalls.map((t) => ({ ...t })),
+          });
+        } else {
+          msgs.push({
+            role: "assistant",
+            content: pendingAssistantText,
+            thinking: pendingThinkingText || undefined,
+          });
         }
-      } else if (mode === "updates") {
-        // updates mode: { nodeName: { messages: [...] } }
-        // Extract both tool-call and tool-result from updates mode to guarantee ordering
-        // (tool-call from agent node always arrives before tool-result from tools node).
-        for (const [, state] of Object.entries(data as Record<string, any>)) {
-          if (!state?.messages) continue;
+      }
+      return estimateContextUsage({ systemPrompt, tools, messages: msgs });
+    };
 
-          for (const msg of state.messages) {
-            // Agent node: AI message with tool_calls → emit/upsert tool-call with full args
-            if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
-              for (const tc of msg.tool_calls) {
-                const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
-                emittedToolCalls.add(tcId);
-                // Remove from pending since we have the complete version
-                pendingToolCalls.delete(tcId);
-                // Always yield: first paint or arg-complete upsert (same toolCallId)
-                yield {
-                  type: "tool-call",
-                  toolCallId: tcId,
-                  toolName: tc.name,
-                  toolLabel: getToolLabel(tc.name),
-                  input: enrichToolCallInput(tc.name, tc.args),
-                };
-              }
+    const buildTokenUsageEvent = (): Extract<AgentStreamEvent, { type: "token-usage" }> => {
+      flushPendingAssistant();
+      return {
+        type: "token-usage",
+        ...currentEstimate(),
+        ...extractProviderUsage(usageMessages),
+        providerId: agent.aiProvider,
+        model: agent.aiModel,
+      };
+    };
+
+    try {
+      for await (const chunk of stream) {
+        const [mode, data] = chunk as unknown as [string, any];
+
+        if (mode === "messages") {
+          const [msgChunk, metadata] = data as [any, Record<string, unknown> | undefined];
+          if (!isParentModelStreamChunk(metadata)) continue;
+
+          const msgType = msgChunk?._getType?.() ?? msgChunk?.type;
+
+          if (msgType === "ai" || msgType === "AIMessageChunk") {
+            if (msgChunk?.usage_metadata || msgChunk?.response_metadata?.usage) {
+              pushUsageMessage(msgChunk);
             }
+            const content = msgChunk?.content;
 
-            // Tools node: ToolMessage → emit tool-result
-            const msgType = msg?._getType?.() ?? msg?.type;
-            if (msgType === "tool" || msgType === "ToolMessage") {
-              const toolCallId: string = msg.tool_call_id ?? "";
-              const toolName = msg.name ?? "unknown";
-              const rawContent = msg.content;
-              const result =
-                typeof rawContent === "string"
-                  ? (() => {
-                      try {
-                        return JSON.parse(rawContent);
-                      } catch {
-                        return rawContent;
+            // ── Extract text + thinking from content ──
+            if (typeof content === "string" && content) {
+              fullText += content;
+              pendingAssistantText += content;
+              yield { type: "text-delta", text: content };
+            } else if (Array.isArray(content)) {
+              for (const block of content) {
+                // Claude: {type:"thinking", thinking:"..."}
+                if (block.type === "thinking" && block.thinking) {
+                  appendThinking(block.thinking);
+                  yield { type: "thinking-delta", text: block.thinking };
+                }
+                // Reasoning: LangChain standard `{type:"reasoning", reasoning}` /
+                // OpenAI Responses `{summary:[...]}` / flat `{text}`
+                else if (block.type === "reasoning") {
+                  if (typeof block.reasoning === "string" && block.reasoning) {
+                    appendThinking(block.reasoning);
+                    yield { type: "thinking-delta", text: block.reasoning };
+                  } else {
+                    const summaries = block.summary ?? block.content ?? [];
+                    if (Array.isArray(summaries)) {
+                      for (const s of summaries) {
+                        if (s.text) {
+                          appendThinking(s.text);
+                          yield { type: "thinking-delta", text: s.text };
+                        } else if (typeof s.reasoning === "string" && s.reasoning) {
+                          appendThinking(s.reasoning);
+                          yield { type: "thinking-delta", text: s.reasoning };
+                        }
                       }
-                    })()
-                  : rawContent;
-              yield { type: "tool-result", toolCallId, toolName, result };
+                    } else if (typeof block.text === "string" && block.text) {
+                      appendThinking(block.text);
+                      yield { type: "thinking-delta", text: block.text };
+                    } else if (typeof summaries === "string" && summaries) {
+                      appendThinking(summaries);
+                      yield { type: "thinking-delta", text: summaries };
+                    }
+                  }
+                }
+                // Standard text block
+                else if (block.type === "text" && block.text) {
+                  fullText += block.text;
+                  pendingAssistantText += block.text;
+                  yield { type: "text-delta", text: block.text };
+                }
+                // Output text block (Responses API)
+                else if (block.type === "output_text" && block.text) {
+                  fullText += block.text;
+                  pendingAssistantText += block.text;
+                  yield { type: "text-delta", text: block.text };
+                }
+              }
+            }
+
+            // Fallback: reasoning in additional_kwargs (older LangChain or non-Responses API)
+            const reasoning = msgChunk?.additional_kwargs?.reasoning_content ?? msgChunk?.additional_kwargs?.reasoning;
+            if (typeof reasoning === "string" && reasoning) {
+              appendThinking(reasoning);
+              yield { type: "thinking-delta", text: reasoning };
+            }
+
+            // Tool call chunks — emit early on first id+name so UI can show Running… while
+            // the model finishes args and the tools node executes. updates mode later
+            // re-yields the same toolCallId with full args (client/service upsert).
+            if (msgChunk?.tool_call_chunks) {
+              for (const tc of msgChunk.tool_call_chunks) {
+                if (tc.id) {
+                  const pending = pendingToolCalls.get(tc.id);
+                  if (pending) {
+                    // Append incremental args fragment
+                    if (tc.args) pending.argsStr += tc.args;
+                  } else if (tc.name) {
+                    // First chunk for this tool call — register + notify UI immediately
+                    pendingToolCalls.set(tc.id, { name: tc.name, argsStr: tc.args ?? "" });
+                    if (!emittedToolCalls.has(tc.id)) {
+                      emittedToolCalls.add(tc.id);
+                      const earlyArgs = tryParseToolArgs(tc.args ?? "");
+                      trackToolCall(tc.id, tc.name, earlyArgs);
+                      yield {
+                        type: "tool-call",
+                        toolCallId: tc.id,
+                        toolName: tc.name,
+                        toolLabel: getToolLabel(tc.name),
+                        input: enrichToolCallInput(tc.name, earlyArgs),
+                      };
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } else if (mode === "updates") {
+          // updates mode: { nodeName: { messages: [...] } }
+          // Extract both tool-call and tool-result from updates mode to guarantee ordering
+          // (tool-call from agent node always arrives before tool-result from tools node).
+          for (const [, state] of Object.entries(data as Record<string, any>)) {
+            if (!state?.messages) continue;
+
+            for (const msg of state.messages) {
+              // Agent node: AI message with tool_calls → emit/upsert tool-call with full args
+              if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
+                for (const tc of msg.tool_calls) {
+                  const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
+                  emittedToolCalls.add(tcId);
+                  // Remove from pending since we have the complete version
+                  pendingToolCalls.delete(tcId);
+                  trackToolCall(tcId, tc.name, tc.args);
+                  // Always yield: first paint or arg-complete upsert (same toolCallId)
+                  yield {
+                    type: "tool-call",
+                    toolCallId: tcId,
+                    toolName: tc.name,
+                    toolLabel: getToolLabel(tc.name),
+                    input: enrichToolCallInput(tc.name, tc.args),
+                  };
+                }
+              }
+
+              // Tools node: ToolMessage → emit tool-result
+              const msgType = msg?._getType?.() ?? msg?.type;
+              if (msgType === "tool" || msgType === "ToolMessage") {
+                const toolCallId: string = msg.tool_call_id ?? "";
+                const toolName = msg.name ?? "unknown";
+                const rawContent = msg.content;
+                const result =
+                  typeof rawContent === "string"
+                    ? (() => {
+                        try {
+                          return JSON.parse(rawContent);
+                        } catch {
+                          return rawContent;
+                        }
+                      })()
+                    : rawContent;
+                flushPendingAssistant();
+                runtimeMessages.push({
+                  role: "tool-result",
+                  toolCallId,
+                  toolName,
+                  result: toolResultToString(result),
+                });
+                yield { type: "tool-result", toolCallId, toolName, result };
+                yield { type: "context-usage", ...currentEstimate() };
+              }
+
+              if ((msgType === "ai" || msgType === "AIMessage" || msgType === "AIMessageChunk") && (msg?.usage_metadata || msg?.response_metadata?.usage)) {
+                pushUsageMessage(msg);
+              }
             }
           }
         }
       }
-    }
 
-    // Flush any pending tool calls that weren't emitted via updates mode (edge case)
-    for (const [tcId, pending] of pendingToolCalls) {
-      if (!emittedToolCalls.has(tcId)) {
-        emittedToolCalls.add(tcId);
-        const parsedArgs = pending.argsStr
-          ? (() => {
-              try {
-                return JSON.parse(pending.argsStr);
-              } catch {
-                return pending.argsStr;
-              }
-            })()
-          : {};
-        yield {
-          type: "tool-call",
-          toolCallId: tcId,
-          toolName: pending.name,
-          toolLabel: getToolLabel(pending.name),
-          input: enrichToolCallInput(pending.name, parsedArgs),
-        };
+      // Flush any pending tool calls that weren't emitted via updates mode (edge case)
+      for (const [tcId, pending] of pendingToolCalls) {
+        if (!emittedToolCalls.has(tcId)) {
+          emittedToolCalls.add(tcId);
+          const parsedArgs = pending.argsStr
+            ? (() => {
+                try {
+                  return JSON.parse(pending.argsStr);
+                } catch {
+                  return pending.argsStr;
+                }
+              })()
+            : {};
+          trackToolCall(tcId, pending.name, parsedArgs);
+          yield {
+            type: "tool-call",
+            toolCallId: tcId,
+            toolName: pending.name,
+            toolLabel: getToolLabel(pending.name),
+            input: enrichToolCallInput(pending.name, parsedArgs),
+          };
+        }
       }
-    }
 
-    yield { type: "done", text: fullText };
+      yield buildTokenUsageEvent();
+      yield { type: "done", text: fullText };
+    } catch (streamErr) {
+      const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+      const isAbort = msg.includes("AbortError") || msg === "AbortError" || (streamErr instanceof Error && streamErr.name === "AbortError");
+      try {
+        yield buildTokenUsageEvent();
+      } catch {
+        /* best-effort partial usage */
+      }
+      if (isAbort) {
+        yield { type: "error", error: "cancelled" };
+        return;
+      }
+      yield { type: "error", error: msg };
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const isAbort = msg.includes("AbortError") || msg === "AbortError" || (err instanceof Error && err.name === "AbortError");
