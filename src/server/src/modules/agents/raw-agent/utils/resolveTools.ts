@@ -52,6 +52,7 @@ export function getToolLabel(toolName: string): string {
     datatable: "Datatable",
     call_agent: "Call Agent",
     manage_memory: "Manage Memory",
+    get_tool_schema: "Get Tool Schema",
   };
   if (KNOWN_LABELS[toolName]) return KNOWN_LABELS[toolName];
   try {

@@ -2,6 +2,7 @@ import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { agents, getDb, tokenUsage } from "../../common/db/client.js";
 import { listAssignments } from "../agents/agents.service.js";
 import { resolveSystemPrompt } from "../agents/raw-agent/utils/buildSystemPrompt.js";
+import { appendToolsCatalog, buildLazyToolsBundle } from "../agents/raw-agent/utils/lazy-tools.middleware.js";
 import { loadHistory } from "../agents/raw-agent/utils/loadHistory.js";
 import { resolveAgentTools } from "../agents/raw-agent/utils/resolveTools.js";
 import { type ContextUsageEstimate, estimateContextUsage } from "./estimate-context-usage.js";
@@ -164,14 +165,16 @@ export function previewContextUsage(
       ? []
       : db.select({ id: agents.id, name: agents.name, description: agents.description }).from(agents).where(inArray(agents.id, callableAgentIds)).all();
 
-  const systemPrompt = resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest);
+  const baseSystemPrompt = resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest);
   const tools = resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest, {
     callableAgents,
     allowCallAgent: true,
   });
+  const lazy = buildLazyToolsBundle(tools);
+  const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
   const messages = opts.conversationId ? loadHistory(opts.conversationId) : [];
 
-  const estimate = estimateContextUsage({ systemPrompt, tools, messages });
+  const estimate = estimateContextUsage({ systemPrompt, tools: lazy.toolsForEstimate(), messages });
   return {
     ...estimate,
     agentId,

@@ -176,17 +176,21 @@ describe("Usage API", () => {
     expect(data.items).toContain("gpt-4o");
   });
 
-  test("GET /api/usage/context/:agentId — returns breakdown", async () => {
+  test("GET /api/usage/context/:agentId — returns breakdown with lazy tool defs", async () => {
     const res = await authRequest(app, token, "GET", `/api/usage/context/${agentId}`);
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
       estimatedTotal: number;
+      toolDefTokens: number;
       categories: Array<{ id: string }>;
       agentId: string;
     };
     expect(data.agentId).toBe(agentId);
     expect(data.categories.map((c) => c.id)).toEqual(["system_prompt", "tools", "conversation"]);
     expect(data.estimatedTotal).toBeGreaterThanOrEqual(0);
+    // Only get_tool_schema is bound initially — not full manage_memory / builtin schemas.
+    expect(data.toolDefTokens).toBeGreaterThan(0);
+    expect(data.toolDefTokens).toBeLessThan(400);
   });
 
   test("GET /api/usage/context/:agentId — 400 for missing agent", async () => {

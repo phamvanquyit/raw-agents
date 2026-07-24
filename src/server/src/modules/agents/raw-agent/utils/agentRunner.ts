@@ -30,6 +30,7 @@ import {
 import { type AssignmentWithTool, listAssignments } from "../../agents.service.js";
 import { isCallAgentToolName, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { resolveSystemPrompt } from "./buildSystemPrompt.js";
+import { appendToolsCatalog, buildLazyToolsBundle } from "./lazy-tools.middleware.js";
 import { getToolLabel, resolveAgentTools } from "./resolveTools.js";
 
 const MODEL_NODE = "model_request";
@@ -313,7 +314,7 @@ export async function generateAgent(
   const callableAgentIds: string[] = (agent.callableAgentIds as string[]) ?? [];
   const callableAgents = allowCallAgent ? loadCallableAgents(callableAgentIds) : [];
 
-  const [model, systemPrompt, tools] = await Promise.all([
+  const [model, baseSystemPrompt, tools] = await Promise.all([
     getChatModel(agent.aiProvider, agent.aiModel),
     Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
     Promise.resolve(
@@ -326,10 +327,14 @@ export async function generateAgent(
     ),
   ]);
 
+  const lazy = buildLazyToolsBundle(tools);
+  const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
+
   const reactAgent = createAgent({
     model,
-    tools,
+    tools: lazy.allToolsForAgent,
     systemPrompt,
+    middleware: [lazy.middleware],
   });
 
   const input = {
@@ -351,7 +356,7 @@ export async function generateAgent(
   const providerUsage = extractProviderUsage(result.messages as Array<{ usage_metadata?: Record<string, unknown> | null }>);
   const estimate = estimateContextUsage({
     systemPrompt,
-    tools,
+    tools: lazy.toolsForEstimate(),
     messages: baseMessagesToMessageLikes(result.messages as BaseMessage[]),
   });
 
@@ -411,7 +416,7 @@ export async function* streamAgent(
     const callableAgentIds: string[] = (agent.callableAgentIds as string[]) ?? [];
     const callableAgents = loadCallableAgents(callableAgentIds);
 
-    const [model, systemPrompt, tools] = await Promise.all([
+    const [model, baseSystemPrompt, tools] = await Promise.all([
       getChatModel(agent.aiProvider, agent.aiModel),
       Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
       Promise.resolve(
@@ -424,13 +429,17 @@ export async function* streamAgent(
       ),
     ]);
 
-    const initialEstimate = estimateContextUsage({ systemPrompt, tools, messages });
+    const lazy = buildLazyToolsBundle(tools);
+    const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
+
+    const initialEstimate = estimateContextUsage({ systemPrompt, tools: lazy.toolsForEstimate(), messages });
     yield { type: "context-usage", ...initialEstimate };
 
     const reactAgent = createAgent({
       model,
-      tools,
+      tools: lazy.allToolsForAgent,
       systemPrompt,
+      middleware: [lazy.middleware],
     });
 
     const input = {
@@ -520,7 +529,7 @@ export async function* streamAgent(
           });
         }
       }
-      return estimateContextUsage({ systemPrompt, tools, messages: msgs });
+      return estimateContextUsage({ systemPrompt, tools: lazy.toolsForEstimate(), messages: msgs });
     };
 
     const buildTokenUsageEvent = (): Extract<AgentStreamEvent, { type: "token-usage" }> => {
