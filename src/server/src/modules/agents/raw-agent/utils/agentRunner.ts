@@ -327,7 +327,7 @@ export async function generateAgent(
     ),
   ]);
 
-  const lazy = buildLazyToolsBundle(tools);
+  const lazy = buildLazyToolsBundle(tools, { messages });
   const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
 
   const reactAgent = createAgent({
@@ -429,7 +429,7 @@ export async function* streamAgent(
       ),
     ]);
 
-    const lazy = buildLazyToolsBundle(tools);
+    const lazy = buildLazyToolsBundle(tools, { messages });
     const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
 
     const initialEstimate = estimateContextUsage({ systemPrompt, tools: lazy.toolsForEstimate(), messages });

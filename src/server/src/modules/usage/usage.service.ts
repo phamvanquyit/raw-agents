@@ -170,9 +170,9 @@ export function previewContextUsage(
     callableAgents,
     allowCallAgent: true,
   });
-  const lazy = buildLazyToolsBundle(tools);
-  const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
   const messages = opts.conversationId ? loadHistory(opts.conversationId) : [];
+  const lazy = buildLazyToolsBundle(tools, { messages });
+  const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
 
   const estimate = estimateContextUsage({ systemPrompt, tools: lazy.toolsForEstimate(), messages });
   return {
