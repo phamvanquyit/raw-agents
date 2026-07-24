@@ -329,10 +329,7 @@ export function getProjectSchemaByName(projectName: string) {
   return getProjectSchemaByRef(projectName);
 }
 
-export function createColumn(
-  tableId: string,
-  body: { name: string; type: string; options?: string[] | null; required?: boolean; sortOrder?: number },
-) {
+export function createColumn(tableId: string, body: { name: string; type: string; options?: string[] | null; required?: boolean; sortOrder?: number }) {
   if (!getTable(tableId)) throw new NotFoundException("Table not found");
   const name = assertColumnName(body.name ?? "");
   const type = assertColumnType(body.type);
@@ -363,10 +360,7 @@ export function createColumn(
   return entry;
 }
 
-export function updateColumn(
-  id: string,
-  body: { name?: string; type?: string; options?: string[] | null; required?: boolean; sortOrder?: number },
-) {
+export function updateColumn(id: string, body: { name?: string; type?: string; options?: string[] | null; required?: boolean; sortOrder?: number }) {
   const current = getColumn(id);
   if (!current) throw new NotFoundException("Column not found");
 

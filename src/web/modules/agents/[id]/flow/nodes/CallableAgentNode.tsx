@@ -19,11 +19,7 @@ export function CallableAgentNode({ data }: NodeProps<CallableAgentNodeType>) {
       className="relative flex items-center gap-2 px-3 py-2 rounded-md border bg-card border-edge-call-agent/30"
       style={data.width ? { width: data.width } : undefined}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0"
-      />
+      <Handle type="target" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0" />
 
       <UserAvatar avatar={data.avatar} name={data.name} size={22} className="shrink-0 ring-1 ring-border" />
 

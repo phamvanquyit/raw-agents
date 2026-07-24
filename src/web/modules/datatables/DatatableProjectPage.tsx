@@ -93,10 +93,7 @@ export default function DatatableProjectPage() {
   }, [loading, tables, columnsMap, setNodes, handleSelectTable, handleEditProperties]);
 
   const selectedTable = useMemo(() => tables.find((t) => t.id === selectedTableId) ?? null, [tables, selectedTableId]);
-  const editPropertiesTable = useMemo(
-    () => tables.find((t) => t.id === editPropertiesTableId) ?? null,
-    [tables, editPropertiesTableId],
-  );
+  const editPropertiesTable = useMemo(() => tables.find((t) => t.id === editPropertiesTableId) ?? null, [tables, editPropertiesTableId]);
   const editPropertiesColumns = editPropertiesTableId ? (columnsMap[editPropertiesTableId] ?? []) : [];
 
   const handleDrawerClose = useCallback(() => {
@@ -213,11 +210,7 @@ export default function DatatableProjectPage() {
         destroyOnHidden
       >
         {selectedTableId ? (
-          <TableRowsPanel
-            tableId={selectedTableId}
-            columns={columnsMap[selectedTableId] ?? []}
-            onCreateControlsChange={handleCreateControlsChange}
-          />
+          <TableRowsPanel tableId={selectedTableId} columns={columnsMap[selectedTableId] ?? []} onCreateControlsChange={handleCreateControlsChange} />
         ) : null}
       </Drawer>
 

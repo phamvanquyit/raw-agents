@@ -39,7 +39,9 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
       )}
 
       {/* Fan-out edges to connected child tool nodes on the right (hidden marker) */}
-      {hasConnection && <Handle id="to-tools" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />}
+      {hasConnection && (
+        <Handle id="to-tools" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />
+      )}
 
       <Popover
         open={open}
@@ -64,7 +66,8 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
             <div
               className="flex items-center gap-2.5 px-3.5 py-3 border-b"
               style={{
-                background: "linear-gradient(180deg, color-mix(in srgb, var(--edge-mcp) 18%, transparent), color-mix(in srgb, var(--edge-mcp) 8%, transparent))",
+                background:
+                  "linear-gradient(180deg, color-mix(in srgb, var(--edge-mcp) 18%, transparent), color-mix(in srgb, var(--edge-mcp) 8%, transparent))",
                 borderBottomColor: "color-mix(in srgb, var(--edge-mcp) 35%, transparent)",
                 boxShadow: "inset 0 -1px 0 color-mix(in srgb, var(--edge-mcp) 12%, transparent), 0 1px 0 rgba(255,255,255,0.03)",
               }}

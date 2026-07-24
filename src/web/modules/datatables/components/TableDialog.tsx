@@ -28,9 +28,7 @@ export function TableDialog({
     setSaving(true);
     setError("");
     try {
-      const table = edit
-        ? await datatablesApi.updateTable(edit.id, trimmed)
-        : await datatablesApi.createTable(projectId, trimmed);
+      const table = edit ? await datatablesApi.updateTable(edit.id, trimmed) : await datatablesApi.createTable(projectId, trimmed);
       message.success(edit ? "Updated" : "Created");
       onSaved(table);
       onClose();

@@ -180,11 +180,7 @@ export async function streamPromptAgent(agentId: string, body: PromptStreamReque
 
   // 3. Build tools — generate_prompt saves to DB + emits WS
   // datatable is discovery-only so the prompt writer can reference real projects/tables/columns
-  const tools: StructuredToolInterface[] = [
-    makeGeneratePromptTool(agentId),
-    browserTool,
-    makeDatatableTool(["list_projects", "get_schema"]),
-  ];
+  const tools: StructuredToolInterface[] = [makeGeneratePromptTool(agentId), browserTool, makeDatatableTool(["list_projects", "get_schema"])];
 
   // 4. Create agent
   const agent = createAgent({

@@ -25,13 +25,7 @@ export function stackHeight(count: number, gapY: number, itemH: number): number 
  * the parent, the parent is pushed down so the whole section still starts at
  * `startY` (children won't bleed above the section top into the previous one).
  */
-export function layoutFanoutSection(
-  startY: number,
-  parentH: number,
-  childCount: number,
-  childGapY: number,
-  childH: number,
-): FanoutSectionLayout {
+export function layoutFanoutSection(startY: number, parentH: number, childCount: number, childGapY: number, childH: number): FanoutSectionLayout {
   const stackH = stackHeight(childCount, childGapY, childH);
 
   let parentY: number;
@@ -126,15 +120,10 @@ export function layoutTwoLevelFanout(
  * Stacks are processed top-to-bottom; later ones are pushed down if needed.
  * Returns a new array of resolved tops (same order as input).
  */
-export function resolveVerticalCollisions(
-  stacks: ReadonlyArray<{ top: number; height: number }>,
-  minGap: number,
-): number[] {
+export function resolveVerticalCollisions(stacks: ReadonlyArray<{ top: number; height: number }>, minGap: number): number[] {
   if (stacks.length === 0) return [];
 
-  const order = stacks
-    .map((s, i) => ({ i, top: s.top, height: s.height }))
-    .sort((a, b) => a.top - b.top || a.i - b.i);
+  const order = stacks.map((s, i) => ({ i, top: s.top, height: s.height })).sort((a, b) => a.top - b.top || a.i - b.i);
 
   const resolved = new Array<number>(stacks.length);
   let prevBottom = Number.NEGATIVE_INFINITY;

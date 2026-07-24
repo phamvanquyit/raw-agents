@@ -12,9 +12,7 @@ export const datatablesApi = {
 
   listTables: (projectId: string) => apiClient.get<DatatableTable[]>(`${BASE}/projects/${projectId}/tables`),
   getProjectSchema: (projectId: string) =>
-    apiClient.get<{ project: DatatableProject; tables: Array<DatatableTable & { columns: DatatableColumn[] }> }>(
-      `${BASE}/projects/${projectId}/schema`,
-    ),
+    apiClient.get<{ project: DatatableProject; tables: Array<DatatableTable & { columns: DatatableColumn[] }> }>(`${BASE}/projects/${projectId}/schema`),
   createTable: (projectId: string, name: string) => apiClient.post<DatatableTable>(`${BASE}/projects/${projectId}/tables`, { name }),
   updateTable: (id: string, name: string) => apiClient.put<DatatableTable>(`${BASE}/tables/${id}`, { name }),
   deleteTable: (id: string) => apiClient.delete(`${BASE}/tables/${id}`),

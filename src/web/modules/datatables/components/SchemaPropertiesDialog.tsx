@@ -86,7 +86,10 @@ function fieldDirty(orig: DatatableColumn | undefined, draft: DraftColumn) {
   };
 }
 
-function buildPatch(orig: DatatableColumn, draft: DraftColumn): Partial<{
+function buildPatch(
+  orig: DatatableColumn,
+  draft: DraftColumn,
+): Partial<{
   name: string;
   type: DatatableColumnType;
   options: string[] | null;
@@ -265,9 +268,7 @@ export function SchemaPropertiesDialog({
     setSaving(true);
     setError("");
     try {
-      const nextTable = rename
-        ? await datatablesApi.updateTable(tableId, nextTableName)
-        : ({ id: tableId, name: nextTableName } as DatatableTable);
+      const nextTable = rename ? await datatablesApi.updateTable(tableId, nextTableName) : ({ id: tableId, name: nextTableName } as DatatableTable);
 
       for (const id of deletes) {
         await datatablesApi.deleteColumn(id);
@@ -384,9 +385,7 @@ export function SchemaPropertiesDialog({
         <section
           className={cn(
             "rounded-lg border bg-card p-4 transition-colors",
-            tableNameDirty
-              ? "border-brand/45 shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-brand)_20%,transparent)]"
-              : "border-border-subtle",
+            tableNameDirty ? "border-brand/45 shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-brand)_20%,transparent)]" : "border-border-subtle",
           )}
         >
           <FieldLabel changed={tableNameDirty}>Table name</FieldLabel>
@@ -406,9 +405,7 @@ export function SchemaPropertiesDialog({
         </div>
 
         <RenderIf condition={drafts.length === 0}>
-          <div className="rounded-lg border border-dashed border-border-subtle px-4 py-10 text-center text-sm text-muted-foreground">
-            No properties yet
-          </div>
+          <div className="rounded-lg border border-dashed border-border-subtle px-4 py-10 text-center text-sm text-muted-foreground">No properties yet</div>
         </RenderIf>
 
         {drafts.map((draft, index) => {
@@ -433,22 +430,14 @@ export function SchemaPropertiesDialog({
               <header
                 className={cn(
                   "flex items-center justify-between gap-3 border-b px-4 py-2.5",
-                  markedDelete
-                    ? "border-destructive/20 bg-destructive/[0.06]"
-                    : dirty
-                      ? "border-brand/20 bg-brand/5"
-                      : "border-border-subtle bg-secondary/60",
+                  markedDelete ? "border-destructive/20 bg-destructive/[0.06]" : dirty ? "border-brand/20 bg-brand/5" : "border-border-subtle bg-secondary/60",
                 )}
               >
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span
                     className={cn(
                       "inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold tabular-nums",
-                      markedDelete
-                        ? "bg-destructive/15 text-destructive"
-                        : dirty
-                          ? "bg-brand/15 text-brand-soft"
-                          : "bg-muted text-muted-foreground",
+                      markedDelete ? "bg-destructive/15 text-destructive" : dirty ? "bg-brand/15 text-brand-soft" : "bg-muted text-muted-foreground",
                     )}
                   >
                     {index + 1}
@@ -462,9 +451,7 @@ export function SchemaPropertiesDialog({
                     {draft.name || "unnamed"}
                   </div>
                   {markedDelete ? (
-                    <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive">
-                      Will be deleted
-                    </span>
+                    <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive">Will be deleted</span>
                   ) : isNew ? (
                     <span className="shrink-0 rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-medium text-brand-soft">New</span>
                   ) : dirty ? (
@@ -511,9 +498,7 @@ export function SchemaPropertiesDialog({
               </header>
 
               {markedDelete ? (
-                <div className="px-4 py-3 text-xs text-muted-foreground">
-                  This property (and its row values) will be removed when you save.
-                </div>
+                <div className="px-4 py-3 text-xs text-muted-foreground">This property (and its row values) will be removed when you save.</div>
               ) : (
                 <div className="grid grid-cols-1 gap-x-4 gap-y-4 p-4 sm:grid-cols-12">
                   <div className="min-w-0 sm:col-span-5">

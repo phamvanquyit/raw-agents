@@ -15,11 +15,7 @@ const OG_IMAGE_WIDTH = "1731";
 const OG_IMAGE_HEIGHT = "909";
 
 export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 /** Resolve public origin, honouring reverse-proxy forwarded headers. */
@@ -74,7 +70,7 @@ export function buildSpaHtml(baseHtml: string, opts: { origin: string; path: str
   }
 
   // Drop tags we re-inject so rebuilds/dev HTML don't duplicate.
-  let html = baseHtml
+  const html = baseHtml
     .replace(/<title>[\s\S]*?<\/title>/i, "")
     .replace(/<meta\s+name=["']description["'][^>]*>/gi, "")
     .replace(/<meta\s+(?:property|name)=["'](?:og:[^"']+|twitter:[^"']+)["'][^>]*>/gi, "");

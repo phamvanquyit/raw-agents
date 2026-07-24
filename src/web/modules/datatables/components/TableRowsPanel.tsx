@@ -215,10 +215,7 @@ export function TableRowsPanel({ tableId, columns, onCreateControlsChange }: Tab
     // Absolute fill pins both scrollbars to the visible viewport — horizontal bar
     // stays at the bottom of the panel instead of the bottom of the row list.
     <div className="relative h-full min-h-0 w-full flex-1">
-      <div
-        ref={scrollRef}
-        className={cn("table-scrollbar absolute inset-x-0 top-0 overflow-auto overscroll-contain", showStatusBar ? "bottom-8" : "bottom-0")}
-      >
+      <div ref={scrollRef} className={cn("table-scrollbar absolute inset-x-0 top-0 overflow-auto overscroll-contain", showStatusBar ? "bottom-8" : "bottom-0")}>
         <RenderIf
           condition={!loading && columns.length === 0}
           fallback={
