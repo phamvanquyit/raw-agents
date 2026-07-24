@@ -126,6 +126,7 @@ function AppContent() {
             <Route path="/kvstore" element={<KvStorePage />} />
             <Route path="/datatables" element={<DatatablesPage />} />
             <Route path="/datatables/:projectId" element={<DatatableProjectPage />} />
+            <Route path="/usage" element={<Navigate to="/settings/usage" replace />} />
             <Route
               path="/secrets"
               element={

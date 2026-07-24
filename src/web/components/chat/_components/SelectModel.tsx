@@ -27,7 +27,7 @@ export function SelectModel({ providerId, model, onProviderChange, onModelChange
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 cursor-pointer outline-none",
+            "flex h-7 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium leading-none transition-all duration-150 cursor-pointer outline-none",
             open
               ? "bg-border/70 text-foreground"
               : selectedModel

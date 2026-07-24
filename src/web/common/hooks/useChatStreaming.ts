@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { AgentMessage } from "src/common/types";
+import type { ContextUsagePayload } from "src/components/chat/common/sse";
 import type { ChatAgentMessage } from "src/components/chat/common/types";
 import { formatToolName, isCallAgentToolName } from "src/components/chat/common/utils";
 
@@ -13,6 +14,7 @@ export interface SSECallbacks {
   onThinking: (chunk: string) => void;
   onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
+  onContextUsage?: (usage: ContextUsagePayload) => void;
   onDone: () => Promise<void> | void;
   onError: (err?: string) => Promise<void> | void;
 }
@@ -116,10 +118,7 @@ function upsertOptimisticTool(
   return [...prev, optimistic];
 }
 
-function patchOptimisticToolResult(
-  prev: AgentMessage[],
-  call: { toolCallId?: string; toolName: string; result: unknown },
-): AgentMessage[] {
+function patchOptimisticToolResult(prev: AgentMessage[], call: { toolCallId?: string; toolName: string; result: unknown }): AgentMessage[] {
   const resultStr = typeof call.result === "string" ? call.result : JSON.stringify(call.result);
 
   let matchIdx = -1;
@@ -127,9 +126,7 @@ function patchOptimisticToolResult(
     matchIdx = prev.findIndex((m) => m.role === "tool" && toolCallIdOf(m) === call.toolCallId && !hasToolOutput(m));
   }
   if (matchIdx === -1) {
-    const revIdx = [...prev]
-      .reverse()
-      .findIndex((m) => m.role === "tool" && (m.metadata as any)?.toolName === call.toolName && !hasToolOutput(m));
+    const revIdx = [...prev].reverse().findIndex((m) => m.role === "tool" && (m.metadata as any)?.toolName === call.toolName && !hasToolOutput(m));
     matchIdx = revIdx === -1 ? -1 : prev.length - 1 - revIdx;
   }
   if (matchIdx === -1) return prev;
@@ -159,6 +156,7 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
   const segmentBoundaryRef = useRef(false);
   const [activityStatus, setActivityStatus] = useState("Thinking...");
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [contextUsage, setContextUsage] = useState<ContextUsagePayload | null>(null);
 
   // Keep latest callbacks in refs so buildSSECallbacks stays stable across renders
   const onDoneRef = useRef(onConversationDone);
@@ -257,6 +255,9 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
         setActivityStatus("Waiting for model...");
         void loadMessages(convId);
       },
+      onContextUsage: (usage) => {
+        setContextUsage(usage);
+      },
       onDone: async () => {
         setStreamingContent("");
         setThinkingContent("");
@@ -334,6 +335,8 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
     streamingContent,
     activityStatus,
     streamError,
+    contextUsage,
+    setContextUsage,
     clearStreamingState,
     buildSSECallbacks,
     loadMessages,

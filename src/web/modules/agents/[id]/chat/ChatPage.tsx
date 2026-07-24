@@ -13,6 +13,7 @@ import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
 import { updateAgent } from "src/modules/agents/common/agentsSlice";
 import { createConversation, fetchConversations, markConversationDone, setActiveConversationId, updateConversation } from "src/modules/chat/common/chatSlice";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { usageApi } from "src/modules/usage/common/usageApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
 import { ChatEmptyState } from "./components/ChatEmptyState";
@@ -120,12 +121,13 @@ export function ChatPage() {
 
   // ── Streaming hook (local messages, no Redux) ───────────────────────────────
 
-  const { setMessages, streamingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages } = useChatStreaming({
-    toDisplayMsg,
-    fetchMessages,
-    onConversationDone: handleConversationDone,
-    onConversationError: handleConversationError,
-  });
+  const { setMessages, streamingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages, contextUsage, setContextUsage } =
+    useChatStreaming({
+      toDisplayMsg,
+      fetchMessages,
+      onConversationDone: handleConversationDone,
+      onConversationError: handleConversationError,
+    });
 
   // Detect if server-side conversation is still running (survives F5)
   const activeConversation = useMemo(() => conversations.find((c) => c.id === activeConversationId), [conversations, activeConversationId]);
@@ -206,6 +208,25 @@ export function ChatPage() {
   useEffect(() => {
     dispatch(fetchLlmProviders());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!agent?.id) {
+      setContextUsage(null);
+      return;
+    }
+    let cancelled = false;
+    void usageApi
+      .context(agent.id, activeConversationId)
+      .then((data) => {
+        if (!cancelled) setContextUsage(data);
+      })
+      .catch(() => {
+        if (!cancelled) setContextUsage(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agent?.id, activeConversationId, activeConversation?.status, setContextUsage]);
 
   // Keep scroll pinned when content changes — backup for MutationObserver
   // which can miss auto-scroll when textarea resize changes clientHeight
@@ -451,6 +472,7 @@ export function ChatPage() {
               onProviderChange={(pid) => void dispatch(updateAgent({ id: agent.id, aiProvider: pid }))}
               onModelChange={(m) => void dispatch(updateAgent({ id: agent.id, aiModel: m }))}
               focusSignal={activeConversationId}
+              contextUsage={contextUsage}
             />
           </div>
         )}

@@ -7,11 +7,21 @@
  * Legacy aliases (`chunk`, `thinking`) are normalized for older servers.
  */
 
+export type ContextUsagePayload = {
+  categories: Array<{ id: string; label: string; tokens: number }>;
+  systemPromptTokens: number;
+  toolDefTokens: number;
+  conversationTokens: number;
+  estimatedTotal: number;
+};
+
 export type AgentSseEvent =
   | { type: "text-delta"; text: string }
   | { type: "thinking-delta"; text: string }
   | { type: "tool-call"; toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }
   | { type: "tool-result"; toolCallId?: string; toolName: string; result: unknown }
+  | ({ type: "context-usage" } & ContextUsagePayload)
+  | ({ type: "token-usage" } & ContextUsagePayload)
   | { type: "done"; text?: string; reason?: string }
   | { type: "error"; error: string };
 
@@ -20,6 +30,7 @@ export interface AgentSseCallbacks {
   onThinkingDelta: (text: string) => void;
   onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
+  onContextUsage?: (usage: ContextUsagePayload) => void;
   onDone: (text: string) => void | Promise<void>;
   onError: (error: string) => void | Promise<void>;
 }
@@ -52,6 +63,16 @@ export function normalizeSseEvent(raw: Record<string, unknown>): AgentSseEvent |
       toolCallId: raw.toolCallId as string | undefined,
       toolName: String(raw.toolName ?? "unknown"),
       result: raw.result,
+    };
+  }
+  if (type === "context-usage" || type === "token-usage") {
+    return {
+      type,
+      categories: Array.isArray(raw.categories) ? (raw.categories as ContextUsagePayload["categories"]) : [],
+      systemPromptTokens: Number(raw.systemPromptTokens ?? 0),
+      toolDefTokens: Number(raw.toolDefTokens ?? 0),
+      conversationTokens: Number(raw.conversationTokens ?? 0),
+      estimatedTotal: Number(raw.estimatedTotal ?? 0),
     };
   }
   if (type === "done") {
@@ -115,6 +136,10 @@ export async function parseSseStream(
           toolName: event.toolName,
           result: event.result,
         });
+        return false;
+      case "context-usage":
+      case "token-usage":
+        callbacks.onContextUsage?.(event);
         return false;
       case "done":
         gotTerminal = true;
