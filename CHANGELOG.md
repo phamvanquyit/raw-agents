@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-07-24
+
+### Added
+- Token usage tracking for agent runs, with Usage page and per-chat context meter
+- Lazy tool schemas via `get_tool_schema` — bind full parameter schemas only after the model loads them
+
+### Changed
+- Agent chat loads the full conversation transcript (window truncation removed; compaction can come later)
+
+### Fixed
+- Lazy-loaded tools stay available across turns by hydrating schemas from conversation history
+- Broader parsing of reasoning/thinking SSE content shapes so streaming UI does not drop thinking
+
+### Upgrade notes
+- SQLite migration `0034_token_usage.sql` runs automatically on startup
+- Rebuild/re-pull the Docker image for the UI and server changes
+
 ## [0.11.0] - 2026-07-23
 
 ### Added
@@ -135,6 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.12.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.8.2...v0.9.0
