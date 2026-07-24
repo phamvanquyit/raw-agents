@@ -3,7 +3,7 @@ import { agentMessages, getDb } from "../../../../common/db/client.js";
 import type { MessageParam } from "./agentRunner.js";
 
 /**
- * Load conversation history including tool calls and tool results.
+ * Load full conversation history including tool calls and tool results.
  *
  * Reconstructs the message sequence that LangGraph expects:
  *   - user → HumanMessage
@@ -11,10 +11,11 @@ import type { MessageParam } from "./agentRunner.js";
  *   - tool result → ToolMessage with tool_call_id
  *   - assistant (final answer) → AIMessage (plain text)
  *
- * Keeps the last ~40 raw rows to allow a reasonable window of context.
+ * Returns the full transcript. Compaction/summarization can be added later
+ * when context pressure needs it.
  */
 export function loadHistory(conversationId: string): MessageParam[] {
-  const rows = getDb().select().from(agentMessages).where(eq(agentMessages.conversationId, conversationId)).orderBy(sql`rowid`).all().slice(-40);
+  const rows = getDb().select().from(agentMessages).where(eq(agentMessages.conversationId, conversationId)).orderBy(sql`rowid`).all();
 
   const result: MessageParam[] = [];
 
