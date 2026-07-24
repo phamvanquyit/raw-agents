@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 type AppLogoProps = {
   fill?: string;
   size?: number;
@@ -5,38 +7,45 @@ type AppLogoProps = {
   className?: string;
 };
 
-/**
- * Raw Agents mark — robot agent head.
- * Uses currentColor by default so it follows theme foreground/primary.
- */
-export function AppLogo({ fill = "currentColor", size = 40, strokeWidth = 1.5, className }: AppLogoProps) {
-  const sw = Math.max(1.2, Math.min(strokeWidth * (size < 28 ? 1.1 : 1), size / 12));
+const MAIN_PATH = "M176 176H610C661 176 699 196 729 238L806 349L654 575L824 832H663L518 579L666 354L614 282C605 270 593 264 574 264H258L176 176Z";
+const ACCENT_PATH = "M224 370H536L452 500H344V553L562 832H416L224 574V370Z";
+
+export function AppLogo({ size = 40, className }: AppLogoProps) {
+  const uid = useId().replace(/:/g, "");
+  const bevel = `logo-bevel-${uid}`;
+  const shadow = `logo-shadow-${uid}`;
 
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
+      viewBox="0 0 1024 1024"
       width={size}
       height={size}
-      fill="none"
+      role="img"
+      aria-labelledby={`app-logo-title-${uid}`}
       className={className}
-      style={fill === "currentColor" ? undefined : { color: fill }}
-      color={fill === "currentColor" ? undefined : fill}
     >
-      <title>Raw Agents</title>
-
-      <path d="M12 2.6v2.4" stroke={fill} strokeWidth={sw} strokeLinecap="round" />
-      <circle cx="12" cy="2.3" r="1.15" fill={fill} />
-
-      <rect x="4" y="6" width="16" height="14.2" rx="4.5" stroke={fill} strokeWidth={sw} />
-
-      <rect x="1.7" y="10.9" width="2.15" height="4" rx="1.05" fill={fill} opacity={0.65} />
-      <rect x="20.15" y="10.9" width="2.15" height="4" rx="1.05" fill={fill} opacity={0.65} />
-
-      <circle cx="9" cy="12.1" r="1.55" fill={fill} />
-      <circle cx="15" cy="12.1" r="1.55" fill={fill} />
-
-      <path d="M9 16c.85 1.1 1.95 1.6 3 1.6s2.15-.5 3-1.6" stroke={fill} strokeWidth={sw} strokeLinecap="round" />
+      <title id={`app-logo-title-${uid}`}>Raw Agents</title>
+      <defs>
+        <filter id={bevel} x="-5%" y="-5%" width="110%" height="110%" colorInterpolationFilters="sRGB">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="1.6" result="height" />
+          <feSpecularLighting in="height" surfaceScale="3.8" specularConstant="0.65" specularExponent="32" lightingColor="#ffffff" result="spec">
+            <feDistantLight azimuth="315" elevation="55" />
+          </feSpecularLighting>
+          <feComposite in="spec" in2="SourceAlpha" operator="in" result="specClip" />
+          <feComposite in="SourceGraphic" in2="specClip" operator="arithmetic" k1="0" k2="1" k3="0.4" k4="0" result="lit" />
+          <feComposite in="lit" in2="SourceAlpha" operator="in" />
+        </filter>
+        <filter id={shadow} x="-18%" y="-12%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+          <feDropShadow dx="14" dy="20" stdDeviation="16" floodColor="#000000" floodOpacity="0.18" />
+        </filter>
+      </defs>
+      <g filter={`url(#${shadow})`}>
+        <g filter={`url(#${bevel})`}>
+          <path fill="#DD7627" d={MAIN_PATH} />
+          <path fill="#FFA333" d={ACCENT_PATH} />
+        </g>
+      </g>
     </svg>
   );
 }
