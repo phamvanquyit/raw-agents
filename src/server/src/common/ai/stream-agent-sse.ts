@@ -113,20 +113,27 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
                   data: JSON.stringify({ type: "thinking-delta", text: block.thinking }),
                 });
               }
-              // OpenAI Responses API: {type:"reasoning", summary:[{type:"summary_text",text:"..."}]}
+              // Reasoning: LangChain standard `{reasoning}` / Responses `{summary}` / flat `{text}`
               else if (block.type === "reasoning") {
-                const summaries = block.summary ?? block.content ?? [];
-                if (Array.isArray(summaries)) {
-                  for (const s of summaries) {
-                    if (s.text) {
-                      await stream.writeSSE({
-                        data: JSON.stringify({ type: "thinking-delta", text: s.text }),
-                      });
+                const reasoningBits: string[] = [];
+                if (typeof block.reasoning === "string" && block.reasoning) {
+                  reasoningBits.push(block.reasoning);
+                } else {
+                  const summaries = block.summary ?? block.content ?? [];
+                  if (Array.isArray(summaries)) {
+                    for (const s of summaries) {
+                      if (s.text) reasoningBits.push(s.text);
+                      else if (typeof s.reasoning === "string" && s.reasoning) reasoningBits.push(s.reasoning);
                     }
+                  } else if (typeof block.text === "string" && block.text) {
+                    reasoningBits.push(block.text);
+                  } else if (typeof summaries === "string" && summaries) {
+                    reasoningBits.push(summaries);
                   }
-                } else if (typeof block.text === "string" && block.text) {
+                }
+                for (const text of reasoningBits) {
                   await stream.writeSSE({
-                    data: JSON.stringify({ type: "thinking-delta", text: block.text }),
+                    data: JSON.stringify({ type: "thinking-delta", text }),
                   });
                 }
               }
