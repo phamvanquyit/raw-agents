@@ -9,6 +9,16 @@ import App from "./App";
 
 initTheme();
 
+// Static Modal.confirm / message / notification render outside the React tree —
+// wrap their holders so they inherit the dark theme.
+ConfigProvider.config({
+  holderRender: (children) => (
+    <ConfigProvider theme={antdTheme} modal={antdModalConfig}>
+      {children}
+    </ConfigProvider>
+  ),
+});
+
 const rootEl = document.getElementById("root");
 if (!rootEl) {
   throw new Error("Root element not found");

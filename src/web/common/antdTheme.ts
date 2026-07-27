@@ -18,6 +18,7 @@ export const antdTheme: ThemeConfig = {
     colorPrimaryHover: "#ffa333",
     colorError: "#ef4444",
     colorSuccess: "#0ac864",
+    green: "#0ac864",
     colorWarning: "#f1b467",
     colorInfo: "#599ce7",
     colorBorder: "rgba(102, 102, 102, 0.2)",
@@ -52,10 +53,13 @@ export const antdTheme: ThemeConfig = {
       footerBg: "#161616",
       titleFontSize: 15,
       contentPadding: 0,
+      // Form modals: section paddings. Confirm: its own body padding (not contentPadding).
+      bodyPadding: "20px 16px",
+      confirmBodyPadding: "24px 24px 20px",
+      confirmBtnsMarginTop: 20,
       headerPadding: "12px 16px",
       headerBorderBottom: "1px solid rgba(102, 102, 102, 0.2)",
       headerMarginBottom: 0,
-      bodyPadding: "20px 16px",
       footerPadding: "12px 16px",
       footerBorderTop: "1px solid rgba(102, 102, 102, 0.2)",
       footerMarginTop: 0,
@@ -95,15 +99,15 @@ export const antdModalConfig: Pick<ModalProps, "mask" | "styles"> = {
       boxShadow: "0 16px 48px rgba(0, 0, 0, 0.55)",
     },
     header: {
+      // Do not set `display` — Modal.confirm hides the header via CSS; inline
+      // display would show a duplicate title.
       padding: "12px 16px",
       margin: 0,
       minHeight: 44,
-      display: "flex",
-      alignItems: "center",
     },
-    body: {
-      padding: "20px 16px",
-    },
+    // Do not set body padding here — ConfigProvider maps `styles.body` onto
+    // Modal.confirm's inner content node and throws the layout off-balance.
+    // Form modal body padding comes from the Modal `bodyPadding` token instead.
     footer: {
       padding: "12px 16px",
       margin: 0,
