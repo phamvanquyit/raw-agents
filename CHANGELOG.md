@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-07-27
+
+### Added
+- Sites — draft/publish JSX sites with AI editor, SSR preview, thumbnails, and optional public password
+- Public site pages at `/public/sites/:slug` with password / access-token verification
+- Refresh tokens for silent session renewal (login/setup return `refreshToken`; `/api/auth/refresh`)
+- Live `context-usage` SSE estimates on prompt/coding (and related) agent streams
+
+### Changed
+- Access JWT lifetime shortened to 1 hour; clients renew via refresh token
+- Sidebar “Storage” renamed to “Resources” and includes Sites
+
+### Fixed
+- Modal.confirm theme/padding when rendered outside the React tree
+
+### Upgrade notes
+- SQLite migrations `0035_sites.sql`, `0036_sites_public_password.sql`, and `0037_refresh_tokens.sql` run automatically on startup
+- Web UI stores and rotates refresh tokens; API clients that only keep the access JWT must call `/api/auth/refresh` or re-login after ~1h
+- Rebuild/re-pull the Docker image for the UI and server changes
+
 ## [0.12.0] - 2026-07-24
 
 ### Added
@@ -152,6 +172,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.13.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.12.1...v0.13.0
 [0.12.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.9.0...v0.10.0

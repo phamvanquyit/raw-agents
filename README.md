@@ -16,6 +16,7 @@ Self-hosted AI Agent Manager with a beautiful web UI. Create, manage and schedul
 - 🗄️ **KV Store** — Key-value storage accessible from Python tools via `import rawagents` (`rawagents.kv`)
 - 🔐 **Secrets Management** — Encrypted secret storage with AES-256-GCM (`rawagents.secrets`)
 - 📊 **Datatables** — Workspace tables (projects → tables → rows) in the UI and via `rawagents.datatable`
+- 📄 **Sites** — AI-assisted JSX sites with draft/publish, SSR preview, and optional public password links
 - 📈 **Usage** — Token usage history, summaries, and a per-chat context meter (system / tools / conversation)
 - ⏰ **Scheduled Tasks** — Cron-based task scheduling for automated agent runs
 - 💬 **Real-time Chat** — Live streaming chat with agents; refresh (F5) resumes an in-progress reply
