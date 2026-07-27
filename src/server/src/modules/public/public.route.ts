@@ -3,6 +3,7 @@ import { streamSSE } from "hono/streaming";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { streamChatSSE } from "../agents/raw-agent/raw-agent.service.js";
 import { relayRunToSSE, runRegistry } from "../agents/raw-agent/utils/run-registry.js";
+import { renderPublicSite, runPublicAction, verifySitePublicAccessToken, verifySitePublicPassword } from "../sites/sites.service.js";
 import {
   createPublicConversation,
   deletePublicConversation,
@@ -13,6 +14,20 @@ import {
   verifyPublicPassword,
   verifyPublicToken,
 } from "./public.service.js";
+
+function siteAccessFromRequest(
+  c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined } },
+  body?: { password?: string; token?: string },
+) {
+  const auth = c.req.header("authorization");
+  const bearer = auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : undefined;
+  const headerToken = c.req.header("x-site-access-token")?.trim();
+  const queryToken = c.req.query("token")?.trim();
+  return {
+    password: body?.password,
+    token: body?.token || bearer || headerToken || queryToken || undefined,
+  };
+}
 
 const app = new Hono();
 
@@ -116,6 +131,32 @@ app.get("/agents/:id/conversations/:convId/stream", async (c) => {
   return streamSSE(c, async (stream) => {
     await relayRunToSSE(convId, stream);
   });
+});
+
+// ─── Public Sites ────────────────────────────────────────────────────────────
+
+app.get("/sites/:slug", async (c) => {
+  const access = siteAccessFromRequest(c);
+  const result = await renderPublicSite(c.req.param("slug"), c.req.raw, access);
+  return c.json(result);
+});
+
+app.post("/sites/:slug/verify", async (c) => {
+  const body = await c.req.json<{ password?: string }>().catch(() => ({}) as { password?: string });
+  const result = await verifySitePublicPassword(c.req.param("slug"), body.password);
+  return c.json(result);
+});
+
+app.post("/sites/:slug/verify-token", async (c) => {
+  const body = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string });
+  const result = await verifySitePublicAccessToken(c.req.param("slug"), body.token);
+  return c.json(result);
+});
+
+app.post("/sites/:slug/action", async (c) => {
+  const access = siteAccessFromRequest(c);
+  const result = await runPublicAction(c.req.param("slug"), c.req.raw, access);
+  return c.json(result);
 });
 
 export default app;

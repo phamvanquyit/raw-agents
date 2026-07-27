@@ -24,6 +24,7 @@ import toolsRoute from "./modules/tools/tools.route.js";
 import usageRoute from "./modules/usage/usage.route.js";
 
 import publicRoute from "./modules/public/public.route.js";
+import sitesRoute from "./modules/sites/sites.route.js";
 
 import authRoute from "./modules/auth/auth.route.js";
 import usersRoute from "./modules/users/users.route.js";
@@ -68,6 +69,7 @@ export function createApp(): Hono {
   app.route("/api/mcp-servers", mcpServersRoute);
   app.route("/api/kvstore", kvstoreRoute);
   app.route("/api/datatables", datatablesRoute);
+  app.route("/api/sites", sitesRoute);
   app.route("/api/secrets", secretsRoute);
   app.route("/api/settings", settingsRoute);
   app.route("/api/teams", teamsRoute);

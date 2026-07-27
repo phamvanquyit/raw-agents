@@ -209,14 +209,14 @@ export function getTableByNames(projectName: string, tableName: string): { proje
 
 /** Resolve project by id first, then by name (LLM may pass either after list_projects). */
 export function resolveProject(ref: string): DatatableProject | null {
-  const key = ref.trim();
+  const key = String(ref ?? "").trim();
   if (!key) return null;
   return getProject(key) ?? getProjectByName(key);
 }
 
 /** Resolve table within a project by table id first, then by name. */
 export function resolveTableInProject(project: DatatableProject, tableRef: string): DatatableTable | null {
-  const key = tableRef.trim();
+  const key = String(tableRef ?? "").trim();
   if (!key) return null;
   const byId = getTable(key);
   if (byId && byId.projectId === project.id) return byId;
