@@ -25,9 +25,12 @@ const KvStorePage = lazy(() => import("./modules/kvstore/KvStorePage"));
 const SecretsPage = lazy(() => import("./modules/secrets/SecretsPage"));
 const DatatablesPage = lazy(() => import("./modules/datatables/DatatablesPage"));
 const DatatableProjectPage = lazy(() => import("./modules/datatables/DatatableProjectPage"));
+const SitesPage = lazy(() => import("./modules/sites/SitesPage"));
+const SiteEditorPage = lazy(() => import("./modules/sites/[id]/SiteEditorPage"));
+const PublicSitePage = lazy(() => import("./modules/sites/public/PublicSitePage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
-const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
+const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup", "/public"];
 
 // ── Auth guard ──────────────────────────────────────────────────────────────
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -97,6 +100,7 @@ function AppContent() {
           <Suspense fallback={null}>
             <Routes>
               <Route path="/chat/:id" element={<PublicChatPage />} />
+              <Route path="/public/sites/:slug" element={<PublicSitePage />} />
             </Routes>
           </Suspense>
         </div>
@@ -111,6 +115,7 @@ function AppContent() {
         <Routes>
           {/* Full-page routes (no sidebar) */}
           <Route path="/tools/:id" element={<EditToolPage />} />
+          <Route path="/sites/:id" element={<SiteEditorPage />} />
           <Route path="/agents/:id/*" element={<AgentDetailPage />} />
 
           {/* Sidebar pages — wrapped in AppLayout */}
@@ -118,6 +123,7 @@ function AppContent() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
+            <Route path="/sites" element={<SitesPage />} />
             <Route path="/mcp-servers" element={<McpServersPage />} />
             <Route path="/mcp-servers/edit" element={<McpServersEditPage />} />
             <Route path="/teams" element={<Navigate to="/agents" replace />} />

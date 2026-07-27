@@ -325,3 +325,30 @@ export interface DatatableRow {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// ─── Sites ────────────────────────────────────────────────────────────────────
+
+export type SiteSourceFile = "loader.js" | "route.jsx" | "action.js" | "package.json";
+
+export interface Site {
+  id: string;
+  name: string;
+  slug: string;
+  isPublished: boolean;
+  hasPublicPassword?: boolean;
+  depsStatus: string;
+  depsError: string | null;
+  draftDepsStatus: string;
+  draftDepsError: string | null;
+  draftUpdatedAt: Date | null;
+  draftDirty?: boolean;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SiteFilesResponse {
+  tree: "draft" | "prod";
+  files: Record<SiteSourceFile, string>;
+  draftDirty: boolean;
+}
