@@ -36,7 +36,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ active: false, startX: 0, startW: 0 });
 
-  const { messages, generating, send, cancel } = useAssistantStreaming({
+  const { messages, generating, contextUsage, send, cancel } = useAssistantStreaming({
     streamUrl,
     maxSteps: 12,
     onToolAction,
@@ -96,11 +96,11 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
           generating={generating}
           assistantLabel="AI Assistant"
           emptyStateContent={
-            <div className="flex flex-col items-center gap-4 max-w-64 w-full">
-              <p className="text-sm text-muted-foreground leading-relaxed text-center m-0">
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-6 w-full">
+              <p className="text-sm text-muted-foreground leading-relaxed text-center m-0 max-w-64">
                 Ask for a rewrite, fix, or new capability. Changes land as a draft you can accept.
               </p>
-              <div className="flex flex-col gap-1.5 w-full">
+              <div className="flex flex-col gap-1.5 w-full max-w-64">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
@@ -134,6 +134,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
           onProviderChange={onChangeAiProvider}
           onModelChange={onChangeModel}
           enableTypeToFocus={false}
+          contextUsage={contextUsage}
         />
       </div>
     </div>

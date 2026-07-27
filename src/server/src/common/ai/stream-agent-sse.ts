@@ -10,7 +10,9 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
+import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
+import { type MessageLike, estimateContextUsage } from "../../modules/usage/estimate-context-usage.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,11 @@ export interface StreamAgentSSEOptions {
   stream: SSEStreamingApi;
   /** Optional AbortSignal — when fired, the agent run is cancelled. */
   abortSignal?: AbortSignal;
+  /** When set, emit a `context-usage` estimate before streaming. */
+  contextEstimate?: {
+    systemPrompt: string;
+    tools: StructuredToolInterface[];
+  };
 }
 
 const SSE_HEARTBEAT_MS = 15_000;
@@ -39,11 +46,40 @@ const SSE_HEARTBEAT_MS = 15_000;
  *   - `{ type: "thinking-delta", text }          ` — AI thinking / reasoning token
  *   - `{ type: "tool-call",      toolCallId, toolName, input }`
  *   - `{ type: "tool-result",    toolCallId, toolName, result }`
+ *   - `{ type: "context-usage", … }` — optional token estimate
  *   - `{ type: "done" }`
  *   - `{ type: "error",          error }`
  *   - `{ type: "ping" }` — keep-alive (clients ignore)
  */
-export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, abortSignal }: StreamAgentSSEOptions): Promise<void> {
+
+function baseMessagesToMessageLikes(msgs: BaseMessage[]): MessageLike[] {
+  return msgs.map((m) => {
+    const type =
+      typeof (m as { _getType?: () => string })._getType === "function" ? (m as { _getType: () => string })._getType() : ((m as { type?: string }).type ?? "");
+    const role =
+      type === "human" || type === "HumanMessage"
+        ? "user"
+        : type === "ai" || type === "AIMessage" || type === "AIMessageChunk"
+          ? "assistant"
+          : type === "system" || type === "SystemMessage"
+            ? "system"
+            : type === "tool" || type === "ToolMessage"
+              ? "tool"
+              : "unknown";
+    const content = typeof m.content === "string" ? m.content : m.content != null ? JSON.stringify(m.content) : "";
+    const like: MessageLike = { role, content };
+    const toolCalls = (m as { tool_calls?: unknown }).tool_calls;
+    if (Array.isArray(toolCalls) && toolCalls.length) like.toolCalls = toolCalls;
+    if (role === "tool") {
+      like.toolCallId = (m as { tool_call_id?: string }).tool_call_id;
+      like.toolName = (m as { name?: string }).name;
+      like.result = m.content;
+    }
+    return like;
+  });
+}
+
+export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, abortSignal, contextEstimate }: StreamAgentSSEOptions): Promise<void> {
   let heartbeat: ReturnType<typeof setInterval> | null = setInterval(() => {
     stream.writeSSE({ data: JSON.stringify({ type: "ping" }) }).catch(() => {
       /* client gone */
@@ -57,11 +93,42 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
     }
   };
 
+  /** Grows as the ReAct loop adds AI / tool messages (for live context estimates). */
+  const estimateMessages: BaseMessage[] = [...messages];
+  const seenEstimateMsgIds = new Set<string>();
+  for (const m of estimateMessages) {
+    const id = (m as { id?: string }).id;
+    if (id) seenEstimateMsgIds.add(id);
+  }
+
+  const emitContextUsage = async () => {
+    if (!contextEstimate) return;
+    const estimate = estimateContextUsage({
+      systemPrompt: contextEstimate.systemPrompt,
+      tools: contextEstimate.tools,
+      messages: baseMessagesToMessageLikes(estimateMessages),
+    });
+    await stream.writeSSE({ data: JSON.stringify({ type: "context-usage", ...estimate }) });
+  };
+
+  const appendEstimateMessages = (msgs: BaseMessage[]) => {
+    for (const m of msgs) {
+      const id = (m as { id?: string }).id;
+      if (id) {
+        if (seenEstimateMsgIds.has(id)) continue;
+        seenEstimateMsgIds.add(id);
+      }
+      estimateMessages.push(m);
+    }
+  };
+
   try {
     if (abortSignal?.aborted) {
       await stream.writeSSE({ data: JSON.stringify({ type: "error", error: "cancelled" }) });
       return;
     }
+
+    await emitContextUsage();
 
     const agentStream = await agent.stream(
       { messages },
@@ -189,7 +256,11 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
         for (const [, state] of Object.entries(data as Record<string, any>)) {
           if (!state?.messages) continue;
 
-          for (const msg of state.messages as any[]) {
+          const batch = state.messages as BaseMessage[];
+          appendEstimateMessages(batch);
+          let emittedToolResult = false;
+
+          for (const msg of batch as any[]) {
             // Agent node: full tool_calls → first paint or upsert full args
             if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
               for (const tc of msg.tool_calls) {
@@ -230,7 +301,13 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
                   result,
                 }),
               });
+              emittedToolResult = true;
             }
+          }
+
+          // Refresh estimate after tools (and after agent turns that append AI messages)
+          if (emittedToolResult || batch.length > 0) {
+            await emitContextUsage();
           }
         }
       }
@@ -241,6 +318,7 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
       return;
     }
 
+    await emitContextUsage();
     await stream.writeSSE({ data: JSON.stringify({ type: "done" }) });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -259,6 +337,7 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
     const isRecursionLimit = (err as any)?.constructor?.name === "GraphRecursionError" || msg.includes("Recursion limit");
 
     if (isRecursionLimit) {
+      await emitContextUsage();
       // Treat recursion limit as a graceful stop, not an error
       await stream.writeSSE({
         data: JSON.stringify({

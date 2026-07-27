@@ -9,6 +9,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { authorizedFetch } from "src/common/api";
+import type { ContextUsagePayload } from "src/components/chat/common/sse";
 import { parseSseStream } from "src/components/chat/common/sse";
 import type { ChatAgentMessage } from "src/components/chat/common/types";
 import { formatToolName, nextId } from "src/components/chat/common/utils";
@@ -24,32 +26,60 @@ export interface UseAssistantStreamingOptions {
 }
 
 const OMITTED_GENERATE_CODE = "[omitted — see <current_code> for the latest draft]";
+const OMITTED_WRITE_CONTENT = "[omitted — see <current_draft> / latest write_site_file for this file]";
+const OMITTED_WRITE_OUTPUT = "[omitted — see latest write_site_file tool result for current_draft]";
 
-/** Keep full generate_code payload only for the latest call; redact older drafts. */
-function compactGenerateCodeInput(messages: ChatAgentMessage[]): ChatAgentMessage[] {
+/** Keep full generate_code / write_site_file payloads only for the latest call; redact older drafts. */
+function compactLargeToolInputs(messages: ChatAgentMessage[]): ChatAgentMessage[] {
   let lastGenerateIdx = -1;
+  /** Latest write_site_file index per file name */
+  const lastWriteByFile = new Map<string, number>();
+  let lastWriteIdx = -1;
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
-    if (m.role === "tool-call" && m.toolName === "generate_code") {
-      lastGenerateIdx = i;
+    if (m.role !== "tool-call") continue;
+    if (m.toolName === "generate_code") lastGenerateIdx = i;
+    if (m.toolName === "write_site_file") {
+      lastWriteIdx = i;
+      const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
+      const file = typeof input.file === "string" ? input.file : "";
+      if (file) lastWriteByFile.set(file, i);
     }
   }
-  if (lastGenerateIdx < 0) return messages;
 
   return messages.map((m, i) => {
-    if (m.role !== "tool-call" || m.toolName !== "generate_code" || i >= lastGenerateIdx) {
-      return m;
-    }
+    if (m.role !== "tool-call") return m;
     const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
-    if (!("code" in input)) return m;
-    const { code: _code, ...rest } = input;
-    return {
-      ...m,
-      toolInput: {
-        ...rest,
-        code: OMITTED_GENERATE_CODE,
-      },
-    };
+
+    if (m.toolName === "generate_code" && i < lastGenerateIdx && "code" in input) {
+      const { code: _code, ...rest } = input;
+      return { ...m, toolInput: { ...rest, code: OMITTED_GENERATE_CODE } };
+    }
+
+    if (m.toolName === "write_site_file") {
+      const file = typeof input.file === "string" ? input.file : "";
+      const isLatestForFile = file ? lastWriteByFile.get(file) === i : i === lastWriteIdx;
+      let next = m;
+      if (!isLatestForFile && "content" in input) {
+        const { content: _content, ...rest } = input;
+        next = { ...next, toolInput: { ...rest, content: OMITTED_WRITE_CONTENT } };
+      }
+      // Keep only the newest write's current_draft blob in history
+      if (i < lastWriteIdx && typeof next.toolOutput === "string" && next.toolOutput.includes("current_draft")) {
+        try {
+          const parsed = JSON.parse(next.toolOutput) as Record<string, unknown>;
+          if ("current_draft" in parsed) {
+            const { current_draft: _draft, ...rest } = parsed;
+            next = { ...next, toolOutput: JSON.stringify({ ...rest, current_draft: OMITTED_WRITE_OUTPUT }) };
+          }
+        } catch {
+          /* keep raw */
+        }
+      }
+      return next;
+    }
+
+    return m;
   });
 }
 
@@ -59,7 +89,7 @@ function buildAiHistory(messages: ChatAgentMessage[]) {
     .filter((m) => m.role === "tool-call" || m.content.trim() !== "")
     .slice(-20);
 
-  return compactGenerateCodeInput(history).map((m) => {
+  return compactLargeToolInputs(history).map((m) => {
     if (m.role === "tool-call") {
       return {
         role: "tool-call" as const,
@@ -105,6 +135,7 @@ function thinkingDurationSec(startedAt: number): number {
 export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }: UseAssistantStreamingOptions) {
   const [messages, setMessages] = useState<ChatAgentMessage[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [contextUsage, setContextUsage] = useState<ContextUsagePayload | null>(null);
   const thinkingRef = useRef("");
   const thinkingStartRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -227,9 +258,8 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
       };
 
       try {
-        const response = await fetch(streamUrl, {
+        const response = await authorizedFetch(streamUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             providerId,
             modelId: model,
@@ -298,7 +328,7 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
               if (event.toolCallId) seenToolCallIds.add(event.toolCallId);
 
               if (alreadySeen) {
-                // Full-args upsert of an already-painted bubble (no second onToolAction)
+                // Full-args upsert of an already-painted bubble
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.role === "tool-call" && m.toolCallId === event.toolCallId
@@ -312,6 +342,9 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
                       : m,
                   ),
                 );
+                if (event.input !== undefined) {
+                  onToolActionRef.current?.({ type: "tool-call", toolName: event.toolName, toolLabel: tLabel, input: event.input });
+                }
                 return;
               }
 
@@ -345,6 +378,9 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
                 return prev.map((m, i) => (i === matchIdx ? { ...m, toolOutput: resultStr } : m));
               });
               onToolActionRef.current?.({ type: "tool-result", toolName: event.toolName, output: rawOutput });
+            },
+            onContextUsage: (usage) => {
+              setContextUsage(usage);
             },
             onDone: () => {
               setMessages(finalizeStreamingMessages);
@@ -413,5 +449,5 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
     [generating, messages, streamUrl, maxSteps],
   );
 
-  return { messages, generating, send, cancel };
+  return { messages, generating, contextUsage, send, cancel };
 }

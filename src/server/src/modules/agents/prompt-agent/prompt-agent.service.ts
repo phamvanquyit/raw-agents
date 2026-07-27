@@ -8,7 +8,7 @@
  *   - generate_prompt saves directly to DB and emits agents:updated via WS
  */
 
-import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
@@ -132,11 +132,98 @@ Editor is empty — write a new system prompt based on user requirements.
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface ToolCallMessage {
+  role: "tool-call";
+  content: string;
+  toolCallId?: string;
+  toolName?: string;
+  toolInput?: unknown;
+  toolOutput?: string;
+}
+
+interface TextMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
 export interface PromptStreamRequest {
   providerId: string;
   modelId: string;
-  messages: { role: string; content: string }[];
+  messages: (TextMessage | ToolCallMessage)[];
   maxSteps?: number;
+}
+
+function buildLangChainMessages(messages: PromptStreamRequest["messages"]): BaseMessage[] {
+  const result: BaseMessage[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    if (msg.role === "user") {
+      result.push(new HumanMessage(msg.content));
+      continue;
+    }
+
+    if (msg.role === "system") {
+      result.push(new SystemMessage(msg.content));
+      continue;
+    }
+
+    if (msg.role === "assistant") {
+      const toolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+      let j = i + 1;
+      while (j < messages.length && messages[j].role === "tool-call") {
+        const tc = messages[j] as ToolCallMessage;
+        toolCalls.push({
+          id: tc.toolCallId || `tc-${j}`,
+          name: tc.toolName || "unknown",
+          args: (tc.toolInput as Record<string, unknown>) ?? {},
+        });
+        j++;
+      }
+
+      if (toolCalls.length > 0) {
+        result.push(new AIMessage({ content: msg.content, tool_calls: toolCalls }));
+        for (let k = i + 1; k < j; k++) {
+          const tc = messages[k] as ToolCallMessage;
+          if (tc.toolOutput != null) {
+            result.push(
+              new ToolMessage({
+                content: tc.toolOutput,
+                tool_call_id: tc.toolCallId || `tc-${k}`,
+              }),
+            );
+          }
+        }
+        i = j - 1;
+      } else {
+        result.push(new AIMessage(msg.content));
+      }
+      continue;
+    }
+
+    if (msg.role === "tool-call") {
+      const tc = msg as ToolCallMessage;
+      const toolCallId = tc.toolCallId || `tc-${i}`;
+      result.push(
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              id: toolCallId,
+              name: tc.toolName || "unknown",
+              args: (tc.toolInput as Record<string, unknown>) ?? {},
+            },
+          ],
+        }),
+      );
+      if (tc.toolOutput != null) {
+        result.push(new ToolMessage({ content: tc.toolOutput, tool_call_id: toolCallId }));
+      }
+    }
+  }
+
+  return result;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -189,14 +276,16 @@ export async function streamPromptAgent(agentId: string, body: PromptStreamReque
     systemPrompt: aiSystemPrompt,
   });
 
-  // 5. Build messages
-  const baseMessages: BaseMessage[] = [];
-  for (const msg of messages) {
-    if (msg.role === "user") baseMessages.push(new HumanMessage(msg.content));
-    else if (msg.role === "assistant") baseMessages.push(new AIMessage(msg.content));
-    else if (msg.role === "system") baseMessages.push(new SystemMessage(msg.content));
-  }
+  // 5. Build messages (include tool-call history for multi-turn)
+  const baseMessages = buildLangChainMessages(messages);
 
   // 6. Stream via shared helper
-  await streamAgentSSE({ agent, messages: baseMessages, maxSteps, stream, abortSignal });
+  await streamAgentSSE({
+    agent,
+    messages: baseMessages,
+    maxSteps,
+    stream,
+    abortSignal,
+    contextEstimate: { systemPrompt: aiSystemPrompt, tools },
+  });
 }

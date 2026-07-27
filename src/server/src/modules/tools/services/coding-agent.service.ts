@@ -208,15 +208,23 @@ export async function streamCodingAgent(toolId: string, body: CodingStreamReques
   // 3. Create agent — system prompt includes current tool metadata + draftCode from DB
   const currentCode = getDraftCode(toolId);
   const toolRow = getTool(toolId);
+  const systemPrompt = buildCodingSystemPrompt(currentCode, toolRow);
   const agent = createAgent({
     model,
     tools,
-    systemPrompt: buildCodingSystemPrompt(currentCode, toolRow),
+    systemPrompt,
   });
 
   // 4. Build messages — reconstruct proper LangChain messages from enriched history
   const baseMessages = buildLangChainMessages(messages);
 
   // 5. Stream via shared helper
-  await streamAgentSSE({ agent, messages: baseMessages, maxSteps, stream, abortSignal });
+  await streamAgentSSE({
+    agent,
+    messages: baseMessages,
+    maxSteps,
+    stream,
+    abortSignal,
+    contextEstimate: { systemPrompt, tools },
+  });
 }
