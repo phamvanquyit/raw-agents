@@ -293,6 +293,22 @@ export const users = sqliteTable("users", {
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
+// ─── Refresh Tokens ───────────────────────────────────────────────────────────
+
+export const refreshTokens = sqliteTable("refresh_tokens", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  revokedAt: integer("revoked_at", { mode: "timestamp" }),
+});
+
+export type RefreshToken = typeof refreshTokens.$inferSelect;
+export type NewRefreshToken = typeof refreshTokens.$inferInsert;
+
 // ─── KV Store ─────────────────────────────────────────────────────────────────
 
 export const kvStore = sqliteTable("kv_store", {
@@ -417,3 +433,26 @@ export const tokenUsage = sqliteTable("token_usage", {
 
 export type TokenUsage = typeof tokenUsage.$inferSelect;
 export type NewTokenUsage = typeof tokenUsage.$inferInsert;
+
+// ─── Sites ────────────────────────────────────────────────────────────────────
+
+export const sites = sqliteTable("sites", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(false),
+  publicPassword: text("public_password"),
+  depsStatus: text("deps_status").notNull().default("ready"),
+  depsError: text("deps_error"),
+  draftDepsStatus: text("draft_deps_status").notNull().default("ready"),
+  draftDepsError: text("draft_deps_error"),
+  draftUpdatedAt: integer("draft_updated_at", { mode: "timestamp" }),
+  createdBy: text("created_by"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type Site = typeof sites.$inferSelect;
+export type NewSite = typeof sites.$inferInsert;
