@@ -53,8 +53,11 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const result = await apiClient.post<{ token: string; user: User }>("/api/auth/login", { username, password });
-      setAuthToken(result.token);
+      const result = await apiClient.post<{ token: string; refreshToken: string; user: User }>("/api/auth/login", {
+        username,
+        password,
+      });
+      setAuthToken(result.token, result.refreshToken);
       message.success(`Welcome back, ${result.user.name || result.user.username}!`);
       navigate("/", { replace: true });
     } catch (err: any) {

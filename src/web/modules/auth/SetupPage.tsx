@@ -97,13 +97,13 @@ export default function SetupPage() {
 
     setLoading(true);
     try {
-      const result = await apiClient.post<{ token: string; user: User }>("/api/auth/setup", {
+      const result = await apiClient.post<{ token: string; refreshToken: string; user: User }>("/api/auth/setup", {
         username,
         name,
         password,
         timezone,
       });
-      setAuthToken(result.token);
+      setAuthToken(result.token, result.refreshToken);
       message.success(`Welcome, ${result.user.name}! Setup complete.`);
       navigate("/", { replace: true });
     } catch (err: any) {

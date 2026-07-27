@@ -2,6 +2,7 @@ import {
   AltArrowLeft,
   Database,
   FaceScanSquare,
+  Global,
   HomeAngle,
   KeyMinimalistic,
   LockPassword,
@@ -16,7 +17,7 @@ import { Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { clearAuthToken } from "src/common/api";
+import { apiClient, clearAuthToken, getRefreshToken } from "src/common/api";
 import type { User } from "src/common/types";
 import { AppLogo } from "src/components/AppLogo";
 import { UserAvatar } from "src/components/UserAvatar";
@@ -41,15 +42,16 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: "/mcp-servers", label: "MCP", icon: <PlugCircle {...ICON} /> },
 ];
 
-const STORAGE_NAV_ALL: NavItem[] = [
+const RESOURCES_NAV_ALL: NavItem[] = [
+  { to: "/sites", label: "Sites", icon: <Global {...ICON} /> },
   { to: "/datatables", label: "Datatables", icon: <Database {...ICON} /> },
   { to: "/kvstore", label: "KV Store", icon: <KeyMinimalistic {...ICON} /> },
 ];
 
-const STORAGE_NAV_ADMIN: NavItem[] = [{ to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} /> }];
+const RESOURCES_NAV_ADMIN: NavItem[] = [{ to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} /> }];
 
 function NavSectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 pb-2 pt-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">{children}</div>;
+  return <div className="px-3 pb-1.5 pt-4 text-[10px] font-medium tracking-wider text-muted-foreground/80 uppercase">{children}</div>;
 }
 
 function SketchDivider({ className }: { className?: string }) {
@@ -220,6 +222,8 @@ export function AppSidebar() {
   }, [isSettingsRoute]);
 
   const handleLogout = () => {
+    const refreshToken = getRefreshToken();
+    void apiClient.post("/api/auth/logout", { refreshToken }).catch(() => {});
     clearAuthToken();
     navigate("/login", { replace: true });
   };
@@ -259,12 +263,12 @@ export function AppSidebar() {
               ))}
             </div>
 
-            <NavSectionLabel>Storage</NavSectionLabel>
+            <NavSectionLabel>Resources</NavSectionLabel>
             <div className="flex flex-col gap-1">
-              {STORAGE_NAV_ALL.map((item) => (
+              {RESOURCES_NAV_ALL.map((item) => (
                 <SidebarNavLink key={item.to} item={item} />
               ))}
-              {isAdmin && STORAGE_NAV_ADMIN.map((item) => <SidebarNavLink key={item.to} item={item} />)}
+              {isAdmin && RESOURCES_NAV_ADMIN.map((item) => <SidebarNavLink key={item.to} item={item} />)}
             </div>
 
             {isAdmin && (

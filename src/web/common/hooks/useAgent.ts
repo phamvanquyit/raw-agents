@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import { getAuthToken } from "src/common/api";
+import { authorizedFetch } from "src/common/api";
 import type { Agent } from "src/common/types";
 import type { AgentSseCallbacks, ContextUsagePayload } from "src/components/chat/common/sse";
 import { parseSseStream } from "src/components/chat/common/sse";
@@ -93,17 +93,20 @@ async function streamAgentChat(
 
   let res: Response;
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (!options?.fingerprint) {
-      const authToken = getAuthToken();
-      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    if (options?.fingerprint) {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, password, token }),
+        signal: abortSignal,
+      });
+    } else {
+      res = await authorizedFetch(url, {
+        method: "POST",
+        body: JSON.stringify({ agentId, message, password, token }),
+        signal: abortSignal,
+      });
     }
-    res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(options?.fingerprint ? { message, password, token } : { agentId, message, password, token }),
-      signal: abortSignal,
-    });
   } catch (err) {
     if ((err as Error).name === "AbortError") return;
     onError((err as Error).message ?? "Network error");
@@ -127,12 +130,8 @@ async function streamAgentChat(
 async function stopAgentChat(agentId: string, conversationId: string): Promise<void> {
   const BASE_URL: string = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "";
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const token = getAuthToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-    await fetch(`${BASE_URL}/api/agents/${agentId}/chat/stop`, {
+    await authorizedFetch(`${BASE_URL}/api/agents/${agentId}/chat/stop`, {
       method: "POST",
-      headers,
       body: JSON.stringify({ conversationId }),
     });
   } catch {
@@ -181,13 +180,13 @@ export function connectChatSSE(conversationId: string, callbacks: ChatSSECallbac
   let closedByUs = false;
 
   const run = async () => {
-    const headers: Record<string, string> = { Accept: "text/event-stream" };
-    const token = getAuthToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-
     let res: Response;
     try {
-      res = await fetch(url, { method: "GET", headers, signal: abort.signal });
+      if (options?.fingerprint) {
+        res = await fetch(url, { method: "GET", headers: { Accept: "text/event-stream" }, signal: abort.signal });
+      } else {
+        res = await authorizedFetch(url, { method: "GET", headers: { Accept: "text/event-stream" }, signal: abort.signal });
+      }
     } catch (err) {
       if ((err as Error).name === "AbortError" || closedByUs || abort.signal.aborted) return;
       callbacks.onError("Connection lost");
