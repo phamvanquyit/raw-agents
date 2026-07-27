@@ -106,6 +106,14 @@ describe("Users API", () => {
   // ── Reset Password ────────────────────────────────────────────────────
 
   test("POST /api/users/:id/reset-password — reset with provided password", async () => {
+    const loginBefore = await app.request("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "member1", password: "member1pass" }),
+    });
+    expect(loginBefore.status).toBe(200);
+    const beforeSession = (await loginBefore.json()) as { refreshToken: string };
+
     const res = await authRequest(app, adminToken, "POST", `/api/users/${newUserId}/reset-password`, {
       password: "newpassword123",
     });
@@ -113,6 +121,13 @@ describe("Users API", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { password: string };
     expect(data.password).toBe("newpassword123");
+
+    const revokedRefresh = await app.request("/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: beforeSession.refreshToken }),
+    });
+    expect(revokedRefresh.status).toBe(401);
 
     // Verify the new password works by logging in
     const loginRes = await app.request("/api/auth/login", {

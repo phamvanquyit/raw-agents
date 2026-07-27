@@ -1,12 +1,12 @@
 /**
- * Auth routes — login, logout, me, change-password, setup.
- * Login, setup-status, and setup routes are PUBLIC (no auth middleware).
+ * Auth routes — login, logout, me, change-password, setup, refresh.
+ * Login, setup-status, setup, refresh, and logout routes are PUBLIC (no auth middleware).
  */
 
 import { Hono } from "hono";
 import type { User } from "../../common/db/client.js";
 import { UnauthorizedException } from "../../common/exceptions/http.exception.js";
-import { changePassword, checkSetupStatus, getCurrentUser, login, setupFirstAdmin, updateProfile } from "./auth.service.js";
+import { changePassword, checkSetupStatus, getCurrentUser, login, logout, refreshSession, setupFirstAdmin, updateProfile } from "./auth.service.js";
 
 const app = new Hono();
 
@@ -34,9 +34,17 @@ app.post("/login", async (c) => {
   return c.json(result);
 });
 
-// POST /api/auth/logout
-app.post("/logout", (c) => {
-  // Stateless JWT — client clears token. Server-side just acknowledges.
+// POST /api/auth/refresh — PUBLIC, exchange refresh token for new pair
+app.post("/refresh", async (c) => {
+  const body = await c.req.json<{ refreshToken?: string }>().catch(() => ({}) as { refreshToken?: string });
+  const result = await refreshSession(body.refreshToken ?? "");
+  return c.json(result);
+});
+
+// POST /api/auth/logout — PUBLIC, revoke refresh token if provided
+app.post("/logout", async (c) => {
+  const body = await c.req.json<{ refreshToken?: string }>().catch(() => ({}) as { refreshToken?: string });
+  logout(body.refreshToken);
   return c.json({ ok: true });
 });
 

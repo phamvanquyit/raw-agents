@@ -8,6 +8,7 @@ import { type NewUser, type User, getDb, users } from "../../common/db/client.js
 import { listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { revokeAllRefreshTokensForUser } from "../auth/auth.service.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,6 +147,7 @@ export function deleteUser(id: string, currentUserId: string): void {
     throw new BadRequestException("Cannot delete yourself");
   }
 
+  revokeAllRefreshTokensForUser(id);
   db.delete(users).where(eq(users.id, id)).run();
   wsHub.emit("users:deleted", { id });
 }
@@ -168,6 +170,7 @@ export async function resetPassword(id: string, body: { password?: string }): Pr
 
   const passwordHash = await Bun.password.hash(password);
   db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, id)).run();
+  revokeAllRefreshTokensForUser(id);
 
   return { password };
 }

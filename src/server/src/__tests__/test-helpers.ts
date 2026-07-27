@@ -223,6 +223,22 @@ function createTestDb() {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS sites (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      is_published INTEGER NOT NULL DEFAULT 0,
+      public_password TEXT,
+      deps_status TEXT NOT NULL DEFAULT 'ready',
+      deps_error TEXT,
+      draft_deps_status TEXT NOT NULL DEFAULT 'ready',
+      draft_deps_error TEXT,
+      draft_updated_at INTEGER,
+      created_by TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
@@ -233,6 +249,15 @@ function createTestDb() {
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      revoked_at INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS __migrations (
@@ -294,8 +319,8 @@ export async function setupAdmin(app: Hono, opts?: { username?: string; name?: s
     body: JSON.stringify(body),
   });
 
-  const data = (await res.json()) as { token: string; user: Record<string, unknown> };
-  return { token: data.token, user: data.user, ...body };
+  const data = (await res.json()) as { token: string; refreshToken: string; user: Record<string, unknown> };
+  return { token: data.token, refreshToken: data.refreshToken, user: data.user, ...body };
 }
 
 /**
