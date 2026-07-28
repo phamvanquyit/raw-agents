@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-07-28
+
+### Added
+- Jobs — admin UI for cron-scheduled Bun/TypeScript scripts with draft/publish, multi-cron schedules, and run history with live logs
+- Jobs coding agent to generate and edit job scripts; scripts can discover and run workspace agents via `rawagents.agents`
+
+### Fixed
+- Sites SSR worker is bundled and resolved correctly in production Docker builds
+- Remove redundant “New site” row on the Sites list (create stays in the page header)
+
+### Upgrade notes
+- SQLite migrations `0038_jobs.sql` and `0039_jobs_draft_code.sql` run automatically on startup
+- Rebuild/re-pull the Docker image for Jobs UI/API and the Sites SSR worker fix
+
 ## [0.13.0] - 2026-07-27
 
 ### Added
@@ -172,6 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.14.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.12.1...v0.13.0
 [0.12.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.10.0...v0.11.0

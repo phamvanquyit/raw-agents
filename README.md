@@ -18,7 +18,7 @@ Self-hosted AI Agent Manager with a beautiful web UI. Create, manage and schedul
 - 📊 **Datatables** — Workspace tables (projects → tables → rows) in the UI and via `rawagents.datatable`
 - 📄 **Sites** — AI-assisted JSX sites with draft/publish, SSR preview, and optional public password links
 - 📈 **Usage** — Token usage history, summaries, and a per-chat context meter (system / tools / conversation)
-- ⏰ **Scheduled Tasks** — Cron-based task scheduling for automated agent runs
+- ⏰ **Jobs** — Cron-scheduled Bun/TypeScript scripts with admin UI, AI editor, and `rawagents.agents` to call workspace agents
 - 💬 **Real-time Chat** — Live streaming chat with agents; refresh (F5) resumes an in-progress reply
 - 🔗 **Public Sharing** — Share agents via public links with optional password protection; Open Graph previews for shared chat links
 
