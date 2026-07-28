@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun --format esm --external cloakbrowser --external playwright-core",
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm --external cloakbrowser --external playwright-core && bun build src/modules/sites/sites-ssr-worker.ts --outfile dist/sites-ssr-worker.js --target bun --format esm",
     "start": "bun src/index.ts"
   },
   "dependencies": {

@@ -1,11 +1,19 @@
-import { unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { startRawagentsProxy } from "../tools/common/rawagents-proxy.js";
 
 const WORKER_WALL_MS = 20_000;
-const WORKER_PATH = join(import.meta.dir, "sites-ssr-worker.ts");
+
+/** Dev: sibling .ts next to this module. Prod bundle: sites-ssr-worker.js next to dist/index.js. */
+function resolveWorkerPath(): string {
+  const candidates = [join(import.meta.dir, "sites-ssr-worker.js"), join(import.meta.dir, "sites-ssr-worker.ts")];
+  for (const path of candidates) {
+    if (existsSync(path)) return path;
+  }
+  return candidates[0];
+}
 
 export type SiteSsrJob = "get" | "action";
 
@@ -82,7 +90,12 @@ export async function runSiteJobInWorker(opts: {
     };
     if (requestPath) env.SITE_REQUEST_PATH = requestPath;
 
-    const proc = Bun.spawn(["bun", WORKER_PATH], {
+    const workerPath = resolveWorkerPath();
+    if (!existsSync(workerPath)) {
+      throw new BadRequestException(`SSR worker not found at ${workerPath}`);
+    }
+
+    const proc = Bun.spawn(["bun", workerPath], {
       env,
       stdout: "pipe",
       stderr: "pipe",

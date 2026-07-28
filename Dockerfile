@@ -39,7 +39,7 @@ COPY biome.json ./
 # Build web (Vite) → src/web/dist
 RUN cd src/web && bun run build
 
-# Build server (Bun bundle) → src/server/dist/index.js
+# Build server (Bun bundle) → src/server/dist/index.js + sites-ssr-worker.js
 RUN cd src/server && bun run build
 
 # ── Stage 3: Runtime base (cache apt-get layer) ───────────────────────────
