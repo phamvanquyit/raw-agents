@@ -11,6 +11,7 @@ import {
   PlugCircle,
   Programming,
   Settings,
+  Stopwatch,
   User as UserIcon,
 } from "@solar-icons/react";
 import { Dropdown } from "antd";
@@ -48,7 +49,10 @@ const RESOURCES_NAV_ALL: NavItem[] = [
   { to: "/kvstore", label: "KV Store", icon: <KeyMinimalistic {...ICON} /> },
 ];
 
-const RESOURCES_NAV_ADMIN: NavItem[] = [{ to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} /> }];
+const RESOURCES_NAV_ADMIN: NavItem[] = [
+  { to: "/jobs", label: "Jobs", icon: <Stopwatch {...ICON} /> },
+  { to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} /> },
+];
 
 function NavSectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pb-1.5 pt-4 text-[10px] font-medium tracking-wider text-muted-foreground/80 uppercase">{children}</div>;

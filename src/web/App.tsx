@@ -28,6 +28,8 @@ const DatatableProjectPage = lazy(() => import("./modules/datatables/DatatablePr
 const SitesPage = lazy(() => import("./modules/sites/SitesPage"));
 const SiteEditorPage = lazy(() => import("./modules/sites/[id]/SiteEditorPage"));
 const PublicSitePage = lazy(() => import("./modules/sites/public/PublicSitePage"));
+const JobsPage = lazy(() => import("./modules/jobs/JobsPage"));
+const JobEditPage = lazy(() => import("./modules/jobs/[id]/JobEditPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
 const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup", "/public"];
@@ -117,6 +119,14 @@ function AppContent() {
           <Route path="/tools/:id" element={<EditToolPage />} />
           <Route path="/sites/:id" element={<SiteEditorPage />} />
           <Route path="/agents/:id/*" element={<AgentDetailPage />} />
+          <Route
+            path="/jobs/:id"
+            element={
+              <AdminGuard>
+                <JobEditPage />
+              </AdminGuard>
+            }
+          />
 
           {/* Sidebar pages — wrapped in AppLayout */}
           <Route element={<AppLayout />}>
@@ -138,6 +148,14 @@ function AppContent() {
               element={
                 <AdminGuard>
                   <SecretsPage />
+                </AdminGuard>
+              }
+            />
+            <Route
+              path="/jobs"
+              element={
+                <AdminGuard>
+                  <JobsPage />
                 </AdminGuard>
               }
             />

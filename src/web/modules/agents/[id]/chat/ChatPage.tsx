@@ -2,7 +2,7 @@ import { AltArrowDown, PenNewSquare, SidebarMinimalistic } from "@solar-icons/re
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
-import { useAgentRunner } from "src/common/hooks/useAgent";
+import { stopAgentChat, useAgentRunner } from "src/common/hooks/useAgent";
 import type { AgentMessage } from "src/common/types";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
@@ -353,10 +353,14 @@ export function ChatPage() {
   );
 
   const handleCancel = useCallback(async () => {
-    const cancelledConvId = streamingConvIdRef.current;
+    const cancelledConvId = streamingConvIdRef.current ?? activeConversationId;
     // Suppress auto-resume before running flips false (stop is in-flight)
     if (cancelledConvId) suppressResumeConvIdRef.current = cancelledConvId;
 
+    // Always hit stop API — resume/job runs may not have local runner refs set
+    if (agent && cancelledConvId) {
+      await stopAgentChat(agent.id, cancelledConvId);
+    }
     cancel();
     setStreamingConvId(null);
 
@@ -371,7 +375,7 @@ export function ChatPage() {
 
     // Now that DB messages are loaded, clear the streaming overlay
     clearStreamingState();
-  }, [cancel, agent, dispatch, loadMessages, clearStreamingState]);
+  }, [cancel, agent, activeConversationId, dispatch, loadMessages, clearStreamingState, suppressResumeConvIdRef]);
 
   return (
     <div

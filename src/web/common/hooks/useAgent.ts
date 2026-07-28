@@ -127,7 +127,7 @@ async function streamAgentChat(
 /**
  * Stop a running background stream — POST /api/agents/:id/chat/stop
  */
-async function stopAgentChat(agentId: string, conversationId: string): Promise<void> {
+export async function stopAgentChat(agentId: string, conversationId: string): Promise<void> {
   const BASE_URL: string = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL ?? "";
   try {
     await authorizedFetch(`${BASE_URL}/api/agents/${agentId}/chat/stop`, {

@@ -352,3 +352,47 @@ export interface SiteFilesResponse {
   files: Record<SiteSourceFile, string>;
   draftDirty: boolean;
 }
+
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
+
+export type JobRunStatus = "running" | "success" | "failed";
+export type JobRunTrigger = "cron" | "manual";
+export type JobLogLevel = "info" | "warn" | "error" | "system" | "step";
+export type JobLogKind = "step" | "log" | "system" | "console";
+
+export interface JobLogEntry {
+  t: number;
+  level: JobLogLevel;
+  message: string;
+  duration?: number;
+  kind?: JobLogKind;
+}
+
+export interface Job {
+  id: string;
+  name: string;
+  description: string | null;
+  code: string;
+  draftCode?: string | null;
+  cron: string;
+  enabled: boolean;
+  timeoutMs: number;
+  nextRunAt: Date | null;
+  lastRunAt: Date | null;
+  leaseOwner: string | null;
+  leaseUntil: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface JobRun {
+  id: string;
+  jobId: string;
+  status: JobRunStatus;
+  trigger: JobRunTrigger;
+  logs: JobLogEntry[];
+  error: string | null;
+  instanceId: string | null;
+  startedAt: Date;
+  finishedAt: Date | null;
+}

@@ -66,6 +66,15 @@ export type WsEventType =
   | "secrets:created"
   | "secrets:updated"
   | "secrets:deleted"
+  | "jobs:created"
+  | "jobs:updated"
+  | "jobs:deleted"
+  | "job_runs:created"
+  | "job_runs:updated"
+  | "job_runs:log"
+  | "sites:created"
+  | "sites:updated"
+  | "sites:deleted"
   | "ping"
   | "client:id";
 

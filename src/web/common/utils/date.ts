@@ -158,6 +158,7 @@ export function relativeTime(d: DateInput): string {
 
   if (diffMs < 0) {
     const mins = Math.floor(-diffMs / 60_000);
+    if (mins < 1) return "soon";
     if (mins < 60) return `in ${mins}m`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `in ${hrs}h`;

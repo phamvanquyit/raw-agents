@@ -1,0 +1,161 @@
+import { AddCircle, Alarm } from "@solar-icons/react";
+import { Alert, Button, Form, Input, Modal, Spin, message } from "antd";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { wsClient } from "src/common/api/wsClient";
+import { useNow } from "src/common/hooks/useNow";
+import type { Job } from "src/common/types";
+import { PageShell } from "src/components/PageShell";
+import RenderIf from "src/components/RenderIf";
+import { jobsApi } from "./common/jobsApi";
+import { jobIsScheduled } from "./common/schedule";
+import { JobCard } from "./components/JobCard";
+
+function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (job: Job) => void }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [name, setName] = useState("");
+
+  const handleSubmit = async () => {
+    const n = name.trim();
+    if (!n) {
+      setError("Name is required");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const job = await jobsApi.create({ name: n, cron: "" });
+      message.success("Job created");
+      onCreated(job);
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open title="New job" onCancel={onClose} onOk={handleSubmit} okText="Create" confirmLoading={saving} destroyOnHidden>
+      <RenderIf condition={!!error}>
+        <Alert type="error" description={error} showIcon className="mb-3" />
+      </RenderIf>
+      <Form layout="vertical">
+        <Form.Item label="Name" required>
+          <Input value={name} placeholder="Daily digest" onChange={(e) => setName(e.target.value)} autoFocus onPressEnter={() => void handleSubmit()} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+function hasImminentNextRun(items: Job[]): boolean {
+  const now = Date.now();
+  return items.some((j) => {
+    if (!j.nextRunAt || !jobIsScheduled(j.cron)) return false;
+    const at = j.nextRunAt instanceof Date ? j.nextRunAt.getTime() : new Date(j.nextRunAt).getTime();
+    const diff = at - now;
+    return diff > 0 && diff < 150_000;
+  });
+}
+
+export default function JobsPage() {
+  const navigate = useNavigate();
+  const [items, setItems] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const now = useNow(hasImminentNextRun(items) ? 1_000 : 15_000);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await jobsApi.list({ limit: 100, sorts: "-updatedAt" });
+      setItems(res.items);
+    } catch (err: unknown) {
+      message.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
+    const unsubUpdated = wsClient.on<Partial<Job> & { id: string }>("jobs:updated", (payload) => {
+      setItems((prev) => prev.map((j) => (j.id === payload.id ? { ...j, ...payload } : j)));
+    });
+    const unsubCreated = wsClient.on<Job>("jobs:created", (payload) => {
+      setItems((prev) => (prev.some((j) => j.id === payload.id) ? prev : [payload, ...prev]));
+    });
+    const unsubDeleted = wsClient.on<{ id: string }>("jobs:deleted", (payload) => {
+      setItems((prev) => prev.filter((j) => j.id !== payload.id));
+    });
+    return () => {
+      unsubUpdated();
+      unsubCreated();
+      unsubDeleted();
+    };
+  }, []);
+
+  const scheduledCount = items.filter((j) => j.enabled && jobIsScheduled(j.cron)).length;
+
+  return (
+    <PageShell>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="m-0 text-xl font-semibold leading-tight text-foreground">Jobs</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Scripts that run on a schedule
+            <RenderIf condition={items.length > 0}>
+              <span className="ml-2 inline-flex items-center rounded-full bg-brand/12 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-brand-soft">
+                {scheduledCount}/{items.length} scheduled
+              </span>
+            </RenderIf>
+          </p>
+        </div>
+        <Button type="primary" icon={<AddCircle width={16} height={16} weight="BoldDuotone" />} onClick={() => setShowCreate(true)}>
+          New job
+        </Button>
+      </div>
+
+      <RenderIf
+        condition={items.length > 0 || loading}
+        fallback={
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border px-5 py-16">
+            <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-brand/12 text-brand-soft">
+              <Alarm width={28} height={28} weight="BoldDuotone" />
+            </div>
+            <p className="mb-1 text-base font-semibold text-foreground">No jobs yet</p>
+            <p className="m-0 mb-5 max-w-sm text-center text-sm text-muted-foreground">
+              Create a script, set when it should fire, then run it manually or let the schedule take over.
+            </p>
+            <Button type="primary" icon={<AddCircle width={16} height={16} weight="BoldDuotone" />} onClick={() => setShowCreate(true)}>
+              New job
+            </Button>
+          </div>
+        }
+      >
+        <Spin spinning={loading && items.length === 0}>
+          <div className="flex flex-col gap-2">
+            {items.map((job, index) => (
+              <JobCard key={job.id} job={job} index={index} now={now} onOpen={() => navigate(`/jobs/${job.id}`)} />
+            ))}
+          </div>
+        </Spin>
+      </RenderIf>
+
+      <RenderIf condition={showCreate}>
+        <CreateJobDialog
+          onClose={() => setShowCreate(false)}
+          onCreated={(job) => {
+            setItems((prev) => [job, ...prev]);
+            navigate(`/jobs/${job.id}`);
+          }}
+        />
+      </RenderIf>
+    </PageShell>
+  );
+}

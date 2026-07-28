@@ -29,9 +29,20 @@ interface CodingAgentPanelProps {
   onToolAction: (event: ToolActionEvent) => void;
   onChangeAiProvider: (pid: string) => void;
   onChangeModel: (m: string) => void;
+  subtitle?: string;
+  suggestions?: string[];
 }
 
-export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, onChangeAiProvider, onChangeModel }: CodingAgentPanelProps) {
+export function CodingAgentPanel({
+  providerId,
+  model,
+  streamUrl,
+  onToolAction,
+  onChangeAiProvider,
+  onChangeModel,
+  subtitle = "Edit, test, and fix this tool",
+  suggestions = SUGGESTIONS,
+}: CodingAgentPanelProps) {
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ active: false, startX: 0, startW: 0 });
@@ -88,7 +99,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
         <div className="shrink-0 flex items-center gap-2 h-10 px-3 border-b border-border">
           <MagicStick size={14} className="text-brand shrink-0" />
           <span className="text-sm font-medium text-foreground">Assistant</span>
-          <span className="text-xs text-muted-foreground truncate">Edit, test, and fix this tool</span>
+          <span className="text-xs text-muted-foreground truncate">{subtitle}</span>
         </div>
 
         <MessageList
@@ -101,7 +112,7 @@ export function CodingAgentPanel({ providerId, model, streamUrl, onToolAction, o
                 Ask for a rewrite, fix, or new capability. Changes land as a draft you can accept.
               </p>
               <div className="flex flex-col gap-1.5 w-full max-w-64">
-                {SUGGESTIONS.map((s) => (
+                {suggestions.map((s) => (
                   <button
                     key={s}
                     type="button"
