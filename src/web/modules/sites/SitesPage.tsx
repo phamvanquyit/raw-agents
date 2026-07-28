@@ -145,17 +145,6 @@ export default function SitesPage() {
             {items.map((site, index) => (
               <SiteCard key={site.id} site={site} index={index} onOpen={() => navigate(`/sites/${site.id}`)} />
             ))}
-            <button
-              type="button"
-              onClick={() => setDialogOpen(true)}
-              style={{ animationDelay: `${items.length * 40}ms` }}
-              className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-dashed border-border bg-transparent px-3 py-3 text-left text-muted-foreground transition-[border-color,background-color,color] duration-200 hover:border-brand/35 hover:bg-brand/[0.04] hover:text-brand-soft motion-safe:animate-[fadeIn_0.35s_ease-out_both]"
-            >
-              <span className="flex h-[72px] w-[116px] shrink-0 items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/30">
-                <AddCircle width={20} height={20} />
-              </span>
-              <span className="text-sm font-medium">New site</span>
-            </button>
           </div>
         </Spin>
       </RenderIf>
