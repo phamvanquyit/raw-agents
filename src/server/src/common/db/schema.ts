@@ -456,3 +456,52 @@ export const sites = sqliteTable("sites", {
 
 export type Site = typeof sites.$inferSelect;
 export type NewSite = typeof sites.$inferInsert;
+
+// ─── Jobs (global cron + Bun/TS scripts) ──────────────────────────────────────
+
+export const JOB_RUN_STATUSES = ["running", "success", "failed"] as const;
+export type JobRunStatus = (typeof JOB_RUN_STATUSES)[number];
+
+export const JOB_RUN_TRIGGERS = ["cron", "manual"] as const;
+export type JobRunTrigger = (typeof JOB_RUN_TRIGGERS)[number];
+
+export const jobs = sqliteTable("jobs", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  code: text("code").notNull().default(""),
+  draftCode: text("draft_code"),
+  cron: text("cron").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  timeoutMs: integer("timeout_ms").notNull().default(300_000),
+  nextRunAt: integer("next_run_at", { mode: "timestamp" }),
+  lastRunAt: integer("last_run_at", { mode: "timestamp" }),
+  leaseOwner: text("lease_owner"),
+  leaseUntil: integer("lease_until", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type Job = typeof jobs.$inferSelect;
+export type NewJob = typeof jobs.$inferInsert;
+
+export const jobRuns = sqliteTable("job_runs", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  jobId: text("job_id")
+    .notNull()
+    .references(() => jobs.id, { onDelete: "cascade" }),
+  status: text("status").notNull().$type<JobRunStatus>().default("running"),
+  trigger: text("trigger").notNull().$type<JobRunTrigger>().default("cron"),
+  logs: text("logs").notNull().default(""),
+  error: text("error"),
+  instanceId: text("instance_id"),
+  startedAt: integer("started_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+});
+
+export type JobRun = typeof jobRuns.$inferSelect;
+export type NewJobRun = typeof jobRuns.$inferInsert;
