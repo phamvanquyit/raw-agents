@@ -260,6 +260,35 @@ function createTestDb() {
       revoked_at INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      code TEXT NOT NULL DEFAULT '',
+      draft_code TEXT,
+      cron TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      timeout_ms INTEGER NOT NULL DEFAULT 300000,
+      next_run_at INTEGER,
+      last_run_at INTEGER,
+      lease_owner TEXT,
+      lease_until INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS job_runs (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'running',
+      trigger TEXT NOT NULL DEFAULT 'cron',
+      logs TEXT NOT NULL DEFAULT '',
+      error TEXT,
+      instance_id TEXT,
+      started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      finished_at INTEGER
+    );
+
     CREATE TABLE IF NOT EXISTS __migrations (
       name TEXT PRIMARY KEY,
       ran_at INTEGER NOT NULL DEFAULT (unixepoch())
