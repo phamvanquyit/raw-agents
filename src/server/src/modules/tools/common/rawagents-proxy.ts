@@ -1,4 +1,9 @@
+import { eq } from "drizzle-orm";
+import { agentConversations, getDb, users } from "../../../common/db/client.js";
 import { HttpException } from "../../../common/exceptions/http.exception.js";
+import { getAgent } from "../../agents/agents.service.js";
+import { runAgentConversation } from "../../agents/raw-agent/raw-agent.service.js";
+import { createConversation, createMessage, updateConversationStatus } from "../../conversations/conversations.service.js";
 import {
   deleteRowsByName,
   getProjectSchemaByRef,
@@ -124,6 +129,61 @@ function handleDatatable(action: string, args: Record<string, unknown>) {
   }
 }
 
+function resolveJobOwnerId(): string {
+  const admin = getDb().select({ id: users.id }).from(users).where(eq(users.role, "admin")).get();
+  return admin?.id ?? "system";
+}
+
+async function handleAgents(action: string, args: Record<string, unknown>) {
+  switch (action) {
+    case "run": {
+      const agentId = String(args.agentId ?? "").trim();
+      const message = String(args.message ?? "");
+      if (!agentId) throw new Error("agentId is required");
+      if (!message.trim()) throw new Error("message is required");
+
+      const agent = getAgent(agentId);
+      if (!agent) throw new Error(`Agent not found: ${agentId}`);
+
+      const ownerId = resolveJobOwnerId();
+      const conv = createConversation({
+        agentId,
+        title: `Job run · ${agent.name}`,
+        trigger: "cron",
+        ownerId,
+      });
+      const conversationId = conv.id!;
+      createMessage(conversationId, { agentId, role: "user", content: message, metadata: null });
+
+      try {
+        const result = await runAgentConversation({
+          agentId,
+          conversationId,
+          message,
+          ownerId,
+        });
+
+        if (result.cancelled) {
+          throw new Error("Agent run cancelled");
+        }
+        if (result.failed && !result.text.trim()) {
+          throw new Error("Agent run failed");
+        }
+        return ok(result.text ?? "");
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const live = getDb().select().from(agentConversations).where(eq(agentConversations.id, conversationId)).get();
+        if (live?.status === "running") {
+          updateConversationStatus(conversationId, { status: "failed", finishedAt: new Date(), errorMessage });
+        }
+        throw err;
+      }
+    }
+    default:
+      throw new Error(`Unknown agents action: ${action}`);
+  }
+}
+
 export function startRawagentsProxy(): { url: string; token: string; stop: () => void } {
   const token = crypto.randomUUID();
   const server = Bun.serve({
@@ -147,6 +207,7 @@ export function startRawagentsProxy(): { url: string; token: string; stop: () =>
         if (ns === "kv") return handleKv(action, args);
         if (ns === "secrets") return handleSecrets(action, args);
         if (ns === "datatable") return handleDatatable(action, args);
+        if (ns === "agents") return await handleAgents(action, args);
         return fail(`Unknown namespace: ${ns}`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

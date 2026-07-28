@@ -58,6 +58,12 @@ export type WsEventType =
   | "secrets:created"
   | "secrets:updated"
   | "secrets:deleted"
+  | "jobs:created"
+  | "jobs:updated"
+  | "jobs:deleted"
+  | "job_runs:created"
+  | "job_runs:updated"
+  | "job_runs:log"
   | "sites:created"
   | "sites:updated"
   | "sites:deleted"
@@ -83,9 +89,9 @@ type ClientEntry = {
   role: string;
 };
 
-/** secrets:* is admin-only; all other CRUD events go to any authenticated client. */
+/** secrets:* and jobs:* are admin-only; all other CRUD events go to any authenticated client. */
 export function clientMayReceive(role: string, type: WsEventType): boolean {
-  if (type.startsWith("secrets:")) return role === "admin";
+  if (type.startsWith("secrets:") || type.startsWith("jobs:") || type.startsWith("job_runs:")) return role === "admin";
   return true;
 }
 

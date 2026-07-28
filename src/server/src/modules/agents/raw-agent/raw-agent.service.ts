@@ -111,7 +111,7 @@ interface BackgroundRunInput {
 const RUN_STALL_MS = 5 * 60_000;
 const RUN_STALL_CHECK_MS = 30_000;
 
-async function runChatBackground(input: BackgroundRunInput): Promise<void> {
+async function runChatBackground(input: BackgroundRunInput): Promise<{ text: string; failed: boolean }> {
   const { agentId, conversationId, msgAgentId, message, history, ownerId, isGuest, abortSignal, runId } = input;
   const db = getDb();
 
@@ -369,6 +369,57 @@ async function runChatBackground(input: BackgroundRunInput): Promise<void> {
       }
     }
   }
+
+  return { text: fullText, failed };
+}
+
+/**
+ * Run an agent inside an existing conversation using the same streaming registry as chat.
+ * Jobs/cron can await the final text; Stop in the UI works via runRegistry + GET /stream resume.
+ * Caller must already have saved the user message.
+ */
+export async function runAgentConversation(opts: {
+  agentId: string;
+  conversationId: string;
+  message: string;
+  ownerId: string;
+  isGuest?: boolean;
+}): Promise<{ text: string; failed: boolean; cancelled: boolean }> {
+  const { agentId, conversationId, message, ownerId, isGuest = false } = opts;
+  const history = loadHistory(conversationId);
+  // runChatBackground appends the user message — drop the trailing duplicate if already saved
+  const hist = [...history];
+  if (hist.length > 0) {
+    const last = hist[hist.length - 1];
+    if (last.role === "user" && last.content === message) hist.pop();
+  }
+
+  const db = getDb();
+  db.update(agentConversations)
+    .set({ status: "running", startedAt: new Date(), finishedAt: null, errorMessage: null })
+    .where(eq(agentConversations.id, conversationId))
+    .run();
+  const updatedConv = db.select().from(agentConversations).where(eq(agentConversations.id, conversationId)).get();
+  if (updatedConv) wsHub.broadcast("conversations:updated", updatedConv);
+
+  const { abort, runId } = runRegistry.create(conversationId, agentId);
+  const result = await runChatBackground({
+    agentId,
+    conversationId,
+    msgAgentId: agentId,
+    message,
+    history: hist,
+    ownerId,
+    isGuest,
+    abortSignal: abort.signal,
+    runId,
+  });
+
+  return {
+    text: result.text,
+    failed: result.failed,
+    cancelled: abort.signal.aborted,
+  };
 }
 
 /**
@@ -383,8 +434,19 @@ export function stopStream(conversationId: string) {
       finishedAt: new Date(),
       errorMessage: "cancelled",
     });
+    return true;
   }
-  return cancelled;
+  // Orphan running row (e.g. legacy non-registry job call) — clear spinner in UI
+  const conv = getDb().select().from(agentConversations).where(eq(agentConversations.id, conversationId)).get();
+  if (conv?.status === "running") {
+    updateConversationStatus(conversationId, {
+      status: "failed",
+      finishedAt: new Date(),
+      errorMessage: "cancelled",
+    });
+    return true;
+  }
+  return false;
 }
 
 // ─── Generate (non-streaming) ─────────────────────────────────────────────────

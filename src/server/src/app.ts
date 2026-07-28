@@ -12,6 +12,7 @@ import { buildSpaHtml, requestOrigin } from "./common/spa-html.js";
 import agentsRoute from "./modules/agents/agents.route.js";
 import conversationsRoute from "./modules/conversations/conversations.route.js";
 import datatablesRoute from "./modules/datatables/datatables.route.js";
+import jobsRoute from "./modules/jobs/jobs.route.js";
 import kvstoreRoute from "./modules/kvstore/kvstore.route.js";
 import providersRoute from "./modules/llm-providers/llm-providers.route.js";
 import mcpServersRoute from "./modules/mcp-servers/mcp-servers.route.js";
@@ -71,6 +72,7 @@ export function createApp(): Hono {
   app.route("/api/datatables", datatablesRoute);
   app.route("/api/sites", sitesRoute);
   app.route("/api/secrets", secretsRoute);
+  app.route("/api/jobs", jobsRoute);
   app.route("/api/settings", settingsRoute);
   app.route("/api/teams", teamsRoute);
   app.route("/api/stats", statsRoute);

@@ -74,3 +74,29 @@ export function cronNextDate(cron: string, from: Date = new Date(), tz?: string)
     return null;
   }
 }
+
+/** Split jobs.cron field into individual 5-field expressions (newline-separated). */
+export function parseJobCrons(cronField: string | null | undefined): string[] {
+  if (!cronField?.trim()) return [];
+  return cronField
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Earliest next run across one or more cron expressions in a jobs.cron field.
+ * Returns null if the field is empty or any expression is invalid.
+ */
+export function cronNextDateMulti(cronField: string, from: Date = new Date(), tz?: string): Date | null {
+  const expressions = parseJobCrons(cronField);
+  if (expressions.length === 0) return null;
+
+  let earliest: Date | null = null;
+  for (const expr of expressions) {
+    const next = cronNextDate(expr, from, tz);
+    if (!next) return null;
+    if (!earliest || next.getTime() < earliest.getTime()) earliest = next;
+  }
+  return earliest;
+}

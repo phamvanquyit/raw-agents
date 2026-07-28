@@ -1,6 +1,7 @@
 import { closeDb, getDb } from "./common/db/client.js";
 import { getDataDir } from "./common/utils/data-dir.js";
 import { createAppServer } from "./common/ws/create-app-server.js";
+import { startJobsScheduler, stopJobsScheduler } from "./modules/jobs/jobs-scheduler.js";
 
 export interface ServerOptions {
   port?: number;
@@ -15,10 +16,12 @@ export async function startServer(options: ServerOptions = {}): Promise<void> {
 
   process.env.DATA_DIR = dataDir;
   getDb(dataDir);
+  startJobsScheduler();
 
   const server = createAppServer({ port, host });
 
   const shutdown = () => {
+    stopJobsScheduler();
     closeDb();
     server.stop();
     process.exit(0);
