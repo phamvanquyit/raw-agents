@@ -1,6 +1,6 @@
 # Raw Agents
 
-Self-hosted AI Agent Manager with a beautiful web UI. Create, manage and schedule autonomous AI agents powered by multiple LLM providers.
+Self-hosted AI agents with a web UI — extend them with Python/JS tools & MCP, schedule them with cron Jobs, and publish them as public chats & Sites. One Docker container, SQLite, MIT.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Runtime](https://img.shields.io/badge/runtime-Bun-f472b6)
@@ -65,11 +65,12 @@ docker compose up -d
 
 #### Environment Variables
 
-| Variable   | Default       | Description      |
-| ---------- | ------------- | ---------------- |
-| `PORT`     | `15888`       | Server port      |
-| `HOST`     | `0.0.0.0`     | Server host      |
-| `DATA_DIR` | `/data`       | Data directory   |
+| Variable          | Default       | Description                                      |
+| ----------------- | ------------- | ------------------------------------------------ |
+| `PORT`            | `15888`       | Server port                                      |
+| `HOST`            | `0.0.0.0`     | Server host                                      |
+| `DATA_DIR`        | `/data`       | Data directory                                   |
+| `PUBLIC_BASE_URL` | _(auto)_      | Public origin behind reverse proxy (e.g. `https://agents.example.com`). Falls back to browser origin / `X-Forwarded-*`. |
 
 #### Build Docker Image Locally
 
