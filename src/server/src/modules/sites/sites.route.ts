@@ -77,8 +77,14 @@ app.post("/:id/preview", async (c) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     // Always return a JSON body — avoid socket hang up on SSR failures
-    return c.json({ ok: false, error: message, html: "", data: null, cached: false }, 422);
+    return c.json({ ok: false, message, error: message, html: "", data: null, cached: false }, 422);
   }
+});
+
+app.post("/:id/action", async (c) => {
+  const id = c.req.param("id");
+  svc.requireSiteAccess(id, authUser(c));
+  return c.json(await svc.runDraftAction(id, c.req.raw));
 });
 
 app.get("/:id/thumbnail", async (c) => {
@@ -126,7 +132,7 @@ app.post("/:id/agent/stream", async (c) => {
   return streamSSE(c, async (stream) => {
     const abort = new AbortController();
     stream.onAbort(() => abort.abort());
-    await streamSiteAgent(siteId, body, stream, abort.signal);
+    await streamSiteAgent(siteId, body, stream, abort.signal, c.req.raw);
   });
 });
 

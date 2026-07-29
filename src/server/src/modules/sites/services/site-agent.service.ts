@@ -6,6 +6,7 @@ import { createAgent } from "langchain";
 import { browserTool } from "../../../common/ai/agent-tools/browser.tool.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
+import { resolvePublicBaseUrl } from "../../../common/spa-html.js";
 import { makeDatatableTool } from "../../agents/raw-agent/llm-tools/datatable.tool.js";
 import { makeKvStoreTool } from "../../agents/raw-agent/llm-tools/kv-store.tool.js";
 import { makeSecretsTool } from "../../agents/raw-agent/llm-tools/secrets.tool.js";
@@ -35,6 +36,8 @@ export interface SiteAgentStreamRequest {
   modelId: string;
   messages: (TextMessage | ToolCallMessage)[];
   maxSteps?: number;
+  /** Browser origin (window.location.origin) — used when PUBLIC_BASE_URL is unset */
+  publicOrigin?: string;
 }
 
 function buildLangChainMessages(messages: SiteAgentStreamRequest["messages"]): BaseMessage[] {
@@ -110,10 +113,17 @@ function buildLangChainMessages(messages: SiteAgentStreamRequest["messages"]): B
   return result;
 }
 
-export async function streamSiteAgent(siteId: string, body: SiteAgentStreamRequest, stream: SSEStreamingApi, abortSignal?: AbortSignal): Promise<void> {
-  const { providerId, modelId, messages, maxSteps = 16 } = body;
+export async function streamSiteAgent(
+  siteId: string,
+  body: SiteAgentStreamRequest,
+  stream: SSEStreamingApi,
+  abortSignal?: AbortSignal,
+  request?: Request,
+): Promise<void> {
+  const { providerId, modelId, messages, maxSteps = 16, publicOrigin } = body;
   const site = getSite(siteId);
   const model = await getChatModel(providerId, modelId);
+  const publicBaseUrl = resolvePublicBaseUrl({ request, clientOrigin: publicOrigin });
 
   const tools: StructuredToolInterface[] = [
     makeReadSiteFilesTool(siteId),
@@ -126,7 +136,11 @@ export async function streamSiteAgent(siteId: string, body: SiteAgentStreamReque
     makeDatatableTool(["list_projects", "get_schema"]),
   ];
 
-  const systemPrompt = buildSiteAgentSystemPrompt(siteId, { name: site.name, slug: site.slug });
+  const systemPrompt = buildSiteAgentSystemPrompt(siteId, {
+    name: site.name,
+    slug: site.slug,
+    publicBaseUrl: publicBaseUrl || undefined,
+  });
   const agent = createAgent({
     model,
     tools,

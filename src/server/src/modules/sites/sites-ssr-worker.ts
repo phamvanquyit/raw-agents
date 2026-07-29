@@ -150,6 +150,20 @@ async function runAction(runtimeDir: string) {
     "action",
   );
 
+  // Response objects (Remix-style redirects) are not JSON-serializable — normalize for the host.
+  if (result instanceof Response) {
+    emit({
+      ok: true,
+      result: {
+        ok: result.ok,
+        status: result.status,
+        redirect: result.status >= 300 && result.status < 400,
+        location: result.headers.get("Location"),
+      },
+    });
+    return;
+  }
+
   emit({ ok: true, result });
 }
 
@@ -165,11 +179,12 @@ async function main() {
   if (job === "get") {
     if (!treeDir) throw new Error("SITE_TREE_DIR is required for get jobs");
     await runGet(runtimeDir, treeDir);
-    return;
+    // Force exit — pending loader fetches must not keep the event loop alive.
+    process.exit(0);
   }
   if (job === "action") {
     await runAction(runtimeDir);
-    return;
+    process.exit(0);
   }
   throw new Error(`Unknown SITE_JOB: ${job}`);
 }
@@ -177,5 +192,6 @@ async function main() {
 main().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
   emit({ ok: false, error: message });
-  process.exitCode = 1;
+  // exit() not exitCode — hung fetch/timers after withTimeout must not block the parent.
+  process.exit(1);
 });

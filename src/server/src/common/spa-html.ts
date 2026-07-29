@@ -33,6 +33,38 @@ export function requestOrigin(req: Request): string {
   }
 }
 
+function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/$/, "");
+}
+
+function isHttpOrigin(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Public base URL for absolute links in prompts / OG / share URLs.
+ * Priority: PUBLIC_BASE_URL (or PUBLIC_URL) env → client origin → requestOrigin (X-Forwarded-* / Host).
+ */
+export function resolvePublicBaseUrl(opts: { request?: Request; clientOrigin?: string | null } = {}): string {
+  const fromEnv = normalizeBaseUrl(process.env.PUBLIC_BASE_URL ?? process.env.PUBLIC_URL ?? "");
+  if (fromEnv && isHttpOrigin(fromEnv)) return fromEnv;
+
+  const fromClient = normalizeBaseUrl(opts.clientOrigin ?? "");
+  if (fromClient && isHttpOrigin(fromClient)) return fromClient;
+
+  if (opts.request) {
+    const fromReq = normalizeBaseUrl(requestOrigin(opts.request));
+    if (fromReq && isHttpOrigin(fromReq)) return fromReq;
+  }
+
+  return "";
+}
+
 function loadPublicChatOg(agentId: string): { title: string; description: string } | null {
   try {
     const db = getDb();

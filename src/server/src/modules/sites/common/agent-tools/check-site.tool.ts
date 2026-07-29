@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { previewSite } from "../../sites.service.js";
+import { previewSite, readDraftFile } from "../../sites.service.js";
 
 const TOOL_TIMEOUT_MS = 15_000;
 
@@ -19,6 +19,15 @@ function summarizeLoaderData(data: unknown): unknown {
     }
   }
   return out;
+}
+
+function barePostFormHint(routeSource: string): string | undefined {
+  const hasBarePost = /<form\b[^>]*\bmethod\s*=\s*["']?post["']?/i.test(routeSource);
+  const usesRaForm = /from\s+["']\.\/ra-ui\.jsx["']/.test(routeSource) && /\bRaForm\b/.test(routeSource);
+  if (hasBarePost && !usesRaForm) {
+    return 'Prefer platform RaForm: import { RaForm, RaSubmit } from "./ra-ui.jsx" instead of hand-written <form method="post">.';
+  }
+  return undefined;
 }
 
 function classifyError(message: string): { stage: string; hint: string } {
@@ -61,11 +70,14 @@ export function makeCheckSiteTool(siteId: string) {
     async () => {
       try {
         const result = await withToolTimeout(previewSite(siteId), TOOL_TIMEOUT_MS);
+        const route = readDraftFile(siteId, "route.jsx");
+        const formHint = barePostFormHint(route);
         return JSON.stringify({
           ok: true,
           htmlChars: result.html.length,
           dataSummary: summarizeLoaderData(result.data),
           message: "Draft SSR succeeded.",
+          ...(formHint ? { hint: formHint } : {}),
         });
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);

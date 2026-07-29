@@ -4,6 +4,7 @@ import { getDb, sites } from "../../common/db/client.js";
 import { listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { normalizeSiteFormActions, rewriteRequestToSitePath } from "./common/normalize-site-forms.js";
 import { resolveSiteSelection } from "./common/resolve-selection.js";
 import { installSiteDeps } from "./sites-deps.js";
 import {
@@ -21,6 +22,10 @@ import {
 } from "./sites-fs.js";
 import { invalidateSiteCaches, runSiteAction, runSiteGet } from "./sites-runtime.js";
 import { ensureSiteThumbnail, refreshSiteThumbnail } from "./sites-thumbnail.js";
+
+function sitePublicPath(slug: string) {
+  return `/public/sites/${slug}`;
+}
 
 type SiteRow = typeof sites.$inferSelect;
 
@@ -379,8 +384,22 @@ export async function getSiteThumbnailPng(id: string, tree: SiteTree = "draft") 
 }
 
 export async function previewSite(id: string, query?: Record<string, string>, tree: SiteTree = "draft") {
-  getSiteOrThrow(id);
-  return runSiteGet(id, tree, { query, bypassCache: true });
+  const site = getSiteOrThrow(id);
+  const pageUrl = new URL(sitePublicPath(site.slug), "http://site.local");
+  if (query) {
+    for (const [k, v] of Object.entries(query)) pageUrl.searchParams.set(k, v);
+  }
+  const result = await runSiteGet(id, tree, {
+    query,
+    request: new Request(pageUrl.toString()),
+  });
+  return { ...result, html: normalizeSiteFormActions(result.html, sitePublicPath(site.slug)) };
+}
+
+export async function runDraftAction(id: string, request: Request) {
+  const site = getSiteOrThrow(id);
+  const pageReq = await rewriteRequestToSitePath(request, sitePublicPath(site.slug));
+  return runSiteAction(id, "draft", { request: pageReq });
 }
 
 export function resolveSelection(id: string, body: { sourceAnchor?: string; tagName?: string; className?: string; text?: string; outerHtml?: string }) {
@@ -405,12 +424,13 @@ export async function renderPublicSite(slug: string, request: Request, access?: 
   }
   const url = new URL(request.url);
   const query = Object.fromEntries(url.searchParams.entries());
-  const result = await runSiteGet(site.id, "prod", { request, query });
+  const pageReq = await rewriteRequestToSitePath(request, sitePublicPath(site.slug));
+  const result = await runSiteGet(site.id, "prod", { request: pageReq, query });
   return {
     site: { id: site.id, name: site.name, slug: site.slug },
     requiresPassword,
     locked: false,
-    html: result.html,
+    html: normalizeSiteFormActions(result.html, sitePublicPath(site.slug)),
     data: null,
     cached: result.cached,
   };
@@ -421,7 +441,8 @@ export async function runPublicAction(slug: string, request: Request, access?: {
   if (!site.isPublished) throw new NotFoundException("Site not found");
   const allowed = await hasSitePublicAccess(site, access);
   if (!allowed) throw new UnauthorizedException("Password required");
-  return runSiteAction(site.id, "prod", { request });
+  const pageReq = await rewriteRequestToSitePath(request, sitePublicPath(site.slug));
+  return runSiteAction(site.id, "prod", { request: pageReq });
 }
 
 export function readDraftFile(id: string, file: SiteSourceFile) {

@@ -100,7 +100,7 @@ async function generateThumbnail(siteId: string, tree: SiteTree): Promise<Buffer
   const hash = treeContentHash(siteId, tree);
 
   try {
-    const preview = await runSiteGet(siteId, tree, { bypassCache: true });
+    const preview = await runSiteGet(siteId, tree);
     const html = typeof preview.html === "string" ? preview.html : "";
 
     await new Promise<void>((resolve, reject) => {
