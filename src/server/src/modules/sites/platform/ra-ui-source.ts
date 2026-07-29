@@ -1,4 +1,5 @@
-/**
+/** JSX source written into site SSR runtime as ra-ui.jsx (not editable by agents). */
+export const PLATFORM_RA_UI_JSX = `/**
  * Platform UI primitives for site route.jsx (injected into SSR runtime; not editable by agents).
  * Use these for POST mutations so the host form guard always receives a correct form.
  */
@@ -20,3 +21,4 @@ export function RaSubmit({ children, className, type: _type, ...rest }) {
     </button>
   );
 }
+`;

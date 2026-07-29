@@ -1,12 +1,11 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { injectJsxSourceAnchors } from "./common/inject-jsx-anchors.js";
+import { PLATFORM_RA_UI_JSX } from "./platform/ra-ui-source.js";
 import { SITE_RUNTIME_FILES, type SiteTree, getTreeDir, readSourceFile, treeContentHash } from "./sites-fs.js";
 import { type SiteSsrActionResult, type SiteSsrGetResult, runSiteJobInWorker } from "./sites-ssr-runner.js";
 
-const PLATFORM_RA_UI_SRC = join(dirname(fileURLToPath(import.meta.url)), "platform", "ra-ui.jsx");
 const PLATFORM_RA_UI_FILE = "ra-ui.jsx";
 
 /** Bumps on invalidate so dynamic import URLs never reuse a stale Bun module graph. */
@@ -143,10 +142,7 @@ function materializeRuntimeDir(siteId: string, tree: SiteTree): string {
         copyFileSync(src, join(runtimeDir, file));
       }
     }
-    if (!existsSync(PLATFORM_RA_UI_SRC)) {
-      throw new BadRequestException(`Missing platform ${PLATFORM_RA_UI_FILE}`);
-    }
-    copyFileSync(PLATFORM_RA_UI_SRC, join(runtimeDir, PLATFORM_RA_UI_FILE));
+    writeFileSync(join(runtimeDir, PLATFORM_RA_UI_FILE), PLATFORM_RA_UI_JSX, "utf8");
     writeFileSync(join(runtimeDir, ".gen"), String(gen), "utf8");
     writeFileSync(stampPath(gen), stamp, "utf8");
     queueRuntimeCleanup(runtimeRoot, gen);
