@@ -1,0 +1,12 @@
+services:
+  raw-agents:
+    image: phamvanquyit/raw-agents:latest
+    container_name: raw-agents
+    ports:
+      - "15888:15888"
+    volumes:
+      - raw-agents-data:/data
+    restart: unless-stopped
+
+volumes:
+  raw-agents-data:
