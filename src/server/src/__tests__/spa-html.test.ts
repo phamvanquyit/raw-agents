@@ -28,6 +28,26 @@ describe("spa-html OG injection", () => {
     expect(requestOrigin(req)).toBe("https://agents.example.com");
   });
 
+  test("resolvePublicBaseUrl prefers PUBLIC_BASE_URL then client then request", async () => {
+    const { resolvePublicBaseUrl } = await import("../common/spa-html.js");
+    const prev = process.env.PUBLIC_BASE_URL;
+    try {
+      process.env.PUBLIC_BASE_URL = "https://agents.example.com/";
+      expect(resolvePublicBaseUrl({ clientOrigin: "http://localhost:5888" })).toBe("https://agents.example.com");
+
+      delete process.env.PUBLIC_BASE_URL;
+      expect(resolvePublicBaseUrl({ clientOrigin: "http://localhost:5888/" })).toBe("http://localhost:5888");
+
+      const req = new Request("http://internal:15888/", {
+        headers: { "x-forwarded-proto": "https", "x-forwarded-host": "proxy.example.com" },
+      });
+      expect(resolvePublicBaseUrl({ request: req })).toBe("https://proxy.example.com");
+    } finally {
+      if (prev === undefined) delete process.env.PUBLIC_BASE_URL;
+      else process.env.PUBLIC_BASE_URL = prev;
+    }
+  });
+
   test("buildSpaHtml injects absolute og:image and page url", () => {
     const html = buildSpaHtml(SHELL, {
       origin: "https://agents.example.com",

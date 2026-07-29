@@ -343,4 +343,82 @@ describe("Sites API", () => {
 
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 180_000);
+
+  test("preview renders RaForm as post form with intent + form guard", async () => {
+    const createRes = await authRequest(app, token, "POST", "/api/sites", {
+      name: "Ra Form Site",
+      slug: "ra-form-site",
+    });
+    expect(createRes.status).toBe(201);
+    const site = (await createRes.json()) as { id: string };
+
+    const route = `import { RaForm, RaSubmit } from "./ra-ui.jsx";
+export default function Route() {
+  return (
+    <RaForm intent="create" className="box">
+      <input name="title" defaultValue="hi" />
+      <RaSubmit>Save</RaSubmit>
+    </RaForm>
+  );
+}
+`;
+    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/route.jsx`, {
+      content: route,
+      tree: "draft",
+    });
+
+    const previewRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/preview`, {});
+    expect(previewRes.status).toBe(200);
+    const preview = (await previewRes.json()) as { html: string };
+    expect(preview.html).toContain('method="post"');
+    expect(preview.html).toContain("data-site-action");
+    expect(preview.html).toContain('name="_action"');
+    expect(preview.html).toContain('value="create"');
+    expect(preview.html).toContain("data-ra-form-guard");
+    expect(preview.html).toContain(">Save</button>");
+
+    await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
+  }, 180_000);
+});
+
+describe("normalizeSiteFormActions + rewriteRequestToSitePath", () => {
+  test("POST forms get empty action, data-site-action, data-site-path", async () => {
+    const { normalizeSiteFormActions } = await import("../modules/sites/common/normalize-site-forms.js");
+    const html = `<form action="/submit" method="post"><button>Go</button></form>`;
+    const out = normalizeSiteFormActions(html, "/public/sites/demo");
+    expect(out).toContain('method="post"');
+    expect(out).toContain("data-site-action");
+    expect(out).toContain('data-site-path="/public/sites/demo"');
+    expect(out).toContain('action=""');
+    expect(out).not.toContain("/submit");
+  });
+
+  test("GET forms are left unchanged", async () => {
+    const { normalizeSiteFormActions } = await import("../modules/sites/common/normalize-site-forms.js");
+    const html = `<form method="get" action=""><input name="q" /></form>`;
+    expect(normalizeSiteFormActions(html, "/public/sites/demo")).toBe(html);
+  });
+
+  test("forms without method become POST site actions", async () => {
+    const { normalizeSiteFormActions } = await import("../modules/sites/common/normalize-site-forms.js");
+    const out = normalizeSiteFormActions(`<form class="x"><input name="a" /></form>`, "public/sites/x");
+    expect(out).toContain('method="post"');
+    expect(out).toContain('data-site-path="/public/sites/x"');
+  });
+
+  test("rewriteRequestToSitePath preserves method, search, and body", async () => {
+    const { rewriteRequestToSitePath } = await import("../modules/sites/common/normalize-site-forms.js");
+    const body = new URLSearchParams({ name: "Ada", _action: "create" });
+    const incoming = new Request("http://host/api/public/sites/demo/action?ref=1", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    const rewritten = await rewriteRequestToSitePath(incoming, "/public/sites/demo");
+    expect(rewritten.url).toBe("http://site.local/public/sites/demo?ref=1");
+    expect(rewritten.method).toBe("POST");
+    const fd = await rewritten.formData();
+    expect(fd.get("name")).toBe("Ada");
+    expect(fd.get("_action")).toBe("create");
+  });
 });
