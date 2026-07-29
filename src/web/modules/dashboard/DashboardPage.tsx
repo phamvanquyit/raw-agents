@@ -69,11 +69,8 @@ export default function DashboardPage() {
 
   return (
     <PageShell>
-      <section className="relative mb-10 overflow-hidden rounded-2xl border border-border-subtle bg-card px-6 py-7 sm:px-8 sm:py-8">
-        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-brand/10 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-24 left-1/3 size-48 rounded-full bg-chart-1/10 blur-3xl" />
-
-        <div className="relative min-w-0 max-w-xl">
+      <section className="mb-10 rounded-2xl border border-border-subtle bg-card px-6 py-7 sm:px-8 sm:py-8">
+        <div className="min-w-0 max-w-xl">
           <p className="m-0 mb-2 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-brand-soft">
             <span className="size-1.5 rounded-full bg-brand-soft motion-safe:animate-pulse" />
             Agent desk
@@ -84,7 +81,7 @@ export default function DashboardPage() {
           <p className="mt-2 m-0 text-base text-muted-foreground">{crewLine(agents.length, runningCount)}</p>
         </div>
 
-        <div className="relative mt-7 flex flex-wrap gap-2">
+        <div className="mt-7 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => navigate("/agents")}

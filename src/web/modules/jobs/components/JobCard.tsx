@@ -50,16 +50,13 @@ export function JobCard({
       }}
       style={{ animationDelay: `${index * 40}ms` }}
       className={cn(
-        "group relative flex w-full cursor-pointer items-center gap-4 overflow-hidden rounded-xl border border-border-subtle px-3 py-3 text-left",
-        "bg-gradient-to-r from-brand/[0.055] via-card to-card",
-        "transition-[border-color,background-color,box-shadow] duration-200",
-        "hover:border-brand/30 hover:from-brand/[0.09] hover:via-secondary hover:to-secondary",
+        "group relative flex w-full cursor-pointer items-center gap-4 rounded-xl border border-border-subtle bg-card px-3 py-3 text-left",
+        "transition-[border-color,background-color] duration-200",
+        "hover:border-brand/30 hover:bg-secondary",
         "motion-safe:animate-[fadeIn_0.35s_ease-out_both]",
         !scheduled && "opacity-80 hover:opacity-100",
       )}
     >
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-brand/[0.06] to-transparent opacity-70" aria-hidden />
-
       <div
         className={cn(
           "relative flex size-11 shrink-0 items-center justify-center rounded-lg border border-border-subtle",
@@ -131,11 +128,9 @@ export function JobCard({
             <span
               className={cn(
                 "inline-flex cursor-default items-center gap-1.5 rounded-md border px-2 py-1",
-                "bg-gradient-to-r font-mono text-[12px] tabular-nums leading-none",
-                "transition-[border-color,box-shadow,background-color] duration-200",
-                next?.imminent
-                  ? "border-brand/40 from-brand/16 to-brand/5 text-brand-soft shadow-[0_0_16px_-6px] shadow-brand/50"
-                  : "border-border-subtle from-muted/80 to-transparent text-foreground group-hover:border-brand/25",
+                "bg-muted/60 font-mono text-[12px] tabular-nums leading-none",
+                "transition-[border-color,background-color] duration-200",
+                next?.imminent ? "border-brand/40 bg-brand/12 text-brand-soft" : "border-border-subtle text-foreground group-hover:border-brand/25",
               )}
             >
               <ClockCircle width={13} height={13} weight="BoldDuotone" className="shrink-0 opacity-80" />
