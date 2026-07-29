@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-07-29
+
+### Added
+- Optional `PUBLIC_BASE_URL` / `PUBLIC_URL` for absolute public site URLs behind a reverse proxy
+- Root `docker-compose.yml` for Compose-based runs
+
+### Changed
+- Sites POST forms use platform `RaForm` and host intercept (preview/public soft-reload instead of navigating away)
+- Site agent summarizes tool-only turns; check tool nudges bare `<form method="post">` toward `RaForm`
+
+### Fixed
+- Sites SSR worker timeout/kill and forced exit so hung loaders do not stall previews
+- Per-site SSR lock wait timeout to avoid permanent preview queue stalls
+
+### Upgrade notes
+- Optional: set `PUBLIC_BASE_URL` when behind a reverse proxy
+- Rebuild/re-pull the Docker image for the Sites form/SSR fixes
+
 ## [0.14.0] - 2026-07-28
 
 ### Added
@@ -186,6 +204,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.14.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.12.1...v0.13.0
 [0.12.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.11.0...v0.12.0
