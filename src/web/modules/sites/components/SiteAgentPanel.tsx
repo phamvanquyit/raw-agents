@@ -30,6 +30,7 @@ interface SiteAgentPanelProps {
   selectionContext?: SiteSelectionContext | null;
   onClearSelection?: () => void;
   onResizeDraggingChange?: (dragging: boolean) => void;
+  onGeneratingChange?: (generating: boolean) => void;
 }
 
 export function SiteAgentPanel({
@@ -42,6 +43,7 @@ export function SiteAgentPanel({
   selectionContext = null,
   onClearSelection,
   onResizeDraggingChange,
+  onGeneratingChange,
 }: SiteAgentPanelProps) {
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
@@ -55,6 +57,10 @@ export function SiteAgentPanel({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { scrollRef: scrollContainerRef, scrollToBottom } = useAutoScroll();
+
+  useEffect(() => {
+    onGeneratingChange?.(generating);
+  }, [generating, onGeneratingChange]);
 
   useEffect(() => {
     onResizeDraggingChange?.(isDragging);

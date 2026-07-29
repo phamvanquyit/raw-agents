@@ -24,6 +24,8 @@ export const sitesApi = {
   preview: (id: string, opts?: { tree?: "draft" | "prod" }) =>
     apiClient.post<{ html: string; data: unknown }>(`/api/sites/${id}/preview`, { tree: opts?.tree ?? "draft" }),
 
+  action: (id: string, formData: FormData) => apiClient.postFormData<{ result: unknown }>(`/api/sites/${id}/action`, formData),
+
   getThumbnail: (id: string, opts?: { tree?: "draft" | "prod" }) => apiClient.getBlob(`/api/sites/${id}/thumbnail`, { tree: opts?.tree ?? "draft" }),
 
   resolveSelection: (id: string, body: { sourceAnchor?: string; tagName?: string; className?: string; text?: string; outerHtml?: string }) =>

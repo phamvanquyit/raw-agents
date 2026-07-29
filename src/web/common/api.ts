@@ -180,6 +180,15 @@ function isAuthPublicPath(endpoint: string): boolean {
   );
 }
 
+function errorMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === "object") {
+    const rec = body as { message?: unknown; error?: unknown };
+    if (typeof rec.message === "string" && rec.message.trim()) return rec.message;
+    if (typeof rec.error === "string" && rec.error.trim()) return rec.error;
+  }
+  return fallback;
+}
+
 // Base API client
 export class ApiClient {
   private baseURL: string;
@@ -211,7 +220,7 @@ export class ApiClient {
       }
       forceLogout();
       const error = await response.json().catch(() => ({ message: "Authentication required" }));
-      throw new Error(error.message ?? "HTTP 401");
+      throw new Error(errorMessage(error, "HTTP 401"));
     }
 
     if (!response.ok) {
@@ -219,7 +228,7 @@ export class ApiClient {
         forceLogout();
       }
       const error = await response.json().catch(() => ({ message: "Request failed" }));
-      throw new Error(error.message ?? `HTTP ${response.status}`);
+      throw new Error(errorMessage(error, `HTTP ${response.status}`));
     }
 
     return response.json();
@@ -337,7 +346,7 @@ export class ApiClient {
       const contentType = response.headers.get("content-type");
       if (contentType?.includes("application/json")) {
         const error = await response.json().catch(() => ({ message: "Request failed" }));
-        throw new Error(error.message ?? `HTTP ${response.status}`);
+        throw new Error(errorMessage(error, `HTTP ${response.status}`));
       }
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -381,7 +390,7 @@ export class ApiClient {
       const contentType = response.headers.get("content-type");
       if (contentType?.includes("application/json")) {
         const error = await response.json().catch(() => ({ message: "Request failed" }));
-        throw new Error(error.message ?? `HTTP ${response.status}`);
+        throw new Error(errorMessage(error, `HTTP ${response.status}`));
       }
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }

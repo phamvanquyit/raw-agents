@@ -1,7 +1,9 @@
 import { Lock } from "@solar-icons/react";
-import { Button } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { Button, message } from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import type { SiteActionResult } from "../common/siteFormSubmit";
+import { useSiteFormSubmit } from "../common/useSiteFormSubmit";
 
 type PublicSitePayload = {
   html?: string;
@@ -29,29 +31,36 @@ export default function PublicSitePage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const [frameEpoch, setFrameEpoch] = useState(0);
 
-  const fetchSite = async (token?: string | null) => {
-    if (!slug) return;
-    const headers: Record<string, string> = {};
-    if (token) headers["X-Site-Access-Token"] = token;
-    const res = await fetch(`/api/public/sites/${encodeURIComponent(slug)}`, { headers });
-    const data = (await res.json()) as PublicSitePayload;
-    if (!res.ok) {
-      setError(data.message ?? "Site not found");
-      setHtml(null);
-      return;
-    }
-    setSiteName(data.site?.name ?? slug);
-    setRequiresPassword(!!data.requiresPassword);
-    if (data.locked) {
-      setIsAuthenticated(false);
-      setHtml(null);
-      return;
-    }
-    setIsAuthenticated(true);
-    setHtml(data.html ?? "");
-    setError(null);
-  };
+  const fetchSite = useCallback(
+    async (token?: string | null) => {
+      if (!slug) return;
+      const headers: Record<string, string> = {};
+      if (token) headers["X-Site-Access-Token"] = token;
+      const res = await fetch(`/api/public/sites/${encodeURIComponent(slug)}`, {
+        headers,
+        cache: "no-store",
+      });
+      const data = (await res.json()) as PublicSitePayload;
+      if (!res.ok) {
+        setError(data.message ?? "Site not found");
+        setHtml(null);
+        return;
+      }
+      setSiteName(data.site?.name ?? slug);
+      setRequiresPassword(!!data.requiresPassword);
+      if (data.locked) {
+        setIsAuthenticated(false);
+        setHtml(null);
+        return;
+      }
+      setIsAuthenticated(true);
+      setHtml(data.html ?? "");
+      setError(null);
+    },
+    [slug],
+  );
 
   useEffect(() => {
     if (!slug) return;
@@ -84,7 +93,7 @@ export default function PublicSitePage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, fetchSite]);
 
   useEffect(() => {
     if (requiresPassword && !isAuthenticated) {
@@ -96,55 +105,42 @@ export default function PublicSitePage() {
     if (siteName) document.title = siteName;
   }, [siteName]);
 
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || html == null || !slug) return;
+  const onAction = useCallback(
+    async (formData: FormData) => {
+      if (!slug) throw new Error("Missing site");
+      const headers: Record<string, string> = {};
+      if (accessToken) headers["X-Site-Access-Token"] = accessToken;
+      const res = await fetch(`/api/public/sites/${encodeURIComponent(slug)}/action`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      const data = (await res.json()) as { result?: SiteActionResult; message?: string };
+      if (!res.ok) throw new Error(data.message ?? "Action failed");
+      return { result: data.result };
+    },
+    [slug, accessToken],
+  );
 
-    let doc: Document | null = null;
+  const onSoftReload = useCallback(async () => {
+    await fetchSite(accessToken);
+    setFrameEpoch((n) => n + 1);
+  }, [fetchSite, accessToken]);
 
-    const onSubmit = async (e: Event) => {
-      const form = e.target as HTMLFormElement;
-      if (!(form instanceof HTMLFormElement)) return;
-      if (!form.hasAttribute("data-site-action") && form.method.toLowerCase() !== "post") return;
-      e.preventDefault();
-      const fd = new FormData(form);
-      try {
-        const headers: Record<string, string> = {};
-        if (accessToken) headers["X-Site-Access-Token"] = accessToken;
-        const res = await fetch(`/api/public/sites/${encodeURIComponent(slug)}/action`, {
-          method: "POST",
-          headers,
-          body: fd,
-        });
-        const data = (await res.json()) as { result?: { ok?: boolean; message?: string }; message?: string };
-        if (!res.ok) {
-          window.alert(data.message ?? "Action failed");
-          return;
-        }
-        const result = data.result as { ok?: boolean; message?: string } | undefined;
-        if (result?.message) window.alert(result.message);
-        await fetchSite(accessToken);
-      } catch (err: unknown) {
-        window.alert(err instanceof Error ? err.message : "Action failed");
-      }
-    };
+  const onResult = useCallback((result: SiteActionResult) => {
+    if (!result.message) return;
+    if (result.ok === false) message.error(result.message);
+    else message.success(result.message);
+  }, []);
 
-    const attach = () => {
-      const next = iframe.contentDocument;
-      if (!next || next === doc) return;
-      doc?.removeEventListener("submit", onSubmit);
-      doc = next;
-      doc.addEventListener("submit", onSubmit);
-    };
-
-    iframe.addEventListener("load", attach);
-    attach();
-
-    return () => {
-      iframe.removeEventListener("load", attach);
-      doc?.removeEventListener("submit", onSubmit);
-    };
-  }, [html, slug, accessToken]);
+  const { submitting } = useSiteFormSubmit({
+    iframeRef,
+    enabled: !!slug && html != null && isAuthenticated,
+    onAction,
+    onSoftReload,
+    onResult,
+    onError: (msg) => message.error(msg),
+  });
 
   const verifyPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,5 +224,14 @@ export default function PublicSitePage() {
     return <div className="flex min-h-screen items-center justify-center p-6 font-sans text-sm text-neutral-500">Loading…</div>;
   }
 
-  return <iframe ref={iframeRef} title={siteName || slug || "site"} className="h-screen w-full border-0 bg-white" srcDoc={html} />;
+  return (
+    <div className="relative h-screen w-full">
+      <iframe key={frameEpoch} ref={iframeRef} title={siteName || slug || "site"} className="h-screen w-full border-0 bg-white" srcDoc={html} />
+      {submitting ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/40 text-sm text-muted-foreground backdrop-blur-[1px]">
+          Submitting…
+        </div>
+      ) : null}
+    </div>
+  );
 }

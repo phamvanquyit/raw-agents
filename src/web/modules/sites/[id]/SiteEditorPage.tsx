@@ -29,7 +29,9 @@ import {
   isSitePreviewSelectionMessage,
   selectionLabel,
 } from "../common/injectPreviewInspect";
+import type { SiteActionResult } from "../common/siteFormSubmit";
 import { sitesApi } from "../common/sitesApi";
+import { useSiteFormSubmit } from "../common/useSiteFormSubmit";
 import { SiteAgentPanel } from "../components/SiteAgentPanel";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -145,6 +147,8 @@ export default function SiteEditorPage() {
   const [approving, setApproving] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentGenerating, setAgentGenerating] = useState(false);
+  const [previewEpoch, setPreviewEpoch] = useState(0);
 
   const postInspectEnabled = useCallback((enabled: boolean) => {
     iframeRef.current?.contentWindow?.postMessage({ type: SITE_PREVIEW_INSPECT, enabled }, "*");
@@ -162,7 +166,7 @@ export default function SiteEditorPage() {
     if (!id) return;
     setPreviewLoading(true);
     setSelectedElement(null);
-    const maxAttempts = 3;
+    const maxAttempts = 2;
     let lastError = "Preview failed";
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -175,6 +179,8 @@ export default function SiteEditorPage() {
         return;
       } catch (err: unknown) {
         lastError = err instanceof Error ? err.message : "Preview failed";
+        // SSR validation errors won't recover on immediate retry.
+        if (/timed out|SSR worker|Missing |must /i.test(lastError)) break;
         if (attempt < maxAttempts - 1) {
           await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
         }
@@ -203,14 +209,24 @@ export default function SiteEditorPage() {
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     setLoading(true);
     void reload()
-      .then(() => runPreview())
+      .then(() => {
+        if (cancelled) return;
+        setLoading(false);
+        // Preview must not block the editor shell (delete / settings / agent).
+        void runPreview();
+      })
       .catch((err: unknown) => {
+        if (cancelled) return;
         message.error(err instanceof Error ? err.message : "Failed to load site");
         navigate("/sites");
-      })
-      .finally(() => setLoading(false));
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id, navigate, reload, runPreview]);
 
   useEffect(() => {
@@ -260,6 +276,34 @@ export default function SiteEditorPage() {
   useEffect(() => {
     postInspectEnabled(inspectMode);
   }, [inspectMode, previewHtml, postInspectEnabled]);
+
+  const onFormAction = useCallback(
+    async (formData: FormData) => {
+      if (!id) throw new Error("Missing site");
+      return sitesApi.action(id, formData) as Promise<{ result?: SiteActionResult }>;
+    },
+    [id],
+  );
+
+  const onFormSoftReload = useCallback(async () => {
+    await runPreview();
+    setPreviewEpoch((n) => n + 1);
+  }, [runPreview]);
+
+  const onFormResult = useCallback((result: SiteActionResult) => {
+    if (!result.message) return;
+    if (result.ok === false) message.error(result.message);
+    else message.success(result.message);
+  }, []);
+
+  const { submitting: formSubmitting } = useSiteFormSubmit({
+    iframeRef,
+    enabled: !!id && previewHtml != null && !inspectMode,
+    onAction: onFormAction,
+    onSoftReload: onFormSoftReload,
+    onResult: onFormResult,
+    onError: (msg) => message.error(msg),
+  });
 
   const handleApprove = async () => {
     if (!id) return;
@@ -512,17 +556,25 @@ export default function SiteEditorPage() {
               </div>
             }
           >
-            <iframe
-              ref={iframeRef}
-              title="preview"
-              className="min-h-0 flex-1 w-full bg-white"
-              style={{ pointerEvents: panelResizing ? "none" : undefined }}
-              srcDoc={injectPreviewInspect(previewHtml)}
-              onLoad={() => postInspectEnabled(inspectMode)}
-            />
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <iframe
+                key={previewEpoch}
+                ref={iframeRef}
+                title="preview"
+                className="min-h-0 flex-1 w-full bg-white"
+                style={{ pointerEvents: panelResizing || previewLoading || formSubmitting ? "none" : undefined }}
+                srcDoc={injectPreviewInspect(previewHtml)}
+                onLoad={() => postInspectEnabled(inspectMode)}
+              />
+              <RenderIf condition={previewLoading || formSubmitting}>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50 text-sm text-muted-foreground backdrop-blur-[1px]">
+                  {formSubmitting ? "Submitting…" : "Loading preview…"}
+                </div>
+              </RenderIf>
+            </div>
           </BrowserChrome>
 
-          <RenderIf condition={!!site.draftDirty && !inspectMode}>
+          <RenderIf condition={!!site.draftDirty && !inspectMode && !agentGenerating}>
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
               <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-border bg-card/95 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
                 <Button size="small" icon={<TransferHorizontal width={14} height={14} />} onClick={() => void openCompare()}>
@@ -572,6 +624,7 @@ export default function SiteEditorPage() {
             setInspectMode(false);
           }}
           onResizeDraggingChange={setPanelResizing}
+          onGeneratingChange={setAgentGenerating}
         />
       </div>
 

@@ -127,6 +127,84 @@ function finalizeStreamingMessages(prev: ChatAgentMessage[]) {
     .filter((m) => !(m.role === "assistant" && !m.content.trim() && !m.meta?.thinking));
 }
 
+function toolCallLine(m: ChatAgentMessage): string | null {
+  if (m.role !== "tool-call") return null;
+  const name = m.toolName ?? "";
+  const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
+
+  if (name === "write_site_file") {
+    const file = typeof input.file === "string" ? input.file : "draft file";
+    return `Updated \`${file}\``;
+  }
+  if (name === "check_site") {
+    let ok: boolean | undefined;
+    if (typeof m.toolOutput === "string") {
+      try {
+        const parsed = JSON.parse(m.toolOutput) as { ok?: boolean };
+        if (typeof parsed.ok === "boolean") ok = parsed.ok;
+      } catch {
+        /* ignore */
+      }
+    }
+    if (ok === true) return "Validated draft (check_site ok)";
+    if (ok === false) return "Validated draft (check_site failed)";
+    return "Validated draft";
+  }
+  if (name === "read_site_files") {
+    const file = typeof input.file === "string" ? input.file : "";
+    if (file) return `Read \`${file}\``;
+    const tree = typeof input.tree === "string" ? input.tree : "draft";
+    return `Read ${tree} site files`;
+  }
+  if (name === "preview_site") return "Previewed site HTML";
+  if (name === "datatable") return "Looked up datatable";
+  if (name === "kv_store") return "Looked up KV store";
+  if (name === "secrets") return "Looked up secrets";
+  if (name === "browser") return "Used browser tool";
+  if (name === "generate_code") return "Updated job script";
+  if (name === "run_current_job") return "Started a job run";
+
+  const label = m.toolLabel ?? formatToolName(name || "tool");
+  return `Ran ${label}`;
+}
+
+/** When the model only emits thinking + tools, still show a closing summary. */
+function ensureTurnSummary(prev: ChatAgentMessage[], turnHadVisibleText: boolean): ChatAgentMessage[] {
+  const finalized = finalizeStreamingMessages(prev);
+  if (turnHadVisibleText) return finalized;
+
+  let lastUserIdx = -1;
+  for (let i = finalized.length - 1; i >= 0; i--) {
+    if (finalized[i].role === "user") {
+      lastUserIdx = i;
+      break;
+    }
+  }
+  if (lastUserIdx === -1) return finalized;
+
+  const turn = finalized.slice(lastUserIdx + 1);
+  if (turn.some((m) => m.role === "assistant" && m.content.trim())) return finalized;
+
+  const lines = turn.map(toolCallLine).filter((line): line is string => Boolean(line));
+  if (lines.length === 0) return finalized;
+
+  const unique = [...new Set(lines)];
+  const body = unique.map((line) => `- ${line}`).join("\n");
+  const hasWrite = turn.some((m) => m.role === "tool-call" && m.toolName === "write_site_file");
+  const approveHint = hasWrite ? "\n\nClick **Approve** to promote draft → production." : "";
+
+  return [
+    ...finalized,
+    {
+      id: nextId("a"),
+      role: "assistant" as const,
+      content: `Here's what I did:\n${body}${approveHint}`,
+      streaming: false,
+      timestamp: new Date(),
+    },
+  ];
+}
+
 function thinkingDurationSec(startedAt: number): number {
   if (!startedAt) return 0;
   return Math.round((Date.now() - startedAt) / 1000);
@@ -198,6 +276,8 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
       let needsNewBubble = false;
       /** toolCallIds already painted — early emit + full-args upsert must not double-bubble */
       const seenToolCallIds = new Set<string>();
+      /** Any visible reply text this turn (thinking alone does not count) */
+      let turnHadVisibleText = false;
 
       /** Finalize the open assistant/thinking bubble before a tool-call or segment boundary. */
       const finalizeOpenBubble = () => {
@@ -265,6 +345,7 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
             modelId: model,
             messages: [...aiHistory, { role: "user", content: text }],
             maxSteps,
+            publicOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
           }),
           signal: controller.signal,
         });
@@ -278,6 +359,7 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
           response.body,
           {
             onTextDelta: (delta) => {
+              turnHadVisibleText = true;
               // Close thinking timer when the model starts writing
               if (thinkingRef.current && thinkingStartRef.current) {
                 const duration = thinkingDurationSec(thinkingStartRef.current);
@@ -383,14 +465,14 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
               setContextUsage(usage);
             },
             onDone: () => {
-              setMessages(finalizeStreamingMessages);
+              setMessages((prev) => ensureTurnSummary(prev, turnHadVisibleText));
               setGenerating(false);
               thinkingRef.current = "";
               thinkingStartRef.current = 0;
             },
             onError: (error) => {
               if (error === "Connection lost") {
-                setMessages(finalizeStreamingMessages);
+                setMessages((prev) => ensureTurnSummary(prev, turnHadVisibleText));
                 setGenerating(false);
                 thinkingRef.current = "";
                 thinkingStartRef.current = 0;
@@ -422,7 +504,7 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
         }
 
         // Stream ended without explicit done — finalize bubbles
-        setMessages(finalizeStreamingMessages);
+        setMessages((prev) => ensureTurnSummary(prev, turnHadVisibleText));
         setGenerating(false);
       } catch (err: unknown) {
         if ((err as Error)?.name === "AbortError") {
