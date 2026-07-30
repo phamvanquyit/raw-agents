@@ -332,7 +332,7 @@ export interface DatatableRow {
 
 // ─── Sites ────────────────────────────────────────────────────────────────────
 
-export type SiteSourceFile = "loader.js" | "route.jsx" | "action.js" | "package.json";
+export type SiteSourceFile = "app.tsx" | "data.ts" | "actions.ts" | "styles.css" | "package.json";
 
 export interface Site {
   id: string;

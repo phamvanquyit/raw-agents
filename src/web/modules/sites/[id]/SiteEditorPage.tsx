@@ -1,7 +1,6 @@
 import {
   AltArrowLeft,
   CheckCircle,
-  Cursor,
   Global,
   Link as LinkIcon,
   Lock,
@@ -22,17 +21,7 @@ import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
 import type { Site } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import { getSettingValues } from "src/modules/settings/common/settingsApi";
-import {
-  SITE_PREVIEW_INSPECT,
-  type SitePreviewSelection,
-  formatSelectionContext,
-  injectPreviewInspect,
-  isSitePreviewSelectionMessage,
-  selectionLabel,
-} from "../common/injectPreviewInspect";
-import type { SiteActionResult } from "../common/siteFormSubmit";
 import { sitesApi } from "../common/sitesApi";
-import { useSiteFormSubmit } from "../common/useSiteFormSubmit";
 import { SiteAgentPanel } from "../components/SiteAgentPanel";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -126,13 +115,9 @@ function BrowserChrome({
 export default function SiteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [site, setSite] = useState<Site | null>(null);
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [inspectMode, setInspectMode] = useState(false);
-  const [selectedElement, setSelectedElement] = useState<SitePreviewSelection | null>(null);
   const [loading, setLoading] = useState(true);
   const [providerId, setProviderId] = useState<string | undefined>();
   const [model, setModel] = useState("");
@@ -150,10 +135,7 @@ export default function SiteEditorPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentGenerating, setAgentGenerating] = useState(false);
   const [previewEpoch, setPreviewEpoch] = useState(0);
-
-  const postInspectEnabled = useCallback((enabled: boolean) => {
-    iframeRef.current?.contentWindow?.postMessage({ type: SITE_PREVIEW_INSPECT, enabled }, "*");
-  }, []);
+  const [previewAuthReady, setPreviewAuthReady] = useState(false);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -163,42 +145,23 @@ export default function SiteEditorPage() {
     setPasswordTouched(false);
   }, [id]);
 
-  const runPreview = useCallback(async () => {
+  const mintPreviewSession = useCallback(async () => {
     if (!id) return;
-    setPreviewLoading(true);
-    setSelectedElement(null);
-    const maxAttempts = 2;
-    let lastError = "Preview failed";
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const res = await sitesApi.preview(id);
-        if (res && typeof res === "object" && "error" in res && (res as { error?: string }).error && !(res as { html?: string }).html) {
-          throw new Error(String((res as { error: string }).error));
-        }
-        setPreviewHtml(res.html || "");
-        setPreviewLoading(false);
-        return;
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err.message : "Preview failed";
-        // SSR validation errors won't recover on immediate retry.
-        if (/timed out|SSR worker|Missing |must /i.test(lastError)) break;
-        if (attempt < maxAttempts - 1) {
-          await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
-        }
-      }
-    }
-    message.error(lastError);
-    setPreviewHtml(
-      `<pre style="padding:16px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap;color:#b91c1c">Preview error\n\n${lastError.replace(/</g, "&lt;")}</pre>`,
-    );
-    setPreviewLoading(false);
+    await apiClient.post(`/api/sites/${id}/live/session`, {});
   }, [id]);
+
+  const runPreview = useCallback(() => {
+    setPreviewLoading(true);
+    void mintPreviewSession()
+      .catch(() => undefined)
+      .finally(() => setPreviewEpoch((n) => n + 1));
+  }, [mintPreviewSession]);
 
   const schedulePreviewReload = useCallback(() => {
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     previewTimerRef.current = setTimeout(() => {
       previewTimerRef.current = null;
-      void runPreview();
+      runPreview();
     }, 700);
   }, [runPreview]);
 
@@ -211,13 +174,27 @@ export default function SiteEditorPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
+    setPreviewAuthReady(false);
+    void mintPreviewSession()
+      .then(() => {
+        if (!cancelled) setPreviewAuthReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewAuthReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, mintPreviewSession]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
     setLoading(true);
     void reload()
       .then(() => {
         if (cancelled) return;
         setLoading(false);
-        // Preview must not block the editor shell (delete / settings / agent).
-        void runPreview();
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -228,7 +205,7 @@ export default function SiteEditorPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, navigate, reload, runPreview]);
+  }, [id, navigate, reload]);
 
   useEffect(() => {
     void getSettingValues([SettingKey.SiteAssistantProvider, SettingKey.SiteAssistantModel]).then((s) => {
@@ -237,75 +214,6 @@ export default function SiteEditorPage() {
     });
   }, []);
 
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      if (iframeRef.current && event.source !== iframeRef.current.contentWindow) return;
-      if (!isSitePreviewSelectionMessage(event.data)) return;
-      const { type: _type, ...sel } = event.data;
-      setSelectedElement(sel);
-      if (!id) return;
-      void sitesApi
-        .resolveSelection(id, {
-          sourceAnchor: sel.sourceAnchor,
-          tagName: sel.tagName,
-          className: sel.className,
-          text: sel.text,
-          outerHtml: sel.outerHtml,
-        })
-        .then((resolved) => {
-          setSelectedElement((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  sourceAnchor: resolved.sourceAnchor ?? prev.sourceAnchor,
-                  file: resolved.file,
-                  line: resolved.line,
-                  jsxExcerpt: resolved.excerpt,
-                  matchMethod: resolved.matchMethod,
-                }
-              : prev,
-          );
-        })
-        .catch(() => {
-          /* keep raw selection if resolve fails */
-        });
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [id]);
-
-  useEffect(() => {
-    postInspectEnabled(inspectMode);
-  }, [inspectMode, previewHtml, postInspectEnabled]);
-
-  const onFormAction = useCallback(
-    async (formData: FormData) => {
-      if (!id) throw new Error("Missing site");
-      return sitesApi.action(id, formData) as Promise<{ result?: SiteActionResult }>;
-    },
-    [id],
-  );
-
-  const onFormSoftReload = useCallback(async () => {
-    await runPreview();
-    setPreviewEpoch((n) => n + 1);
-  }, [runPreview]);
-
-  const onFormResult = useCallback((result: SiteActionResult) => {
-    if (!result.message) return;
-    if (result.ok === false) message.error(result.message);
-    else message.success(result.message);
-  }, []);
-
-  const { submitting: formSubmitting } = useSiteFormSubmit({
-    iframeRef,
-    enabled: !!id && previewHtml != null && !inspectMode,
-    onAction: onFormAction,
-    onSoftReload: onFormSoftReload,
-    onResult: onFormResult,
-    onError: (msg) => message.error(msg),
-  });
-
   const handleApprove = async () => {
     if (!id) return;
     setApproving(true);
@@ -313,7 +221,7 @@ export default function SiteEditorPage() {
       const s = await sitesApi.approve(id);
       setSite(s);
       message.success("Draft approved → production");
-      await runPreview();
+      runPreview();
       setCompareOpen(false);
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : "Approve failed");
@@ -329,7 +237,7 @@ export default function SiteEditorPage() {
       const s = await sitesApi.discard(id);
       setSite(s);
       message.success("Draft discarded");
-      await runPreview();
+      runPreview();
       setCompareOpen(false);
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : "Discard failed");
@@ -368,9 +276,9 @@ export default function SiteEditorPage() {
     return <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
   }
 
-  const selectionContext = selectedElement ? { label: selectionLabel(selectedElement), detail: formatSelectionContext(selectedElement) } : null;
   const publicPath = `/public/sites/${site.slug}`;
   const publicLink = `${window.location.origin}${publicPath}`;
+  const previewSrc = previewAuthReady ? `/api/sites/${id}/live?t=${previewEpoch}` : undefined;
   const passwordDirty = passwordTouched;
   const hasPassword = !!site.hasPublicPassword;
 
@@ -537,45 +445,34 @@ export default function SiteEditorPage() {
             url={publicLink}
             className="rounded-none border-r border-border"
             trailing={
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Button
-                  size="small"
-                  type="text"
-                  loading={previewLoading}
-                  icon={<Refresh width={14} height={14} />}
-                  onClick={() => void runPreview()}
-                  aria-label="Refresh preview"
-                />
-                <Button
-                  size="small"
-                  type={inspectMode ? "primary" : "default"}
-                  icon={<Cursor width={14} height={14} />}
-                  onClick={() => setInspectMode((v) => !v)}
-                >
-                  Inspect
-                </Button>
-              </div>
+              <Button
+                size="small"
+                type="text"
+                loading={previewLoading}
+                icon={<Refresh width={14} height={14} />}
+                onClick={runPreview}
+                aria-label="Refresh preview"
+              />
             }
           >
             <div className="relative flex min-h-0 flex-1 flex-col">
               <iframe
                 key={previewEpoch}
-                ref={iframeRef}
                 title="preview"
                 className="min-h-0 flex-1 w-full bg-white"
-                style={{ pointerEvents: panelResizing || previewLoading || formSubmitting ? "none" : undefined }}
-                srcDoc={injectPreviewInspect(previewHtml)}
-                onLoad={() => postInspectEnabled(inspectMode)}
+                style={{ pointerEvents: panelResizing ? "none" : undefined }}
+                src={previewSrc}
+                onLoad={() => setPreviewLoading(false)}
               />
-              <RenderIf condition={previewLoading || formSubmitting}>
+              <RenderIf condition={previewLoading}>
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50 text-sm text-muted-foreground backdrop-blur-[1px]">
-                  {formSubmitting ? "Submitting…" : "Loading preview…"}
+                  Loading preview…
                 </div>
               </RenderIf>
             </div>
           </BrowserChrome>
 
-          <RenderIf condition={!!site.draftDirty && !inspectMode && !agentGenerating}>
+          <RenderIf condition={!!site.draftDirty && !agentGenerating}>
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
               <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-border bg-card/95 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
                 <Button size="small" icon={<TransferHorizontal width={14} height={14} />} onClick={() => void openCompare()}>
@@ -629,11 +526,6 @@ export default function SiteEditorPage() {
             void apiClient.patch("/api/settings", {
               [SettingKey.SiteAssistantModel]: m,
             });
-          }}
-          selectionContext={selectionContext}
-          onClearSelection={() => {
-            setSelectedElement(null);
-            setInspectMode(false);
           }}
           onResizeDraggingChange={setPanelResizing}
           onGeneratingChange={setAgentGenerating}

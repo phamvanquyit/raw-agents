@@ -2,8 +2,10 @@ import { Lock } from "@solar-icons/react";
 import { Button, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { injectSiteFrameBridge, isSrcDocFrameNavigatedAway } from "../common/injectSiteFrameBridge";
 import type { SiteActionResult } from "../common/siteFormSubmit";
 import { useSiteFormSubmit } from "../common/useSiteFormSubmit";
+import { useSiteNavigate } from "../common/useSiteNavigate";
 
 type PublicSitePayload = {
   html?: string;
@@ -15,6 +17,10 @@ type PublicSitePayload = {
 
 function tokenKey(slug: string) {
   return `site_public_auth_${slug}`;
+}
+
+function queryFromSearch(search: string): Record<string, string> {
+  return Object.fromEntries(new URLSearchParams(search).entries());
 }
 
 export default function PublicSitePage() {
@@ -32,13 +38,18 @@ export default function PublicSitePage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const [frameEpoch, setFrameEpoch] = useState(0);
+  const [pageQuery, setPageQuery] = useState<Record<string, string>>(() => (typeof window !== "undefined" ? queryFromSearch(window.location.search) : {}));
+  const pageQueryRef = useRef(pageQuery);
+  pageQueryRef.current = pageQuery;
 
   const fetchSite = useCallback(
-    async (token?: string | null) => {
+    async (token?: string | null, query?: Record<string, string>) => {
       if (!slug) return;
+      const q = query ?? pageQueryRef.current;
       const headers: Record<string, string> = {};
       if (token) headers["X-Site-Access-Token"] = token;
-      const res = await fetch(`/api/public/sites/${encodeURIComponent(slug)}`, {
+      const qs = new URLSearchParams(q).toString();
+      const res = await fetch(`/api/public/sites/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`, {
         headers,
         cache: "no-store",
       });
@@ -142,6 +153,25 @@ export default function PublicSitePage() {
     onError: (msg) => message.error(msg),
   });
 
+  const onSoftNavigate = useCallback(
+    async (query: Record<string, string>) => {
+      setPageQuery(query);
+      const qs = new URLSearchParams(query).toString();
+      const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+      window.history.replaceState(null, "", next);
+      await fetchSite(accessToken, query);
+      setFrameEpoch((n) => n + 1);
+    },
+    [fetchSite, accessToken],
+  );
+
+  useSiteNavigate({
+    iframeRef,
+    enabled: !!slug && html != null && isAuthenticated,
+    publicPath: slug ? `/public/sites/${slug}` : "",
+    onSoftNavigate,
+  });
+
   const verifyPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!slug || !enteredPassword) return;
@@ -226,7 +256,18 @@ export default function PublicSitePage() {
 
   return (
     <div className="relative h-screen w-full">
-      <iframe key={frameEpoch} ref={iframeRef} title={siteName || slug || "site"} className="h-screen w-full border-0 bg-white" srcDoc={html} />
+      <iframe
+        key={frameEpoch}
+        ref={iframeRef}
+        title={siteName || slug || "site"}
+        className="h-screen w-full border-0 bg-white"
+        srcDoc={injectSiteFrameBridge(html, slug ? `/public/sites/${slug}` : "")}
+        onLoad={() => {
+          if (isSrcDocFrameNavigatedAway(iframeRef.current)) {
+            setFrameEpoch((n) => n + 1);
+          }
+        }}
+      />
       {submitting ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/40 text-sm text-muted-foreground backdrop-blur-[1px]">
           Submitting…

@@ -61,6 +61,11 @@ export default defineConfig({
         target: "http://127.0.0.1:15888",
         changeOrigin: true,
       },
+      // Public site HTML + assets (Hono React sites — not the SPA shell)
+      "/public/sites": {
+        target: "http://127.0.0.1:15888",
+        changeOrigin: true,
+      },
       // Proxy WebSocket connections to the Hono server
       "/ws": {
         target: "ws://127.0.0.1:15888",

@@ -21,8 +21,11 @@ export const sitesApi = {
 
   install: (id: string, tree: "draft" | "prod" = "draft") => apiClient.post<Site>(`/api/sites/${id}/install`, { tree }),
 
-  preview: (id: string, opts?: { tree?: "draft" | "prod" }) =>
-    apiClient.post<{ html: string; data: unknown }>(`/api/sites/${id}/preview`, { tree: opts?.tree ?? "draft" }),
+  preview: (id: string, opts?: { tree?: "draft" | "prod"; query?: Record<string, string> }) =>
+    apiClient.post<{ html: string; data: unknown }>(`/api/sites/${id}/preview`, {
+      tree: opts?.tree ?? "draft",
+      ...(opts?.query && Object.keys(opts.query).length > 0 ? { query: opts.query } : {}),
+    }),
 
   action: (id: string, formData: FormData) => apiClient.postFormData<{ result: unknown }>(`/api/sites/${id}/action`, formData),
 

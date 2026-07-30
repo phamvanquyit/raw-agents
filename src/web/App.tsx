@@ -26,12 +26,11 @@ const DatatablesPage = lazy(() => import("./modules/datatables/DatatablesPage"))
 const DatatableProjectPage = lazy(() => import("./modules/datatables/DatatableProjectPage"));
 const SitesPage = lazy(() => import("./modules/sites/SitesPage"));
 const SiteEditorPage = lazy(() => import("./modules/sites/[id]/SiteEditorPage"));
-const PublicSitePage = lazy(() => import("./modules/sites/public/PublicSitePage"));
 const JobsPage = lazy(() => import("./modules/jobs/JobsPage"));
 const JobEditPage = lazy(() => import("./modules/jobs/[id]/JobEditPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
-const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup", "/public"];
+const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
 
 // ── Auth guard ──────────────────────────────────────────────────────────────
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -101,7 +100,6 @@ function AppContent() {
           <Suspense fallback={null}>
             <Routes>
               <Route path="/chat/:id" element={<PublicChatPage />} />
-              <Route path="/public/sites/:slug" element={<PublicSitePage />} />
             </Routes>
           </Suspense>
         </div>
