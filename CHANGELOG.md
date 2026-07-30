@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-07-30
+
+### Changed
+- Sites runtime is now Hono + React (client SPA): `app.tsx` / `data.ts` / `actions.ts` instead of Remix-shaped loader/route/action + `srcDoc` SSR
+- Public sites are served as real HTML documents at `/public/sites/:slug` (plus `/assets/*`); draft preview uses `/api/sites/:id/live`
+- Site agent prompt and scaffold updated for `loadSiteData` / `siteAction` client helpers
+- Legacy Remix site trees migrate automatically to the React file set on first access
+
+### Fixed
+- Nested editor / flickering tab navigation caused by `srcDoc` iframe + relative URL resolution
+
+### Upgrade notes
+- Rebuild/re-pull the Docker image
+- Existing sites auto-migrate source files on open; review `app.tsx` after migrate if the site used complex Remix forms (`RaForm`)
+- Vite proxies `/public/sites` to the API in development
+
 ## [0.14.3] - 2026-07-30
+
 
 ### Added
 - MCP Servers — create/edit/delete servers from a dialog on the list page (replaces the Cursor-format JSON config editor)
@@ -20,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Chat streaming commits thinking/text segments locally around tool rounds instead of mid-stream `/messages` refetches
+- Site preview/public iframes keep link clicks in-document (SPA-style): block leaving `about:srcdoc`, open external URLs in a new tab, and only soft-reload SSR for GET forms that need new loader data
+- Site srcDoc frames remount if the iframe navigates away from `about:srcdoc` (no `<base href>` — it broke `#hash` / `:target` tabs)
 
 ### Upgrade notes
 - Rebuild/re-pull the Docker image for the UI and API changes
