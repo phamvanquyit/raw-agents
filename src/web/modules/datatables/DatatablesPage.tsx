@@ -19,14 +19,7 @@ export default function DatatablesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const projects = await datatablesApi.listProjects();
-      const withCounts = await Promise.all(
-        projects.map(async (project) => {
-          const tables = await datatablesApi.listTables(project.id);
-          return { ...project, tableCount: tables.length };
-        }),
-      );
-      setItems(withCounts);
+      setItems(await datatablesApi.listProjects());
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : String(err));
     } finally {

@@ -37,8 +37,10 @@ describe("Datatables API", () => {
   test("GET /api/datatables/projects — list", async () => {
     const res = await authRequest(app, token, "GET", "/api/datatables/projects");
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { name: string }[];
-    expect(data.some((p) => p.name === "CRM")).toBe(true);
+    const data = (await res.json()) as { name: string; tableCount: number }[];
+    const crm = data.find((p) => p.name === "CRM");
+    expect(crm).toBeDefined();
+    expect(crm!.tableCount).toBe(0);
   });
 
   test("POST /api/datatables/projects/:id/tables — create table", async () => {
@@ -47,6 +49,10 @@ describe("Datatables API", () => {
     const data = (await res.json()) as { id: string; name: string };
     expect(data.name).toBe("Customers");
     tableId = data.id;
+
+    const list = await authRequest(app, token, "GET", "/api/datatables/projects");
+    const projects = (await list.json()) as { name: string; tableCount: number }[];
+    expect(projects.find((p) => p.name === "CRM")?.tableCount).toBe(1);
   });
 
   test("POST /api/datatables/tables/:id/columns — create columns", async () => {

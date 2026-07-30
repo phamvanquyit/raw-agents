@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import {
   COLUMN_TYPES,
   type ColumnType,
@@ -107,7 +107,24 @@ function validateRowData(columns: DatatableColumn[], data: Record<string, unknow
 // ─── Projects ─────────────────────────────────────────────────────────────────
 
 export function listProjects() {
-  return getDb().select().from(datatableProjects).orderBy(asc(datatableProjects.name)).all();
+  const db = getDb();
+  const projects = db.select().from(datatableProjects).orderBy(asc(datatableProjects.name)).all();
+  if (projects.length === 0) return [] as Array<DatatableProject & { tableCount: number }>;
+
+  const counts = db
+    .select({ projectId: datatableTables.projectId, tableCount: count() })
+    .from(datatableTables)
+    .where(
+      inArray(
+        datatableTables.projectId,
+        projects.map((p) => p.id),
+      ),
+    )
+    .groupBy(datatableTables.projectId)
+    .all();
+  const countMap = new Map(counts.map((r) => [r.projectId, r.tableCount]));
+
+  return projects.map((p) => ({ ...p, tableCount: countMap.get(p.id) ?? 0 }));
 }
 
 export function getProject(id: string): DatatableProject | null {
