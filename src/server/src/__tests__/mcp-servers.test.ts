@@ -108,9 +108,9 @@ describe("MCP Servers API", () => {
     expect(data.name).toBe("demo-mcp-renamed");
     expect((data.tools as unknown[]).length).toBe(2);
 
-    const configRes = await authRequest(app, token, "GET", "/api/mcp-servers/config");
-    const config = (await configRes.json()) as { mcpServers: Record<string, { headers?: Record<string, string> }> };
-    expect(config.mcpServers["demo-mcp-renamed"].headers?.Authorization).toBe("Bearer secret-token");
+    const row = raw.query("SELECT headers FROM mcp_servers WHERE id = ?").get(serverId) as { headers: string };
+    const stored = JSON.parse(row.headers) as { Authorization?: string };
+    expect(stored.Authorization).toBe("Bearer secret-token");
   });
 
   test("POST /api/agents — create agent for MCP assignment", async () => {
@@ -130,7 +130,7 @@ describe("MCP Servers API", () => {
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.toolId).toBe(toolId);
     const tool = data.tool as { name: string; label: string; description: string };
-    expect(tool.label).toBe("search");
+    expect(tool.label).toBe("demo-mcp-renamed → search");
     expect(tool.description).toBe("Search docs");
     expect(tool.name).toBe("demo_mcp_renamed_search");
   });
@@ -141,14 +141,6 @@ describe("MCP Servers API", () => {
     const data = (await res.json()) as Record<string, unknown>[];
     expect(data.length).toBe(1);
     expect(data[0].toolId).toBe(`mcp:${serverId}:search`);
-  });
-
-  test("GET /api/mcp-servers/config — cursor format with plaintext headers", async () => {
-    const res = await authRequest(app, token, "GET", "/api/mcp-servers/config");
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { mcpServers: Record<string, { url: string; headers?: Record<string, string> }> };
-    expect(data.mcpServers["demo-mcp-renamed"].url).toBe("https://example.com/mcp");
-    expect(data.mcpServers["demo-mcp-renamed"].headers?.Authorization).toBe("Bearer secret-token");
   });
 
   // ─── Validation / errors ───────────────────────────────────────────────────
@@ -192,19 +184,33 @@ describe("MCP Servers API", () => {
     raw.query("UPDATE mcp_servers SET is_active = 1 WHERE id = ?").run(serverId);
   });
 
-  test("PUT /api/mcp-servers/config — invalid shape", async () => {
-    const res = await authRequest(app, token, "PUT", "/api/mcp-servers/config", { foo: 1 });
-    expect(res.status).toBe(400);
-  });
-
-  test("PUT /api/mcp-servers/config — missing url", async () => {
-    const res = await authRequest(app, token, "PUT", "/api/mcp-servers/config", {
-      mcpServers: { broken: { headers: {} } },
-    });
-    expect(res.status).toBe(400);
-  });
-
   // ─── Business logic ────────────────────────────────────────────────────────
+
+  test("POST /api/mcp-servers — create second server", async () => {
+    const res = await authRequest(app, token, "POST", "/api/mcp-servers", {
+      name: "alpha",
+      url: "https://example.com/mcp-alpha",
+      headers: { "X-Key": "alpha-secret" },
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { id: string; name: string };
+    expect(data.name).toBe("alpha");
+
+    const putRes = await authRequest(app, token, "PUT", `/api/mcp-servers/${data.id}`, {
+      url: "https://example.com/mcp-alpha-v2",
+      headers: { "X-Key": "alpha-secret-2" },
+    });
+    expect(putRes.status).toBe(200);
+    const updated = (await putRes.json()) as { url: string };
+    expect(updated.url).toBe("https://example.com/mcp-alpha-v2");
+
+    const row = raw.query("SELECT headers FROM mcp_servers WHERE id = ?").get(data.id) as { headers: string };
+    const stored = JSON.parse(row.headers) as { "X-Key"?: string };
+    expect(stored["X-Key"]).toBe("alpha-secret-2");
+
+    const delRes = await authRequest(app, token, "DELETE", `/api/mcp-servers/${data.id}`);
+    expect(delRes.status).toBe(200);
+  });
 
   test("DELETE /api/mcp-servers/:id — removes server and MCP assignments", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/mcp-servers/${serverId}`);
@@ -217,51 +223,5 @@ describe("MCP Servers API", () => {
     const assignmentsRes = await authRequest(app, token, "GET", `/api/agents/${agentId}/tool-assignments`);
     const assignments = (await assignmentsRes.json()) as unknown[];
     expect(assignments.length).toBe(0);
-  });
-
-  test("PUT /api/mcp-servers/config — create / update / delete by name", async () => {
-    const createRes = await authRequest(app, token, "PUT", "/api/mcp-servers/config", {
-      mcpServers: {
-        alpha: { url: "https://example.com/mcp-alpha", headers: { "X-Key": "alpha-secret" } },
-        beta: { url: "https://example.com/mcp-beta" },
-      },
-    });
-    expect(createRes.status).toBe(200);
-    const created = (await createRes.json()) as {
-      created: string[];
-      updated: string[];
-      deleted: string[];
-      syncErrors: { name: string; error: string }[];
-      items: { name: string }[];
-    };
-    expect(created.created.sort()).toEqual(["alpha", "beta"]);
-    expect(created.updated).toEqual([]);
-    expect(created.deleted).toEqual([]);
-    expect(created.items.map((i) => i.name).sort()).toEqual(["alpha", "beta"]);
-    expect(created.syncErrors.length).toBe(2);
-
-    const updateRes = await authRequest(app, token, "PUT", "/api/mcp-servers/config", {
-      mcpServers: {
-        alpha: { url: "https://example.com/mcp-alpha-v2", headers: { "X-Key": "alpha-secret-2" } },
-        gamma: { url: "https://example.com/mcp-gamma" },
-      },
-    });
-    expect(updateRes.status).toBe(200);
-    const updated = (await updateRes.json()) as {
-      created: string[];
-      updated: string[];
-      deleted: string[];
-      items: { name: string; url: string }[];
-    };
-    expect(updated.created).toEqual(["gamma"]);
-    expect(updated.updated).toEqual(["alpha"]);
-    expect(updated.deleted).toEqual(["beta"]);
-    expect(updated.items.map((i) => i.name).sort()).toEqual(["alpha", "gamma"]);
-    expect(updated.items.find((i) => i.name === "alpha")?.url).toBe("https://example.com/mcp-alpha-v2");
-
-    const configRes = await authRequest(app, token, "GET", "/api/mcp-servers/config");
-    const config = (await configRes.json()) as { mcpServers: Record<string, { headers?: Record<string, string> }> };
-    expect(config.mcpServers.alpha.headers?.["X-Key"]).toBe("alpha-secret-2");
-    expect(config.mcpServers.beta).toBeUndefined();
   });
 });

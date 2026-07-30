@@ -1,38 +1,12 @@
 import { Hono } from "hono";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
-import {
-  applyMcpConfig,
-  createMcpServer,
-  deleteMcpServer,
-  getMcpConfig,
-  getMcpServer,
-  listMcpServers,
-  syncMcpTools,
-  updateMcpServer,
-} from "./mcp-servers.service.js";
+import { createMcpServer, deleteMcpServer, getMcpServer, listMcpServers, syncMcpTools, updateMcpServer } from "./mcp-servers.service.js";
 
 const app = new Hono();
 
 // GET /api/mcp-servers
 app.get("/", (c) => {
   return c.json(listMcpServers(c.req.query()));
-});
-
-// GET /api/mcp-servers/config — plaintext Cursor-format JSON (for edit page)
-app.get("/config", (c) => {
-  return c.json(getMcpConfig());
-});
-
-// PUT /api/mcp-servers/config — apply Cursor-format JSON config
-app.put("/config", async (c) => {
-  const body = await c.req.json();
-  try {
-    const result = await applyMcpConfig(body);
-    const servers = listMcpServers();
-    return c.json({ ...result, ...servers });
-  } catch (err) {
-    throw new BadRequestException(err instanceof Error ? err.message : String(err));
-  }
 });
 
 // GET /api/mcp-servers/:id
