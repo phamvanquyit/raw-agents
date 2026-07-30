@@ -87,13 +87,15 @@ export function MessageAgent({ msg }: MessageAgentProps) {
       {thinking && !isThinkingDone && <ActiveThinking thinking={thinking} />}
       {thinking && isThinkingDone && <CompletedThinking thinking={thinking} duration={thinkingDuration} />}
       {/* Markdown content */}
-      <div className="px-4 pb-0.5">
-        <div className={markdownRootClass}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {msg.content}
-          </ReactMarkdown>
+      {msg.content ? (
+        <div className="px-4 pb-0.5">
+          <div className={markdownRootClass}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {msg.content}
+            </ReactMarkdown>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

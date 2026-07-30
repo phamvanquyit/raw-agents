@@ -120,13 +120,23 @@ export function ChatPage() {
 
   // ── Streaming hook (local messages, no Redux) ───────────────────────────────
 
-  const { setMessages, streamingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages, contextUsage, setContextUsage } =
-    useChatStreaming({
-      toDisplayMsg,
-      fetchMessages,
-      onConversationDone: handleConversationDone,
-      onConversationError: handleConversationError,
-    });
+  const {
+    setMessages,
+    streamingContent,
+    thinkingContent,
+    activityStatus,
+    clearStreamingState,
+    buildSSECallbacks,
+    loadMessages,
+    liveMessages,
+    contextUsage,
+    setContextUsage,
+  } = useChatStreaming({
+    toDisplayMsg,
+    fetchMessages,
+    onConversationDone: handleConversationDone,
+    onConversationError: handleConversationError,
+  });
 
   // Detect if server-side conversation is still running (survives F5)
   const activeConversation = useMemo(() => conversations.find((c) => c.id === activeConversationId), [conversations, activeConversationId]);
@@ -227,7 +237,7 @@ export function ChatPage() {
   // which can miss auto-scroll when textarea resize changes clientHeight
   useEffect(() => {
     scrollToBottom();
-  }, [liveMessages.length, streamingContent, activityStatus]);
+  }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, scrollToBottom]);
 
   // Load conversations when agent changes
   useEffect(() => {

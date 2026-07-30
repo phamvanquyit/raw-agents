@@ -35,8 +35,9 @@ export function useAutoScroll(opts?: {
   // Suppresses scroll-handler updates caused by our own programmatic scrolls.
   const programmaticScrollRef = useRef(false);
 
-  // Track last scrollTop to distinguish "user scrolled up" vs layout shrink.
+  // Track last scrollTop / scrollHeight to distinguish user scroll-up vs layout shrink.
   const lastScrollTopRef = useRef(0);
+  const lastScrollHeightRef = useRef(0);
 
   // rAF handle for debouncing mutations/resizes.
   const rafIdRef = useRef<number | null>(null);
@@ -54,11 +55,13 @@ export function useAutoScroll(opts?: {
   const setup = useCallback(
     (el: HTMLElement) => {
       lastScrollTopRef.current = el.scrollTop;
+      lastScrollHeightRef.current = el.scrollHeight;
 
       const handleScroll = () => {
         // Ignore scroll events caused by our own programmatic scrollTop changes.
         if (programmaticScrollRef.current) {
           lastScrollTopRef.current = el.scrollTop;
+          lastScrollHeightRef.current = el.scrollHeight;
           return;
         }
 
@@ -67,24 +70,30 @@ export function useAutoScroll(opts?: {
           // User (or layout) returned to bottom — resume follow.
           setScrolledUp(false);
         } else if (el.scrollTop < lastScrollTopRef.current - 1) {
-          // Only mark scrolled-up when scrollTop actually decreased.
-          // Layout shrink / content growth without user intent must not lock follow.
-          setScrolledUp(true);
+          // Content shrink (thinking collapse, generating dots leave) also lowers
+          // scrollTop via clamp / overflow-anchor — that is NOT user intent.
+          const heightShrunk = el.scrollHeight < lastScrollHeightRef.current - 1;
+          if (!heightShrunk) {
+            setScrolledUp(true);
+          }
         }
 
         lastScrollTopRef.current = el.scrollTop;
+        lastScrollHeightRef.current = el.scrollHeight;
       };
 
       const scrollToEl = () => {
         programmaticScrollRef.current = true;
         el.scrollTop = el.scrollHeight;
         lastScrollTopRef.current = el.scrollTop;
+        lastScrollHeightRef.current = el.scrollHeight;
         // Double rAF: wait until the browser has flushed the scroll event
         // from our assignment before re-enabling the scroll handler.
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             programmaticScrollRef.current = false;
             lastScrollTopRef.current = el.scrollTop;
+            lastScrollHeightRef.current = el.scrollHeight;
           });
         });
       };
@@ -99,6 +108,15 @@ export function useAutoScroll(opts?: {
         rafIdRef.current = requestAnimationFrame(() => {
           rafIdRef.current = null;
           if (userScrolledUpRef.current) return;
+          // Inner content wrapper may be swapped (empty ↔ messages) — keep observing it.
+          const child = el.firstElementChild;
+          if (child instanceof HTMLElement && resizeObserverRef.current) {
+            try {
+              resizeObserverRef.current.observe(child);
+            } catch {
+              /* already observing */
+            }
+          }
           scrollToEl();
         });
       };
@@ -182,10 +200,12 @@ export function useAutoScroll(opts?: {
       programmaticScrollRef.current = true;
       el.scrollTop = el.scrollHeight;
       lastScrollTopRef.current = el.scrollTop;
+      lastScrollHeightRef.current = el.scrollHeight;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           programmaticScrollRef.current = false;
           lastScrollTopRef.current = el.scrollTop;
+          lastScrollHeightRef.current = el.scrollHeight;
         });
       });
     },

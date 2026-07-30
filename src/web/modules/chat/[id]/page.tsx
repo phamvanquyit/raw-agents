@@ -155,13 +155,14 @@ export default function PublicChatPage() {
     [unmarkProcessing, agentId],
   );
 
-  const { setMessages, streamingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages } = useChatStreaming({
-    toDisplayMsg,
-    messageFilter,
-    fetchMessages,
-    onConversationDone: handleConversationDone,
-    onConversationError: handleConversationError,
-  });
+  const { setMessages, streamingContent, thinkingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages } =
+    useChatStreaming({
+      toDisplayMsg,
+      messageFilter,
+      fetchMessages,
+      onConversationDone: handleConversationDone,
+      onConversationError: handleConversationError,
+    });
 
   const isServerRunning = Boolean(conversationId && processingConvIds.has(conversationId));
   const streamConnectOptions = useMemo(() => (agentId ? { fingerprint: getFingerprint(), agentId } : undefined), [agentId]);
@@ -179,7 +180,7 @@ export default function PublicChatPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [liveMessages.length, streamingContent, activityStatus]);
+  }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, scrollToBottom]);
 
   useEffect(() => {
     if (!id) return;
