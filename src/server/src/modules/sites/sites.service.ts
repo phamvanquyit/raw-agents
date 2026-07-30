@@ -4,27 +4,32 @@ import { getDb, sites } from "../../common/db/client.js";
 import { listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
-import { normalizeSiteFormActions, rewriteRequestToSitePath } from "./common/normalize-site-forms.js";
 import { resolveSiteSelection } from "./common/resolve-selection.js";
+import { buildSiteBundle, buildSiteShellHtml, buildSiteUnlockHtml, invalidateSiteCaches as invalidateBundleCaches } from "./sites-bundle.js";
+import { invalidateSiteDataModules, runSiteActionModule, runSiteLoad } from "./sites-data-runtime.js";
 import { installSiteDeps } from "./sites-deps.js";
 import {
   type SiteSourceFile,
   type SiteTree,
   discardDraft,
+  ensureReactSiteSources,
   isAllowedSourceFile,
   isDraftDirty,
   promoteDraftToProd,
   readAllSourceFiles,
-  readSourceFile,
   removeSiteDir,
   writeScaffold,
   writeSourceFile,
 } from "./sites-fs.js";
-import { invalidateSiteCaches, runSiteAction, runSiteGet } from "./sites-runtime.js";
 import { ensureSiteThumbnail, refreshSiteThumbnail } from "./sites-thumbnail.js";
 
 function sitePublicPath(slug: string) {
   return `/public/sites/${slug}`;
+}
+
+export function invalidateSiteCaches(siteId: string) {
+  invalidateBundleCaches(siteId);
+  invalidateSiteDataModules(siteId);
 }
 
 type SiteRow = typeof sites.$inferSelect;
@@ -273,12 +278,14 @@ export function deleteSite(id: string) {
 }
 
 export function getSiteFiles(id: string, tree: SiteTree = "draft") {
-  getSiteOrThrow(id);
+  const site = getSiteOrThrow(id);
+  ensureReactSiteSources(id, site.slug);
   return { tree, files: readAllSourceFiles(id, tree), draftDirty: isDraftDirty(id) };
 }
 
 export async function updateSiteFile(id: string, file: string, content: string, tree: SiteTree = "draft") {
-  getSiteOrThrow(id);
+  const site = getSiteOrThrow(id);
+  ensureReactSiteSources(id, site.slug);
   if (tree === "prod") {
     throw new BadRequestException("Cannot write production files directly; edit draft and approve");
   }
@@ -383,23 +390,30 @@ export async function getSiteThumbnailPng(id: string, tree: SiteTree = "draft") 
   return ensureSiteThumbnail(id, tree);
 }
 
+/** Bundle check / agent preview — returns shell HTML + load() data summary. */
 export async function previewSite(id: string, query?: Record<string, string>, tree: SiteTree = "draft") {
   const site = getSiteOrThrow(id);
+  ensureReactSiteSources(id, site.slug);
   const pageUrl = new URL(sitePublicPath(site.slug), "http://site.local");
   if (query) {
     for (const [k, v] of Object.entries(query)) pageUrl.searchParams.set(k, v);
   }
-  const result = await runSiteGet(id, tree, {
-    query,
-    request: new Request(pageUrl.toString()),
+  const request = new Request(pageUrl.toString());
+  const [{ data }, bundle] = await Promise.all([runSiteLoad(id, tree, { request, query: query ?? {} }), buildSiteBundle(id, tree)]);
+  const html = buildSiteShellHtml({
+    title: site.name,
+    apiBase: tree === "draft" ? `/api/sites/${id}` : `/api/public/sites/${site.slug}`,
+    slug: site.slug,
+    assetBase: tree === "draft" ? `/api/sites/${id}/live/assets` : `/public/sites/${site.slug}/assets`,
+    initialData: data,
   });
-  return { ...result, html: normalizeSiteFormActions(result.html, sitePublicPath(site.slug)) };
+  return { html, data, cached: bundle.cached, appJsChars: bundle.appJs.length };
 }
 
 export async function runDraftAction(id: string, request: Request) {
   const site = getSiteOrThrow(id);
-  const pageReq = await rewriteRequestToSitePath(request, sitePublicPath(site.slug));
-  return runSiteAction(id, "draft", { request: pageReq });
+  ensureReactSiteSources(id, site.slug);
+  return runSiteActionModule(id, "draft", { request });
 }
 
 export function resolveSelection(id: string, body: { sourceAnchor?: string; tagName?: string; className?: string; text?: string; outerHtml?: string }) {
@@ -407,6 +421,90 @@ export function resolveSelection(id: string, body: { sourceAnchor?: string; tagN
   return resolveSiteSelection(id, body);
 }
 
+export async function loadPublicSiteData(slug: string, request: Request, access?: { password?: string; token?: string }) {
+  const site = getSiteBySlug(slug);
+  if (!site.isPublished) throw new NotFoundException("Site not found");
+  const allowed = await hasSitePublicAccess(site, access);
+  if (!allowed) throw new UnauthorizedException("Password required");
+  ensureReactSiteSources(site.id, site.slug);
+  const query = Object.fromEntries(new URL(request.url).searchParams.entries());
+  return runSiteLoad(site.id, "prod", { request, query });
+}
+
+export async function loadDraftSiteData(id: string, request: Request) {
+  const site = getSiteOrThrow(id);
+  ensureReactSiteSources(id, site.slug);
+  const query = Object.fromEntries(new URL(request.url).searchParams.entries());
+  return runSiteLoad(id, "draft", { request, query });
+}
+
+/** HTML document for draft live preview (editor iframe). */
+export async function renderDraftLiveHtml(id: string, request?: Request) {
+  const site = getSiteOrThrow(id);
+  ensureReactSiteSources(id, site.slug);
+  const req = request ?? new Request(`http://site.local/api/sites/${id}/live`);
+  const query = Object.fromEntries(new URL(req.url).searchParams.entries());
+  const [{ data }] = await Promise.all([runSiteLoad(id, "draft", { request: req, query }), buildSiteBundle(id, "draft")]);
+  return buildSiteShellHtml({
+    title: `${site.name} (draft)`,
+    apiBase: `/api/sites/${id}`,
+    slug: site.slug,
+    assetBase: `/api/sites/${id}/live/assets`,
+    initialData: data,
+  });
+}
+
+export async function getDraftLiveAsset(id: string, file: "app.js" | "styles.css") {
+  const site = getSiteOrThrow(id);
+  ensureReactSiteSources(id, site.slug);
+  const bundle = await buildSiteBundle(id, "draft");
+  if (file === "app.js") return { body: bundle.appJs, contentType: "text/javascript; charset=utf-8" };
+  return { body: bundle.css, contentType: "text/css; charset=utf-8" };
+}
+
+export async function renderPublicSiteDocument(slug: string, request: Request, access?: { password?: string; token?: string }) {
+  const site = getSiteBySlug(slug);
+  if (!site.isPublished) throw new NotFoundException("Site not found");
+  ensureReactSiteSources(site.id, site.slug);
+  const requiresPassword = siteRequiresPassword(site);
+  const allowed = await hasSitePublicAccess(site, access);
+  if (!allowed) {
+    const url = new URL(request.url);
+    const error = url.searchParams.get("e") ? "Incorrect password" : undefined;
+    return {
+      kind: "unlock" as const,
+      html: buildSiteUnlockHtml({ title: site.name, slug: site.slug, error }),
+      requiresPassword: true,
+    };
+  }
+  const query = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const [{ data }] = await Promise.all([runSiteLoad(site.id, "prod", { request, query }), buildSiteBundle(site.id, "prod")]);
+  return {
+    kind: "app" as const,
+    html: buildSiteShellHtml({
+      title: site.name,
+      apiBase: `/api/public/sites/${site.slug}`,
+      slug: site.slug,
+      assetBase: `/public/sites/${site.slug}/assets`,
+      siteToken: access?.token,
+      initialData: data,
+    }),
+    requiresPassword,
+  };
+}
+
+export async function getPublicSiteAsset(slug: string, file: "app.js" | "styles.css", access?: { password?: string; token?: string }) {
+  const site = getSiteBySlug(slug);
+  if (!site.isPublished) throw new NotFoundException("Site not found");
+  const allowed = await hasSitePublicAccess(site, access);
+  if (!allowed) throw new UnauthorizedException("Password required");
+  ensureReactSiteSources(site.id, site.slug);
+  const bundle = await buildSiteBundle(site.id, "prod");
+  if (file === "app.js") return { body: bundle.appJs, contentType: "text/javascript; charset=utf-8" };
+  return { body: bundle.css, contentType: "text/css; charset=utf-8" };
+}
+
+/** @deprecated JSON HTML preview — kept for older clients; prefer live document. */
 export async function renderPublicSite(slug: string, request: Request, access?: { password?: string; token?: string }) {
   const site = getSiteBySlug(slug);
   if (!site.isPublished) throw new NotFoundException("Site not found");
@@ -422,17 +520,14 @@ export async function renderPublicSite(slug: string, request: Request, access?: 
       cached: false,
     };
   }
-  const url = new URL(request.url);
-  const query = Object.fromEntries(url.searchParams.entries());
-  const pageReq = await rewriteRequestToSitePath(request, sitePublicPath(site.slug));
-  const result = await runSiteGet(site.id, "prod", { request: pageReq, query });
+  const doc = await renderPublicSiteDocument(slug, request, access);
   return {
     site: { id: site.id, name: site.name, slug: site.slug },
     requiresPassword,
     locked: false,
-    html: normalizeSiteFormActions(result.html, sitePublicPath(site.slug)),
+    html: doc.html,
     data: null,
-    cached: result.cached,
+    cached: false,
   };
 }
 
@@ -441,11 +536,12 @@ export async function runPublicAction(slug: string, request: Request, access?: {
   if (!site.isPublished) throw new NotFoundException("Site not found");
   const allowed = await hasSitePublicAccess(site, access);
   if (!allowed) throw new UnauthorizedException("Password required");
-  const pageReq = await rewriteRequestToSitePath(request, sitePublicPath(site.slug));
-  return runSiteAction(site.id, "prod", { request: pageReq });
+  ensureReactSiteSources(site.id, site.slug);
+  return runSiteActionModule(site.id, "prod", { request });
 }
 
 export function readDraftFile(id: string, file: SiteSourceFile) {
   getSiteOrThrow(id);
-  return readSourceFile(id, "draft", file);
+  ensureReactSiteSources(id, getSiteOrThrow(id).slug);
+  return readAllSourceFiles(id, "draft")[file];
 }

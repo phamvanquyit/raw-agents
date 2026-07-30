@@ -3,7 +3,7 @@ import { streamSSE } from "hono/streaming";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { streamChatSSE } from "../agents/raw-agent/raw-agent.service.js";
 import { relayRunToSSE, runRegistry } from "../agents/raw-agent/utils/run-registry.js";
-import { renderPublicSite, runPublicAction, verifySitePublicAccessToken, verifySitePublicPassword } from "../sites/sites.service.js";
+import { loadPublicSiteData, renderPublicSite, runPublicAction, verifySitePublicAccessToken, verifySitePublicPassword } from "../sites/sites.service.js";
 import {
   createPublicConversation,
   deletePublicConversation,
@@ -138,6 +138,12 @@ app.get("/agents/:id/conversations/:convId/stream", async (c) => {
 app.get("/sites/:slug", async (c) => {
   const access = siteAccessFromRequest(c);
   const result = await renderPublicSite(c.req.param("slug"), c.req.raw, access);
+  return c.json(result);
+});
+
+app.get("/sites/:slug/data", async (c) => {
+  const access = siteAccessFromRequest(c);
+  const result = await loadPublicSiteData(c.req.param("slug"), c.req.raw, access);
   return c.json(result);
 });
 

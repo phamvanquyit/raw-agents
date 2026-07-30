@@ -6,6 +6,7 @@
 import { Hono } from "hono";
 import type { User } from "../../common/db/client.js";
 import { UnauthorizedException } from "../../common/exceptions/http.exception.js";
+import { clearAccessTokenCookieHeader } from "../../common/middleware/auth.middleware.js";
 import { changePassword, checkSetupStatus, getCurrentUser, login, logout, refreshSession, setupFirstAdmin, updateProfile } from "./auth.service.js";
 
 const app = new Hono();
@@ -45,7 +46,14 @@ app.post("/refresh", async (c) => {
 app.post("/logout", async (c) => {
   const body = await c.req.json<{ refreshToken?: string }>().catch(() => ({}) as { refreshToken?: string });
   logout(body.refreshToken);
-  return c.json({ ok: true });
+  return c.json(
+    { ok: true },
+    {
+      headers: {
+        "Set-Cookie": clearAccessTokenCookieHeader(),
+      },
+    },
+  );
 });
 
 // GET /api/auth/me — requires auth (applied globally, but this route needs it)

@@ -26,9 +26,20 @@ import usageRoute from "./modules/usage/usage.route.js";
 
 import publicRoute from "./modules/public/public.route.js";
 import sitesRoute from "./modules/sites/sites.route.js";
+import { getPublicSiteAsset, renderPublicSiteDocument } from "./modules/sites/sites.service.js";
 
 import authRoute from "./modules/auth/auth.route.js";
 import usersRoute from "./modules/users/users.route.js";
+
+function siteAccessFromRequest(c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined } }) {
+  const auth = c.req.header("authorization");
+  const bearer = auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : undefined;
+  const headerToken = c.req.header("x-site-access-token")?.trim();
+  const queryToken = c.req.query("token")?.trim() || c.req.query("site_token")?.trim();
+  return {
+    token: bearer || headerToken || queryToken || undefined,
+  };
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -81,6 +92,40 @@ export function createApp(): Hono {
   app.route("/api/users", usersRoute);
 
   app.route("/api/public", publicRoute);
+
+  // ── Public site documents (real HTML + assets — before SPA fallback) ───────
+  app.get("/public/sites/:slug", async (c) => {
+    const access = siteAccessFromRequest(c);
+    try {
+      const doc = await renderPublicSiteDocument(c.req.param("slug"), c.req.raw, access);
+      return new Response(doc.html, {
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const status = message.includes("not found") || message.includes("Not found") ? 404 : 500;
+      return new Response(`<!DOCTYPE html><pre style="padding:16px">${message}</pre>`, {
+        status,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+  });
+
+  app.get("/public/sites/:slug/assets/:file", async (c) => {
+    const access = siteAccessFromRequest(c);
+    const file = c.req.param("file");
+    if (file !== "app.js" && file !== "styles.css") return c.json({ message: "Not found" }, 404);
+    try {
+      const asset = await getPublicSiteAsset(c.req.param("slug"), file, access);
+      return new Response(asset.body, {
+        headers: { "Content-Type": asset.contentType, "Cache-Control": "no-store" },
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const status = /password|unauthorized/i.test(message) ? 401 : /not found/i.test(message) ? 404 : 500;
+      return c.json({ message }, status);
+    }
+  });
 
   // ── Health check ───────────────────────────────────────────────────────────
   app.get("/api/health", (c) =>

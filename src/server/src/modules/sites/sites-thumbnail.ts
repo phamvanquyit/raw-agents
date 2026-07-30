@@ -1,14 +1,16 @@
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { launch } from "cloakbrowser";
+import { eq } from "drizzle-orm";
 import type { Browser } from "playwright-core";
-import { type SiteTree, getSiteRoot, treeContentHash } from "./sites-fs.js";
-import { runSiteGet } from "./sites-runtime.js";
+import { getDb, sites } from "../../common/db/client.js";
+import { runSiteLoad } from "./sites-data-runtime.js";
+import { type SiteTree, ensureReactSiteSources, getSiteRoot, treeContentHash } from "./sites-fs.js";
 
 const VIEWPORT = { width: 1280, height: 800 };
 const LAUNCH_TIMEOUT_MS = 45_000;
 const NAV_TIMEOUT_MS = 20_000;
-const CAPTURE_VERSION = "2";
+const CAPTURE_VERSION = "3";
 
 /** Minimal 1×1 PNG used when browser capture is unavailable. */
 const PLACEHOLDER_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
@@ -27,6 +29,28 @@ function thumbnailMetaPath(siteId: string) {
 
 function thumbnailSrcPath(siteId: string) {
   return join(getSiteRoot(siteId), "thumbnail-src.html");
+}
+
+async function buildThumbnailHtml(siteId: string, tree: SiteTree): Promise<string> {
+  const db = getDb();
+  const row = db.select().from(sites).where(eq(sites.id, siteId)).get();
+  const name = row?.name ?? "Site";
+  const slug = row?.slug ?? "site";
+  try {
+    ensureReactSiteSources(siteId, slug);
+    const { data } = await runSiteLoad(siteId, tree, {
+      request: new Request(`http://site.local/public/sites/${slug}`),
+      query: {},
+    });
+    const title = data && typeof data === "object" && "title" in (data as object) ? String((data as { title?: unknown }).title ?? name) : name;
+    const message = data && typeof data === "object" && "message" in (data as object) ? String((data as { message?: unknown }).message ?? "") : "";
+    return `<!DOCTYPE html><html><body style="margin:0;font-family:system-ui;padding:48px;background:#fff">
+      <h1 style="font-size:42px;margin:0 0 12px">${title.replace(/</g, "&lt;")}</h1>
+      <p style="font-size:22px;color:#555;margin:0">${message.replace(/</g, "&lt;")}</p>
+    </body></html>`;
+  } catch {
+    return `<!DOCTYPE html><html><body style="margin:0;font-family:system-ui;padding:48px"><h1>${name.replace(/</g, "&lt;")}</h1></body></html>`;
+  }
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -100,8 +124,7 @@ async function generateThumbnail(siteId: string, tree: SiteTree): Promise<Buffer
   const hash = treeContentHash(siteId, tree);
 
   try {
-    const preview = await runSiteGet(siteId, tree);
-    const html = typeof preview.html === "string" ? preview.html : "";
+    const html = await buildThumbnailHtml(siteId, tree);
 
     await new Promise<void>((resolve, reject) => {
       browserChain = browserChain

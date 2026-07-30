@@ -26,9 +26,14 @@ function numberedExcerpt(lines: string[], line: number, before = 4, after = 10):
 }
 
 function parseAnchor(anchor: string): { file: SiteSourceFile; line: number } | null {
-  const m = /^(route\.jsx|loader\.js|action\.js):L(\d+)$/.exec(anchor.trim());
+  const m = /^(app\.tsx|data\.ts|actions\.ts|route\.jsx|loader\.js|action\.js):L(\d+)$/.exec(anchor.trim());
   if (!m) return null;
-  return { file: m[1] as SiteSourceFile, line: Number(m[2]) };
+  const file = m[1];
+  if (file === "app.tsx" || file === "data.ts" || file === "actions.ts") {
+    return { file, line: Number(m[2]) };
+  }
+  // Legacy anchors map to app.tsx
+  return { file: "app.tsx", line: Number(m[2]) };
 }
 
 function scoreLine(line: string, input: SelectionResolveInput): number {
@@ -114,6 +119,6 @@ export function resolveSiteSelection(siteId: string, input: SelectionResolveInpu
     }
   }
 
-  const route = readSourceFile(siteId, "draft", "route.jsx");
-  return fuzzyFind("route.jsx", route, input);
+  const app = readSourceFile(siteId, "draft", "app.tsx");
+  return fuzzyFind("app.tsx", app, input);
 }

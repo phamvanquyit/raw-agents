@@ -2,7 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { previewSite, readDraftFile } from "../../sites.service.js";
 
-const TOOL_TIMEOUT_MS = 15_000;
+const TOOL_TIMEOUT_MS = 20_000;
 
 function summarizeLoaderData(data: unknown): unknown {
   if (!data || typeof data !== "object" || Array.isArray(data)) return data;
@@ -21,33 +21,21 @@ function summarizeLoaderData(data: unknown): unknown {
   return out;
 }
 
-function barePostFormHint(routeSource: string): string | undefined {
-  const hasBarePost = /<form\b[^>]*\bmethod\s*=\s*["']?post["']?/i.test(routeSource);
-  const usesRaForm = /from\s+["']\.\/ra-ui\.jsx["']/.test(routeSource) && /\bRaForm\b/.test(routeSource);
-  if (hasBarePost && !usesRaForm) {
-    return 'Prefer platform RaForm: import { RaForm, RaSubmit } from "./ra-ui.jsx" instead of hand-written <form method="post">.';
-  }
-  return undefined;
-}
-
 function classifyError(message: string): { stage: string; hint: string } {
   const m = message.toLowerCase();
-  if (m.includes("import ") || m.includes("cannot find module") || m.includes("resolve")) {
+  if (m.includes("bundle") || m.includes("build") || m.includes("cannot find module") || m.includes("resolve")) {
     return {
-      stage: "import",
-      hint: "Syntax/import error in draft files, or missing dependency — fix code or update package.json (deps install automatically on write).",
+      stage: "bundle",
+      hint: "Client bundle failed — fix app.tsx / imports, or update package.json (deps install automatically on write).",
     };
   }
-  if (m.includes("loader timed out") || m.includes("loader")) {
-    return { stage: "loader", hint: "loader.js threw or timed out — check rawagents calls, await usage, and return shape." };
-  }
-  if (m.includes("render timed out") || m.includes("render") || m.includes("route.jsx") || m.includes("jsx") || m.includes("react")) {
-    return { stage: "render", hint: "route.jsx failed while rendering — check loaderData fields vs JSX, invalid elements, or runtime throws." };
+  if (m.includes("load()") || m.includes("data.ts") || m.includes("loader")) {
+    return { stage: "load", hint: "data.ts load() threw — check rawagents calls, await usage, and return shape." };
   }
   if (m.includes("timed out")) {
-    return { stage: "timeout", hint: "SSR timed out — simplify loader work or fix an infinite loop." };
+    return { stage: "timeout", hint: "Timed out — simplify load() work or fix an infinite loop." };
   }
-  return { stage: "ssr", hint: "Fix the error in draft files, then call check_site again." };
+  return { stage: "runtime", hint: "Fix the error in draft files, then call check_site again." };
 }
 
 async function withToolTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -64,20 +52,20 @@ async function withToolTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   }
 }
 
-/** Validate draft SSR (import → loader → render). Used by the agent to detect/fix errors. */
+/** Validate draft by bundling + running load(). */
 export function makeCheckSiteTool(siteId: string) {
   return tool(
     async () => {
       try {
         const result = await withToolTimeout(previewSite(siteId), TOOL_TIMEOUT_MS);
-        const route = readDraftFile(siteId, "route.jsx");
-        const formHint = barePostFormHint(route);
+        const app = readDraftFile(siteId, "app.tsx");
+        const hint = !app.includes("loadSiteData") ? 'Prefer loadSiteData() from "./site-api.js" in app.tsx to load server data.' : undefined;
         return JSON.stringify({
           ok: true,
           htmlChars: result.html.length,
           dataSummary: summarizeLoaderData(result.data),
-          message: "Draft SSR succeeded.",
-          ...(formHint ? { hint: formHint } : {}),
+          message: "Draft bundle + load() succeeded.",
+          ...(hint ? { hint } : {}),
         });
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
@@ -88,7 +76,7 @@ export function makeCheckSiteTool(siteId: string) {
     {
       name: "check_site",
       description:
-        "Validate the draft site by running SSR (import loader/route, run loader, render route). Returns ok or a structured error (stage/error/hint). Call after edits when you need to verify or debug failures. The live preview iframe refreshes automatically after writes — you do not need this just to refresh the UI.",
+        "Validate the draft site by bundling the React app and running data.ts load(). Returns ok or a structured error. Call after edits when you need to verify. The live preview iframe refreshes after writes.",
       schema: z.object({}),
     },
   );

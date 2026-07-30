@@ -3,27 +3,85 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync,
 import { join } from "node:path";
 import { getDataDir } from "../../common/utils/data-dir.js";
 
-export const SITE_SOURCE_FILES = ["loader.js", "route.jsx", "action.js", "styles.css", "package.json"] as const;
+export const SITE_SOURCE_FILES = ["app.tsx", "data.ts", "actions.ts", "styles.css", "package.json"] as const;
 export type SiteSourceFile = (typeof SITE_SOURCE_FILES)[number];
+
+/** Legacy Remix-shaped files (migrated on demand). */
+export const SITE_LEGACY_FILES = ["loader.js", "route.jsx", "action.js"] as const;
 
 export type SiteTree = "prod" | "draft";
 
-/** Source files copied into the Bun SSR runtime dir (JS/JSX only). */
-export const SITE_RUNTIME_FILES = ["loader.js", "route.jsx", "action.js"] as const;
+/** Files copied into the bundle/runtime workspace (app + data modules). */
+export const SITE_RUNTIME_FILES = ["app.tsx", "data.ts", "actions.ts"] as const;
 
-const DEFAULT_LOADER = `export async function loader({ request, rawagents }) {
+const DEFAULT_DATA = `export async function load({ request, rawagents, query }) {
   return {
     title: "Hello Site",
-    message: "Edit loader.js, route.jsx, styles.css, and action.js — then Approve to publish.",
+    message: "Edit app.tsx, data.ts, styles.css, and actions.ts — then Approve to publish.",
   };
 }
 `;
 
-const DEFAULT_ROUTE = `export default function Route({ loaderData }) {
+const DEFAULT_APP = `import { useEffect, useState } from "react";
+import { loadSiteData, peekSiteData, siteAction } from "./site-api.js";
+
+export default function App() {
+  const [data, setData] = useState(() => {
+    const injected = peekSiteData();
+    return injected === undefined ? null : injected;
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => {
+    setError("");
+    loadSiteData()
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const onDemoAction = async () => {
+    setBusy(true);
+    try {
+      await siteAction({ _action: "ping" });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="page">
+        <p className="message error">{error}</p>
+        <button type="button" onClick={refresh}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="page">
+        <p className="message">Loading…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
-      <h1 className="title">{loaderData.title}</h1>
-      <p className="message">{loaderData.message}</p>
+      <h1 className="title">{data.title}</h1>
+      <p className="message">{data.message}</p>
+      <button type="button" disabled={busy} onClick={() => void onDemoAction()}>
+        {busy ? "Working…" : "Ping action"}
+      </button>
     </div>
   );
 }
@@ -43,9 +101,29 @@ const DEFAULT_STYLES = `.page {
 .message {
   color: #555;
 }
+
+.message.error {
+  color: #b91c1c;
+}
+
+button {
+  margin-top: 12px;
+  cursor: pointer;
+}
 `;
 
-const DEFAULT_ACTION = `export async function action({ request, rawagents }) {
+const DEFAULT_ACTIONS = `export async function action({ request, rawagents }) {
+  const contentType = request.headers.get("content-type") || "";
+  let body = {};
+  if (contentType.includes("application/json")) {
+    body = await request.json().catch(() => ({}));
+  } else {
+    const fd = await request.formData();
+    body = Object.fromEntries(fd.entries());
+  }
+  if (body._action === "ping") {
+    return { ok: true, message: "pong" };
+  }
   return { ok: false, message: "No actions defined yet" };
 }
 `;
@@ -70,11 +148,11 @@ export function getSitesRoot(): string {
   return join(getDataDir(), "sites");
 }
 
-export function getSiteRoot(siteId: string): string {
+export function getSiteRoot(siteId: string) {
   return join(getSitesRoot(), siteId);
 }
 
-export function getTreeDir(siteId: string, tree: SiteTree): string {
+export function getTreeDir(siteId: string, tree: SiteTree) {
   const root = getSiteRoot(siteId);
   return tree === "draft" ? join(root, "draft") : root;
 }
@@ -111,9 +189,9 @@ export function writeScaffold(siteId: string, slug: string): void {
   mkdirSync(draft, { recursive: true });
 
   const files: Record<SiteSourceFile, string> = {
-    "loader.js": DEFAULT_LOADER,
-    "route.jsx": DEFAULT_ROUTE,
-    "action.js": DEFAULT_ACTION,
+    "app.tsx": DEFAULT_APP,
+    "data.ts": DEFAULT_DATA,
+    "actions.ts": DEFAULT_ACTIONS,
     "styles.css": DEFAULT_STYLES,
     "package.json": defaultPackageJson(slug),
   };
@@ -173,9 +251,105 @@ export function treeMtimeToken(siteId: string, tree: SiteTree): string {
   return String(max);
 }
 
-/** List top-level entries (debug/tests). */
 export function listSiteDir(siteId: string): string[] {
   const root = getSiteRoot(siteId);
   if (!existsSync(root)) return [];
   return readdirSync(root);
+}
+
+export function treeHasReactApp(siteId: string, tree: SiteTree): boolean {
+  return existsSync(join(getTreeDir(siteId, tree), "app.tsx"));
+}
+
+export function treeHasLegacyRemix(siteId: string, tree: SiteTree): boolean {
+  const dir = getTreeDir(siteId, tree);
+  return existsSync(join(dir, "route.jsx")) || existsSync(join(dir, "loader.js"));
+}
+
+/**
+ * One-shot migrate Remix-shaped sources → Hono/React files.
+ * Wraps old Route in a client App that calls loadSiteData().
+ */
+export function migrateLegacyTree(siteId: string, tree: SiteTree, slug: string): boolean {
+  if (treeHasReactApp(siteId, tree)) return false;
+  if (!treeHasLegacyRemix(siteId, tree)) {
+    writeScaffold(siteId, slug);
+    return true;
+  }
+
+  const dir = getTreeDir(siteId, tree);
+  const route = existsSync(join(dir, "route.jsx")) ? readFileSync(join(dir, "route.jsx"), "utf8") : "";
+  const loader = existsSync(join(dir, "loader.js")) ? readFileSync(join(dir, "loader.js"), "utf8") : DEFAULT_DATA;
+  const action = existsSync(join(dir, "action.js")) ? readFileSync(join(dir, "action.js"), "utf8") : DEFAULT_ACTIONS;
+  const styles = existsSync(join(dir, "styles.css")) ? readFileSync(join(dir, "styles.css"), "utf8") : DEFAULT_STYLES;
+  const pkg = existsSync(join(dir, "package.json")) ? readFileSync(join(dir, "package.json"), "utf8") : defaultPackageJson(slug);
+
+  const legacyDir = join(dir, ".legacy-remix");
+  mkdirSync(legacyDir, { recursive: true });
+  for (const file of ["loader.js", "route.jsx", "action.js"] as const) {
+    const src = join(dir, file);
+    if (existsSync(src)) copyFileSync(src, join(legacyDir, file));
+  }
+
+  const dataTs = loader.includes("export async function load") ? loader : loader.replace(/export\s+async\s+function\s+loader\b/, "export async function load");
+
+  const actionsTs = action.includes("export async function action") ? action : DEFAULT_ACTIONS;
+
+  const routeBody = route.trim()
+    ? route
+        .replace(/export\s+default\s+function\s+Route\b/, "function Route")
+        .replace(/from\s+["']\.\/ra-ui\.jsx["']/g, 'from "./site-api.js"')
+        .replace(/\bRaForm\b/g, "form")
+        .replace(/\bRaSubmit\b/g, "button")
+    : `function Route({ loaderData }) {
+  return (
+    <div className="page">
+      <h1 className="title">{loaderData?.title ?? "Site"}</h1>
+      <p className="message">{loaderData?.message ?? ""}</p>
+    </div>
+  );
+}
+`;
+
+  const appTsx = `import { useEffect, useState } from "react";
+import { loadSiteData, peekSiteData } from "./site-api.js";
+
+${routeBody}
+
+export default function App() {
+  const [loaderData, setLoaderData] = useState(() => {
+    const injected = peekSiteData();
+    return injected === undefined ? null : injected;
+  });
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadSiteData()
+      .then(setLoaderData)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  if (error) return <div className="page"><p className="message">{error}</p></div>;
+  if (!loaderData) return <div className="page"><p className="message">Loading…</p></div>;
+  return <Route loaderData={loaderData} />;
+}
+`;
+
+  writeFileSync(join(dir, "app.tsx"), appTsx, "utf8");
+  writeFileSync(join(dir, "data.ts"), dataTs, "utf8");
+  writeFileSync(join(dir, "actions.ts"), actionsTs, "utf8");
+  writeFileSync(join(dir, "styles.css"), styles, "utf8");
+  writeFileSync(join(dir, "package.json"), pkg, "utf8");
+
+  for (const file of SITE_LEGACY_FILES) {
+    const p = join(dir, file);
+    if (existsSync(p)) rmSync(p);
+  }
+  return true;
+}
+
+export function ensureReactSiteSources(siteId: string, slug: string): void {
+  for (const tree of ["draft", "prod"] as SiteTree[]) {
+    migrateLegacyTree(siteId, tree, slug);
+  }
 }

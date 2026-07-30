@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { BadRequestException } from "../../common/exceptions/http.exception.js";
-import { requireAuth } from "../../common/middleware/auth.middleware.js";
+import { BadRequestException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
+import { accessTokenCookieHeader, readAccessToken, requireAuth } from "../../common/middleware/auth.middleware.js";
 import { type SiteAgentStreamRequest, streamSiteAgent } from "./services/site-agent.service.js";
 import * as svc from "./sites.service.js";
 
@@ -76,9 +76,71 @@ app.post("/:id/preview", async (c) => {
     return c.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    // Always return a JSON body — avoid socket hang up on SSR failures
     return c.json({ ok: false, message, error: message, html: "", data: null, cached: false }, 422);
   }
+});
+
+/** Mint HttpOnly auth cookie for draft iframe (assets cannot send Authorization). */
+app.post("/:id/live/session", (c) => {
+  const id = c.req.param("id");
+  svc.requireSiteAccess(id, authUser(c));
+  const token = readAccessToken(c);
+  if (!token) throw new UnauthorizedException("Authentication required");
+  return c.json(
+    { ok: true },
+    {
+      headers: {
+        "Set-Cookie": accessTokenCookieHeader(token),
+        "Cache-Control": "no-store",
+      },
+    },
+  );
+});
+
+app.get("/:id/live", async (c) => {
+  const id = c.req.param("id");
+  svc.requireSiteAccess(id, authUser(c));
+  const token = readAccessToken(c);
+  const headers: Record<string, string> = {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+  };
+  if (token) headers["Set-Cookie"] = accessTokenCookieHeader(token);
+
+  // Strip legacy ?access_token= from URL so it never appears on asset requests / logs.
+  if (c.req.query("access_token")) {
+    headers.Location = `/api/sites/${id}/live`;
+    return new Response(null, { status: 302, headers });
+  }
+
+  try {
+    const html = await svc.renderDraftLiveHtml(id, c.req.raw);
+    return new Response(html, { headers });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(`<!DOCTYPE html><pre style="padding:16px;color:#b91c1c">${message}</pre>`, {
+      status: 422,
+      headers,
+    });
+  }
+});
+
+app.get("/:id/live/assets/:file", async (c) => {
+  const id = c.req.param("id");
+  svc.requireSiteAccess(id, authUser(c));
+  const file = c.req.param("file");
+  if (file !== "app.js" && file !== "styles.css") return c.json({ message: "Not found" }, 404);
+  const asset = await svc.getDraftLiveAsset(id, file);
+  return new Response(asset.body, {
+    headers: { "Content-Type": asset.contentType, "Cache-Control": "no-store" },
+  });
+});
+
+app.get("/:id/data", async (c) => {
+  const id = c.req.param("id");
+  svc.requireSiteAccess(id, authUser(c));
+  const result = await svc.loadDraftSiteData(id, c.req.raw);
+  return c.json(result);
 });
 
 app.post("/:id/action", async (c) => {

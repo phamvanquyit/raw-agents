@@ -19,7 +19,7 @@ export function makeWriteSiteFileTool(siteId: string) {
           depsInstalled: result.depsInstalled,
           next: result.depsInstalled
             ? "package.json saved and dependencies installed. Continue related edits, then check_site if you need to verify."
-            : "Draft updated. Trust the content you wrote. <current_draft> below is the updated route.jsx snapshot. Call check_site after related edits if you need to verify.",
+            : "Draft updated. Trust the content you wrote. <current_draft> below is the updated app.tsx snapshot. Call check_site after related edits if you need to verify.",
           current_draft: currentDraft,
         });
       } catch (err) {
@@ -29,7 +29,7 @@ export function makeWriteSiteFileTool(siteId: string) {
     {
       name: "write_site_file",
       description:
-        "Write a complete draft site source file (loader.js, route.jsx, action.js, styles.css, or package.json). Writing package.json automatically runs bun install. Returns an updated <current_draft> (route.jsx only).",
+        "Write a complete draft site source file (app.tsx, data.ts, actions.ts, styles.css, or package.json). Writing package.json automatically runs bun install. Returns an updated <current_draft> (app.tsx only).",
       schema: z.object({
         file: z.enum(SITE_SOURCE_FILES as unknown as [string, ...string[]]),
         content: z.string().describe("Full file contents"),
