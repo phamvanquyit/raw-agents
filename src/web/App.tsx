@@ -20,7 +20,6 @@ const AgentDetailPage = lazy(() => import("./modules/agents/[id]/page"));
 const DashboardPage = lazy(() => import("./modules/dashboard/DashboardPage"));
 const ProfilePage = lazy(() => import("./modules/profile/ProfilePage"));
 const McpServersPage = lazy(() => import("./modules/mcp-servers/McpServersPage"));
-const McpServersEditPage = lazy(() => import("./modules/mcp-servers/McpServersEditPage"));
 const KvStorePage = lazy(() => import("./modules/kvstore/KvStorePage"));
 const SecretsPage = lazy(() => import("./modules/secrets/SecretsPage"));
 const DatatablesPage = lazy(() => import("./modules/datatables/DatatablesPage"));
@@ -135,7 +134,6 @@ function AppContent() {
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/mcp-servers" element={<McpServersPage />} />
-            <Route path="/mcp-servers/edit" element={<McpServersEditPage />} />
             <Route path="/teams" element={<Navigate to="/agents" replace />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/providers" element={<Navigate to="/settings/providers" replace />} />

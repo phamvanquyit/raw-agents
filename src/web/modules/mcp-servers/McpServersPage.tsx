@@ -1,19 +1,18 @@
-import { Clipboard, ClipboardCheck, Magnifier, PlugCircle, RefreshCircle, Settings, Widget } from "@solar-icons/react";
-import { Alert, Button, Drawer, Empty, Input, message } from "antd";
+import { AddCircle, Clipboard, ClipboardCheck, Magnifier, PenNewSquare, PlugCircle, RefreshCircle, TrashBinMinimalistic, Widget } from "@solar-icons/react";
+import { Alert, Button, Drawer, Empty, Input, Popconfirm, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { apiClient } from "src/common/api";
 import { cn } from "src/common/lib/cn";
 import type { McpServer } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-import { fetchMcpServers, updateMcpServer } from "./common/mcpServersSlice";
+import { deleteMcpServer, fetchMcpServers, updateMcpServer } from "./common/mcpServersSlice";
 import { McpServerCard, getServerStatus, toolCountOf } from "./components/McpServerCard";
+import { McpServerDialog } from "./components/McpServerDialog";
 
 export default function McpServersPage() {
   const dispatch = useAppDispatch();
-  const navigate = useNavigate();
   const servers = useAppSelector((s) => s.mcpServers.items) as McpServer[];
 
   const [error, setError] = useState("");
@@ -22,6 +21,7 @@ export default function McpServersPage() {
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [toolQuery, setToolQuery] = useState("");
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [dialog, setDialog] = useState<"create" | McpServer | null>(null);
 
   useEffect(() => {
     dispatch(fetchMcpServers());
@@ -77,6 +77,17 @@ export default function McpServersPage() {
     }
   };
 
+  const handleDelete = async (server: McpServer) => {
+    try {
+      await dispatch(deleteMcpServer(server.id)).unwrap();
+      message.success("Deleted");
+      if (drawerId === server.id) setDrawerId(null);
+      await dispatch(fetchMcpServers());
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const handleCopyUrl = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -104,8 +115,8 @@ export default function McpServersPage() {
             </RenderIf>
           </p>
         </div>
-        <Button type="primary" icon={<Settings width={16} height={16} />} onClick={() => navigate("/mcp-servers/edit")}>
-          Config
+        <Button type="primary" icon={<AddCircle width={16} height={16} />} onClick={() => setDialog("create")}>
+          Add
         </Button>
       </div>
 
@@ -121,14 +132,14 @@ export default function McpServersPage() {
               <PlugCircle weight="BoldDuotone" width={28} height={28} />
             </div>
             <p className="mb-1 text-base font-semibold text-foreground">No servers yet</p>
-            <p className="m-0 mb-5 max-w-sm text-center text-sm text-muted-foreground">Add an MCP endpoint in config to expose remote tools to your agents.</p>
-            <Button type="primary" icon={<Settings width={16} height={16} />} onClick={() => navigate("/mcp-servers/edit")}>
-              Config
+            <p className="m-0 mb-5 max-w-sm text-center text-sm text-muted-foreground">Add a remote MCP endpoint to expose its tools to your agents.</p>
+            <Button type="primary" icon={<AddCircle width={16} height={16} />} onClick={() => setDialog("create")}>
+              Add server
             </Button>
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {servers.map((server, index) => (
             <McpServerCard
               key={server.id}
@@ -217,6 +228,19 @@ export default function McpServersPage() {
                     <Widget width={12} height={12} />
                     {toolCountOf(server)} tool{toolCountOf(server) === 1 ? "" : "s"}
                   </span>
+                  <div className="ml-auto flex items-center gap-0.5">
+                    <Button type="text" size="small" icon={<PenNewSquare width={14} height={14} />} onClick={() => setDialog(server)} />
+                    <Popconfirm
+                      title={`Delete ${server.name}?`}
+                      description="Agents using tools from this server will lose those assignments."
+                      okText="Delete"
+                      okType="danger"
+                      onConfirm={() => handleDelete(server)}
+                      styles={{ root: { width: 280 } }}
+                    >
+                      <Button type="text" size="small" danger icon={<TrashBinMinimalistic width={14} height={14} />} />
+                    </Popconfirm>
+                  </div>
                 </div>
               </div>
 
@@ -242,7 +266,7 @@ export default function McpServersPage() {
                     <RenderIf
                       condition={filteredTools.length === 0}
                       fallback={
-                        <ul className="game-scrollbar m-0 flex min-h-0 flex-1 list-none flex-col gap-1.5 overflow-y-auto p-0">
+                        <ul className="m-0 flex min-h-0 flex-1 list-none flex-col gap-1.5 overflow-y-auto p-0">
                           {filteredTools.map((tool) => (
                             <li
                               key={tool.name}
@@ -278,6 +302,10 @@ export default function McpServersPage() {
           )}
         </RenderIf>
       </Drawer>
+
+      <RenderIf condition={dialog !== null}>
+        <McpServerDialog edit={dialog === "create" ? null : dialog} onClose={() => setDialog(null)} />
+      </RenderIf>
     </PageShell>
   );
 }
