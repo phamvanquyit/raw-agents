@@ -100,7 +100,7 @@ export function AgentDetailHeader({ id, agent, avatar, onDelete }: AgentDetailHe
             className="flex items-center justify-center size-7 rounded-md border-none bg-transparent text-muted-foreground cursor-pointer transition-colors duration-150 hover:bg-muted/70 hover:text-foreground"
             aria-label="Agent menu"
           >
-            <MenuDots width={15} height={15} />
+            <MenuDots width={15} height={15} weight="Bold" />
           </button>
         </Popover>
       </div>

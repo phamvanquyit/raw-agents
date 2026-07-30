@@ -51,7 +51,7 @@ function ActiveThinking({ thinking }: { thinking: string }) {
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
         <span className="text-xs text-tertiary-foreground select-none">Thinking…</span>
       </div>
-      <div ref={scrollRef} className="mt-1 px-3 py-2 rounded-lg border border-border bg-muted/50 max-h-40 overflow-y-auto [scrollbar-width:thin]">
+      <div ref={scrollRef} className="mt-1 px-3 py-2 rounded-lg border border-border bg-muted/50 max-h-40 overflow-y-auto">
         <p className="text-xs text-tertiary-foreground leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
       </div>
     </div>
@@ -69,7 +69,7 @@ export function CompletedThinking({ thinking, duration }: { thinking: string; du
         </svg>
         <span>{label}</span>
       </summary>
-      <div className="mt-1 pl-4 max-h-40 overflow-y-auto [scrollbar-width:thin]">
+      <div className="mt-1 pl-4 max-h-40 overflow-y-auto">
         <p className="text-[13px] text-tertiary-foreground leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
       </div>
     </details>

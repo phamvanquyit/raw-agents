@@ -32,7 +32,7 @@ function applyFolderOrder(folders: ToolFolderWithTools[], folderIds: string[]): 
 }
 
 export const fetchToolFolders = createAsyncThunk("toolFolders/fetch", async () => {
-  const res = await apiClient.get<{ items: ToolFolderWithTools[]; total: number }>("/api/tool-folders", { page: 1, limit: 200 });
+  const res = await apiClient.get<{ items: ToolFolderWithTools[]; total: number }>("/api/tool-folders");
   return res.items;
 });
 

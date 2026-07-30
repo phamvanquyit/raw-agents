@@ -104,7 +104,7 @@ export const RunPanel = forwardRef(function RunPanel({ onClose }: RunPanelProps,
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto game-scrollbar">
+      <div className="flex-1 min-h-0 overflow-auto">
         {!result && !isRunning && (
           <div className="flex items-center justify-center h-full p-4">
             <p className="text-xs text-muted-foreground m-0">Agent test runs will appear here.</p>

@@ -233,7 +233,7 @@ export default function KvStorePage() {
         }
       >
         <div className="flex min-h-0 flex-1 flex-col">
-          <div ref={tableHostRef} className="min-h-0 flex-1 overflow-hidden [&_.ant-table-body]:hover-scrollbar">
+          <div ref={tableHostRef} className="min-h-0 flex-1 overflow-hidden">
             <RenderIf
               condition={items.length > 0}
               fallback={

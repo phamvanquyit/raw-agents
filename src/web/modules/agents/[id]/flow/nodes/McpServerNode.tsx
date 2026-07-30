@@ -89,7 +89,7 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
               </button>
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto game-scrollbar py-1.5">
+            <div className="max-h-[420px] overflow-y-auto py-1.5">
               {data.tools.map((tool) => (
                 <div key={tool.id} className="flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-muted/40 transition-colors">
                   <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>

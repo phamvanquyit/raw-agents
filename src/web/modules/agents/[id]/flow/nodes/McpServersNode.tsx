@@ -106,7 +106,7 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
               </button>
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto game-scrollbar py-1.5">
+            <div className="max-h-[420px] overflow-y-auto py-1.5">
               {totalCount === 0 ? (
                 <div className="px-3.5 py-6 text-[12px] text-muted-foreground text-center">No MCP tools available</div>
               ) : (

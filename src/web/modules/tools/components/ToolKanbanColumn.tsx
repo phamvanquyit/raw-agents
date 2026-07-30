@@ -2,8 +2,8 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AddCircle, Folder, MenuDots, PenNewSquare, TrashBinTrash } from "@solar-icons/react";
-import { Button, Form, Input, Modal, Popover, message } from "antd";
-import type { InputRef } from "antd";
+import { Button, Dropdown, Form, Input, Modal, Popover, message } from "antd";
+import type { InputRef, MenuProps } from "antd";
 import type { CSSProperties, HTMLAttributes } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { AgentTool } from "src/common/types";
@@ -26,57 +26,49 @@ const TONE_ICON: Record<ColumnTone, string> = {
 function FolderColumnMenu({ title, onEdit, onDelete }: { title: string; onEdit?: () => void; onDelete?: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleDelete = () => {
-    setMenuOpen(false);
-    Modal.confirm({
-      title: "Delete folder?",
-      content: `Delete "${title}"? Tools in this folder will move to Ungrouped.`,
-      okText: "Delete",
-      okButtonProps: { danger: true },
-      cancelText: "Cancel",
-      onOk: () => onDelete?.(),
-    });
-  };
+  const menuItems: MenuProps["items"] = [
+    {
+      key: "edit",
+      label: (
+        <div className="flex items-center gap-2">
+          <PenNewSquare width={14} height={14} />
+          Edit
+        </div>
+      ),
+      onClick: () => onEdit?.(),
+    },
+    {
+      key: "delete",
+      danger: true,
+      label: (
+        <div className="flex items-center gap-2">
+          <TrashBinTrash width={14} height={14} />
+          Delete
+        </div>
+      ),
+      onClick: () => {
+        Modal.confirm({
+          title: "Delete folder?",
+          content: `Delete "${title}"? Tools in this folder will move to Ungrouped.`,
+          okText: "Delete",
+          okButtonProps: { danger: true },
+          cancelText: "Cancel",
+          onOk: () => onDelete?.(),
+        });
+      },
+    },
+  ];
 
   return (
-    <Popover
-      open={menuOpen}
-      onOpenChange={setMenuOpen}
-      trigger="click"
-      placement="bottomRight"
-      arrow={false}
-      content={
-        <div className="w-[160px] p-1">
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              onEdit?.();
-            }}
-            className="flex w-full items-center gap-2 rounded-md border-none bg-transparent px-2.5 py-2 text-left text-[12px] font-medium text-muted-foreground cursor-pointer transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <PenNewSquare width={13} height={13} className="shrink-0" />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="flex w-full items-center gap-2 rounded-md border-none bg-transparent px-2.5 py-2 text-left text-[12px] font-medium text-destructive cursor-pointer transition-colors hover:bg-destructive/10"
-          >
-            <TrashBinTrash width={13} height={13} className="shrink-0" />
-            Delete
-          </button>
-        </div>
-      }
-    >
+    <Dropdown trigger={["click"]} placement="bottomRight" open={menuOpen} onOpenChange={setMenuOpen} menu={{ items: menuItems, style: { minWidth: 160 } }}>
       <button
         type="button"
         className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-muted-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         aria-label="Folder actions"
       >
-        <MenuDots width={14} height={14} />
+        <MenuDots width={14} height={14} weight="Bold" />
       </button>
-    </Popover>
+    </Dropdown>
   );
 }
 

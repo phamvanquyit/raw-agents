@@ -66,22 +66,26 @@ export const antdTheme: ThemeConfig = {
       footerBorderRadius: "0 0 12px 12px",
     } as NonNullable<ThemeConfig["components"]>["Modal"],
     Input: {
-      // Hover: slightly lighter border (not primary). Focus: primary border, no ring.
+      // Slightly lighter than modal/card (#191919) so fields read as controls.
+      colorBgContainer: "#212121",
+      // Hover/focus: slightly lighter border (not primary), no ring.
       hoverBorderColor: "rgba(255, 255, 255, 0.28)",
-      activeBorderColor: "#dd7627",
+      activeBorderColor: "rgba(255, 255, 255, 0.28)",
       activeShadow: "none",
       errorActiveShadow: "none",
       warningActiveShadow: "none",
     },
     Select: {
+      colorBgContainer: "#212121",
       hoverBorderColor: "rgba(255, 255, 255, 0.28)",
-      activeBorderColor: "#dd7627",
+      activeBorderColor: "rgba(255, 255, 255, 0.28)",
       activeOutlineColor: "transparent",
       optionSelectedBg: "color-mix(in oklab, #dd7627 14%, transparent)",
     },
     DatePicker: {
+      colorBgContainer: "#212121",
       hoverBorderColor: "rgba(255, 255, 255, 0.28)",
-      activeBorderColor: "#dd7627",
+      activeBorderColor: "rgba(255, 255, 255, 0.28)",
       activeShadow: "none",
     },
     Cascader: {

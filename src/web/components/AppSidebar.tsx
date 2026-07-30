@@ -32,6 +32,7 @@ interface NavItem {
   to: string;
   label: string;
   icon: React.ReactNode;
+  adminOnly?: boolean;
 }
 
 const ICON = { width: 16, height: 16, weight: "BoldDuotone" as const };
@@ -43,15 +44,15 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: "/mcp-servers", label: "MCP", icon: <PlugCircle {...ICON} /> },
 ];
 
-const RESOURCES_NAV_ALL: NavItem[] = [
+const CAPABILITIES_NAV: NavItem[] = [
   { to: "/sites", label: "Sites", icon: <Global {...ICON} /> },
-  { to: "/datatables", label: "Datatables", icon: <Database {...ICON} /> },
-  { to: "/kvstore", label: "KV Store", icon: <KeyMinimalistic {...ICON} /> },
+  { to: "/jobs", label: "Jobs", icon: <Stopwatch {...ICON} />, adminOnly: true },
 ];
 
-const RESOURCES_NAV_ADMIN: NavItem[] = [
-  { to: "/jobs", label: "Jobs", icon: <Stopwatch {...ICON} /> },
-  { to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} /> },
+const RESOURCES_NAV: NavItem[] = [
+  { to: "/datatables", label: "Datatables", icon: <Database {...ICON} /> },
+  { to: "/kvstore", label: "KV Store", icon: <KeyMinimalistic {...ICON} /> },
+  { to: "/secrets", label: "Secrets", icon: <LockPassword {...ICON} />, adminOnly: true },
 ];
 
 function NavSectionLabel({ children }: { children: React.ReactNode }) {
@@ -206,7 +207,7 @@ function SidebarProfileLink({ user, onLogout }: { user: User | null; onLogout: (
           <span className="mt-0.5 block truncate text-xs leading-tight text-muted-foreground tabular-nums">v{__APP_VERSION__}</span>
         </span>
         <span className="inline-flex size-8 shrink-0 items-center justify-center self-center rounded-md text-tertiary-foreground">
-          <MenuDots width={16} height={16} weight="BoldDuotone" />
+          <MenuDots width={16} height={16} weight="Bold" />
         </span>
       </button>
     </Dropdown>
@@ -267,12 +268,18 @@ export function AppSidebar() {
               ))}
             </div>
 
-            <NavSectionLabel>Resources</NavSectionLabel>
+            <NavSectionLabel>Capabilities</NavSectionLabel>
             <div className="flex flex-col gap-1">
-              {RESOURCES_NAV_ALL.map((item) => (
+              {CAPABILITIES_NAV.filter((item) => !item.adminOnly || isAdmin).map((item) => (
                 <SidebarNavLink key={item.to} item={item} />
               ))}
-              {isAdmin && RESOURCES_NAV_ADMIN.map((item) => <SidebarNavLink key={item.to} item={item} />)}
+            </div>
+
+            <NavSectionLabel>Resources</NavSectionLabel>
+            <div className="flex flex-col gap-1">
+              {RESOURCES_NAV.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+                <SidebarNavLink key={item.to} item={item} />
+              ))}
             </div>
 
             {isAdmin && (

@@ -37,7 +37,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
   const hasInput = msg.toolInput != null;
   const hasError = Boolean(msg.toolError);
   const [open, setOpen] = useState(false);
-  // Check if the conversation is still running — if not, don't show "Running..." spinner
+  // Check if the conversation is still running — if not, don't show "Running..."spinner
   const activeConvId = useAppSelector((s) => s.chat.activeConversationId);
   const conversations = useAppSelector((s) => s.chat.conversations);
   const isConvRunning = conversations.find((c) => c.id === activeConvId)?.status === "running";
@@ -76,7 +76,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
           <RenderIf condition={hasInput}>
             <div className="px-3 py-2 border-b border-border/60">
               <span className="text-2xs text-muted-foreground uppercase tracking-widest font-sans font-semibold">input</span>
-              <pre className="[scrollbar-width:thin] m-0 mt-1 whitespace-pre-wrap break-all text-muted-foreground leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
+              <pre className="m-0 mt-1 whitespace-pre-wrap break-all text-muted-foreground leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
                 {prettyJson(msg.toolInput)}
               </pre>
             </div>
@@ -91,7 +91,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
             </span>
             <pre
               className={[
-                "[scrollbar-width:thin] m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal",
+                "m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal",
                 hasOutput ? "text-muted-foreground" : "text-muted-foreground italic",
               ].join(" ")}
             >

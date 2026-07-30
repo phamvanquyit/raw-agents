@@ -152,7 +152,7 @@ function TimelineEventSegment({
 function buildDisplayRows(entries: JobLogEntry[], totalDurationMs: number): Array<{ entry: JobLogEntry; depth: number; endT: number; segmentMs: number }> {
   const stepIdxs = entries.map((e, i) => ({ e, i })).filter(({ e }) => e.kind === "step" || e.level === "step");
 
-  // Hide open "start" markers once the matching completed step exists (same name + start time).
+  // Hide open "start"markers once the matching completed step exists (same name + start time).
   const skip = new Set<number>();
   for (const { e, i } of stepIdxs) {
     if (e.duration != null) continue;

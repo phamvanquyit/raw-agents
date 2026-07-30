@@ -194,7 +194,7 @@ export function ProviderListItem({ item }: ProviderListItemProps) {
             <div className="rounded-xl bg-card overflow-hidden">
               {refreshError && <div className="px-3 py-2 text-2xs text-destructive bg-destructive/5 border-b border-destructive/20">{refreshError}</div>}
               {models.length > 0 ? (
-                <div className="max-h-40 overflow-y-auto game-scrollbar divide-y divide-border/40">
+                <div className="max-h-40 overflow-y-auto divide-y divide-border/40">
                   {models.map((m) => (
                     <div key={m} className="px-3 py-1.5 text-xs text-foreground truncate" title={m}>
                       {m}

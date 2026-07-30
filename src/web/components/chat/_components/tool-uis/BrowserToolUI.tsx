@@ -210,7 +210,7 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                 <p className="text-[11px] text-destructive m-0 mt-1.5">{output?.error ?? "Tool execution failed"}</p>
               </RenderIf>
               <RenderIf condition={hasOutput}>
-                <pre className="[scrollbar-width:thin] m-0 mt-1.5 whitespace-pre-wrap break-all text-[10px] text-tertiary-foreground leading-[1.5] max-h-40 overflow-y-auto font-mono">
+                <pre className="m-0 mt-1.5 whitespace-pre-wrap break-all text-[10px] text-tertiary-foreground leading-[1.5] max-h-40 overflow-y-auto font-mono">
                   {prettyJson(msg.toolOutput)}
                 </pre>
               </RenderIf>

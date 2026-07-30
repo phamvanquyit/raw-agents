@@ -193,10 +193,7 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
           </button>
         </div>
 
-        <div
-          ref={containerRef}
-          className="flex justify-center p-6 overflow-x-auto [scrollbar-width:thin] [scrollbar-color:#d1cfc5_transparent] [&_svg]:max-w-full"
-        />
+        <div ref={containerRef} className="flex justify-center p-6 overflow-x-auto [&_svg]:max-w-full" />
       </div>
 
       <dialog

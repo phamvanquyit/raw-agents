@@ -39,7 +39,7 @@ export function ProjectCard({
             type="text"
             size="small"
             className="opacity-0 group-hover:opacity-100 focus:opacity-100"
-            icon={<MenuDots width={16} height={16} />}
+            icon={<MenuDots width={16} height={16} weight="Bold" />}
             onClick={(e) => e.stopPropagation()}
           />
         </Dropdown>

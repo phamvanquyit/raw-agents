@@ -2,7 +2,7 @@ import { Clipboard, ClipboardCheck } from "@solar-icons/react";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 
 function escapeCell(text: string): string {
-  return text.replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
+  return text.replace(/\|/g, "\\|").replace(/\n+/g, "").trim();
 }
 
 function tableToMarkdown(table: HTMLTableElement): string {
@@ -45,7 +45,7 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
         {copied ? <ClipboardCheck size={12} /> : <Clipboard size={12} />}
       </button>
 
-      <div className="overflow-x-auto hover-scrollbar">
+      <div className="overflow-x-auto">
         <table
           ref={tableRef}
           className={

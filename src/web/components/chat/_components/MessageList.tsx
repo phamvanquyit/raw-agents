@@ -113,7 +113,7 @@ export function MessageList({
   const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
   const lastIsAgent = lastMsg ? isAgentRole(lastMsg.role) : false;
 
-  // Elapsed seconds while generating so long "Thinking..." waits don't look frozen
+  // Elapsed seconds while generating so long "Thinking..."waits don't look frozen
   const [elapsedSec, setElapsedSec] = useState(0);
   useEffect(() => {
     if (!generating) {
@@ -131,7 +131,7 @@ export function MessageList({
   const statusLabel = elapsedSec >= 3 ? `${activityStatus} ${elapsedSec}s` : activityStatus;
 
   return (
-    <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-y-auto game-scrollbar ${!hasMessages ? "flex flex-col" : ""}`}>
+    <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-y-auto ${!hasMessages ? "flex flex-col" : ""}`}>
       <div className={`max-w-[760px] mx-auto ${!hasMessages ? "flex-1 w-full flex flex-col" : ""} ${className}`}>
         <RenderIf condition={!hasMessages}>
           <div className="flex flex-1 flex-col items-stretch min-h-full w-full">

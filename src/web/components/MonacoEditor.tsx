@@ -35,7 +35,7 @@ function ensureScriptDts(monacoInstance: Monaco) {
     allowNonTsExtensions: true,
   });
   defaults.addExtraLib(
-    `declare module "rawagents" {
+    `declare module "rawagents"{
   const rawagents: any;
   export default rawagents;
 }
@@ -62,8 +62,8 @@ const DEFAULT_OPTIONS: editorNS.IStandaloneEditorConstructionOptions = {
   wordWrap: "off",
   automaticLayout: true,
   scrollbar: {
-    verticalScrollbarSize: 4,
-    horizontalScrollbarSize: 4,
+    verticalScrollbarSize: 6,
+    horizontalScrollbarSize: 6,
     horizontal: "visible",
   },
   stickyScroll: { enabled: false },
@@ -102,8 +102,8 @@ const DEFAULT_DIFF_OPTIONS: editorNS.IDiffEditorConstructionOptions = {
   wordWrap: "off",
   automaticLayout: true,
   scrollbar: {
-    verticalScrollbarSize: 4,
-    horizontalScrollbarSize: 4,
+    verticalScrollbarSize: 6,
+    horizontalScrollbarSize: 6,
     horizontal: "visible",
   },
   stickyScroll: { enabled: false },

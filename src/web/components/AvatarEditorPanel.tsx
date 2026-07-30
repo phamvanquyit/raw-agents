@@ -220,7 +220,7 @@ export function AvatarEditorPanel({ avatar, name, saving, onChange }: AvatarEdit
         </div>
       </div>
 
-      <div className="max-h-[280px] overflow-y-auto flex flex-col gap-2.5 pr-0.5 game-scrollbar">
+      <div className="max-h-[280px] overflow-y-auto flex flex-col gap-2.5 pr-0.5">
         <ChipGroup label="Sex" value={config.sex} options={SEX_OPTS} onChange={handleSexChange} />
         <ChipGroup label="Ears" value={config.earSize} options={EAR_OPTS} onChange={(v) => patch("earSize", v)} />
         <ChipGroup label="Eyes" value={config.eyeStyle} options={EYE_OPTS} onChange={(v) => patch("eyeStyle", v)} />

@@ -49,6 +49,7 @@
   --edge-call-agent: var(--chart-2);
   --edge-mcp: var(--chart-1);
   --edge-tool: var(--chart-3);
+  --scrollbar-size: 6px;
   --scrollbar-thumb: color-mix(in oklab, #f0f0f0 14%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #f0f0f0 22%, transparent);
 }
@@ -228,8 +229,8 @@ body,
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -240,6 +241,11 @@ body,
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* Elevated overlays — sit above table content; theme flat shadows made menus blend in */
@@ -260,63 +266,10 @@ body,
   border-radius: 6px;
 }
 
-/* Unlayered so it wins over the global ::-webkit-scrollbar size above */
-.table-scrollbar {
-  scrollbar-width: auto;
-  scrollbar-color: var(--scrollbar-thumb) var(--secondary);
-}
-.table-scrollbar::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
-}
-.table-scrollbar::-webkit-scrollbar-track {
-  background: var(--secondary);
-  border-radius: 99px;
-}
-.table-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 99px;
-}
-.table-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-}
-.table-scrollbar::-webkit-scrollbar-corner {
-  background: var(--secondary);
-}
-
-@utility game-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
 @utility no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
   &::-webkit-scrollbar {
     display: none;
-  }
-}
-
-@utility hover-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  &:hover {
-    scrollbar-color: var(--scrollbar-thumb) transparent;
-  }
-  &::-webkit-scrollbar {
-    height: 6px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: transparent;
-    border-radius: 3px;
-  }
-  &:hover::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-  }
-  &:hover::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover);
   }
 }

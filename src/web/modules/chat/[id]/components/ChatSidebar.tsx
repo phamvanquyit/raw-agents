@@ -57,7 +57,7 @@ export function ChatSidebar({
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto game-scrollbar py-1 px-1 space-y-px">
+      <div className="flex-1 min-h-0 overflow-y-auto py-1 px-1 space-y-px">
         {conversations.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-8 text-center px-3">
             <ChatRound width={18} height={18} className="text-muted-foreground opacity-40" />
@@ -76,7 +76,7 @@ export function ChatSidebar({
               tabIndex={0}
               onClick={() => onSwitchConversation(conv.id)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (e.key === "Enter" || e.key === "") {
                   e.preventDefault();
                   onSwitchConversation(conv.id);
                 }

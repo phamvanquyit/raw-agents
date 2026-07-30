@@ -359,7 +359,7 @@ export function ToolsKanbanBoard({ tools, folders, onToolClick, onToolCreated, o
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="h-full flex gap-3 overflow-x-auto overflow-y-hidden px-8 pb-6 items-start [scrollbar-width:auto] [scrollbar-color:var(--color-scrollbar-thumb)_transparent] [&::-webkit-scrollbar]:h-2.5">
+      <div className="h-full flex gap-3 overflow-x-auto overflow-y-hidden px-8 pb-6 items-start">
         {showUngrouped ? (
           <ToolKanbanColumn
             id={UNGROUPED_COLUMN_ID}
