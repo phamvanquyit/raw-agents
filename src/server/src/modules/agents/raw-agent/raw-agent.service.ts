@@ -120,6 +120,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
   let thinkingStart = 0;
   let failed = false;
   let hasSavedSegments = false;
+  let trailingAssistantSaved = false;
   let terminalSent = false;
   const toolMsgIds = new Map<string, string>();
 
@@ -276,6 +277,28 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
 
         case "done":
           if (!fullText && !hasSavedSegments) fullText = event.text || "";
+          // Persist trailing thinking/text BEFORE clients see done (avoids refetch race).
+          if (!fullText.trim() && thinkingText.trim()) {
+            fullText = thinkingText;
+            thinkingText = "";
+            thinkingStart = 0;
+          }
+          if (thinkingText) {
+            saveMessage({
+              agentId: msgAgentId,
+              conversationId,
+              role: "thinking",
+              content: thinkingText,
+              metadata: { thinkingDuration: Math.round((Date.now() - thinkingStart) / 1000) },
+            });
+            thinkingText = "";
+            thinkingStart = 0;
+          }
+          if (fullText.trim()) {
+            saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
+            trailingAssistantSaved = true;
+            hasSavedSegments = true;
+          }
           break;
 
         case "error":
@@ -336,6 +359,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
 
       // Some providers put the final reply only in the reasoning channel (empty content).
       // Promote so the user still gets an assistant message instead of Thinking-only.
+      // (May already be flushed on the `done` event — only save leftovers here.)
       if (!fullText.trim() && thinkingText.trim()) {
         fullText = thinkingText;
         thinkingText = "";
@@ -350,8 +374,9 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
           content: thinkingText,
           metadata: { thinkingDuration: Math.round((Date.now() - thinkingStart) / 1000) },
         });
+        thinkingText = "";
       }
-      if (fullText) {
+      if (fullText.trim() && !trailingAssistantSaved) {
         saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
       }
 
