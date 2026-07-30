@@ -9,7 +9,8 @@ import { getBuiltinTool } from "../tools/tools.service.js";
 
 /**
  * List agents with pagination, search, sorting, plus enrichment
- * (creator name, tool assignment count).
+ * (creator name, tool assignment count). Omits heavy/secret fields —
+ * use getAgent for systemPrompt / publicPassword / callableAgentIds.
  */
 export function listAgentsEnriched(query: RawQuery, user?: { id: string; role: string }) {
   const db = getDb();
@@ -49,11 +50,14 @@ export function listAgentsEnriched(query: RawQuery, user?: { id: string; role: s
 
   return {
     ...result,
-    items: result.items.map((a: any) => ({
-      ...a,
-      creatorName: a.createdBy ? (creatorMap.get(a.createdBy) ?? null) : null,
-      toolCount: toolCountMap.get(a.id) ?? 0,
-    })),
+    items: result.items.map((a: any) => {
+      const { systemPrompt: _systemPrompt, publicPassword: _publicPassword, callableAgentIds: _callableAgentIds, ...rest } = a;
+      return {
+        ...rest,
+        creatorName: a.createdBy ? (creatorMap.get(a.createdBy) ?? null) : null,
+        toolCount: toolCountMap.get(a.id) ?? 0,
+      };
+    }),
   };
 }
 

@@ -46,10 +46,13 @@ describe("Agents API", () => {
     expect(data.items.length).toBeGreaterThanOrEqual(1);
     expect(data.total).toBeGreaterThanOrEqual(1);
 
-    // Should have enrichment fields
+    // Should have enrichment fields; omit heavy/secret detail fields
     const agent = data.items.find((a) => a.id === agentId);
     expect(agent).toBeTruthy();
     expect(agent).toHaveProperty("toolCount");
+    expect(agent).not.toHaveProperty("systemPrompt");
+    expect(agent).not.toHaveProperty("publicPassword");
+    expect(agent).not.toHaveProperty("callableAgentIds");
   });
 
   test("GET /api/agents — search by name", async () => {
