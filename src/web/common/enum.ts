@@ -16,6 +16,14 @@ export enum SettingKey {
   ToolAssistantProvider = "toolAssistantProvider",
   ToolAssistantModel = "toolAssistantModel",
 
+  // Job Code Assistant
+  JobAssistantProvider = "jobAssistantProvider",
+  JobAssistantModel = "jobAssistantModel",
+
+  // Site Code Assistant
+  SiteAssistantProvider = "siteAssistantProvider",
+  SiteAssistantModel = "siteAssistantModel",
+
   // Prompt Assistant
   PromptAssistantProvider = "prompt_assistant_provider",
   PromptAssistantModel = "prompt_assistant_model",

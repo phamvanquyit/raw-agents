@@ -16,6 +16,7 @@ import { Alert, Button, Dropdown, Form, Input, Modal, Popconfirm, Popover, Switc
 import type { MenuProps } from "antd";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
 import type { Site } from "src/common/types";
@@ -230,9 +231,9 @@ export default function SiteEditorPage() {
   }, [id, navigate, reload, runPreview]);
 
   useEffect(() => {
-    void getSettingValues([SettingKey.ToolAssistantProvider, SettingKey.ToolAssistantModel]).then((s) => {
-      setProviderId(s[SettingKey.ToolAssistantProvider] || undefined);
-      setModel(s[SettingKey.ToolAssistantModel] ?? "");
+    void getSettingValues([SettingKey.SiteAssistantProvider, SettingKey.SiteAssistantModel]).then((s) => {
+      setProviderId(s[SettingKey.SiteAssistantProvider] || undefined);
+      setModel(s[SettingKey.SiteAssistantModel] ?? "");
     });
   }, []);
 
@@ -521,7 +522,7 @@ export default function SiteEditorPage() {
             </Button>
           </Popover>
           <Dropdown menu={{ items: menuItems }} trigger={["click"]} placement="bottomRight">
-            <Button type="text" icon={<MenuDots width={16} height={16} />} aria-label="Site menu" />
+            <Button type="text" icon={<MenuDots width={16} height={16} weight="Bold" />} aria-label="Site menu" />
           </Dropdown>
         </div>
       </header>
@@ -616,8 +617,19 @@ export default function SiteEditorPage() {
           model={model}
           streamUrl={`/api/sites/${site.id}/agent/stream`}
           onToolAction={onToolAction}
-          onChangeAiProvider={setProviderId}
-          onChangeModel={setModel}
+          onChangeAiProvider={(pid) => {
+            setProviderId(pid);
+            setModel("");
+            void apiClient.patch("/api/settings", {
+              [SettingKey.SiteAssistantProvider]: pid,
+            });
+          }}
+          onChangeModel={(m) => {
+            setModel(m);
+            void apiClient.patch("/api/settings", {
+              [SettingKey.SiteAssistantModel]: m,
+            });
+          }}
           selectionContext={selectionContext}
           onClearSelection={() => {
             setSelectedElement(null);

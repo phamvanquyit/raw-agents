@@ -93,9 +93,9 @@ export default function JobEditPage() {
   }, [id, loadRuns]);
 
   useEffect(() => {
-    void getSettingValues([SettingKey.ToolAssistantProvider, SettingKey.ToolAssistantModel]).then((vals) => {
-      if (vals[SettingKey.ToolAssistantProvider]) setProviderId(vals[SettingKey.ToolAssistantProvider]);
-      if (vals[SettingKey.ToolAssistantModel]) setModel(vals[SettingKey.ToolAssistantModel]);
+    void getSettingValues([SettingKey.JobAssistantProvider, SettingKey.JobAssistantModel]).then((vals) => {
+      if (vals[SettingKey.JobAssistantProvider]) setProviderId(vals[SettingKey.JobAssistantProvider]);
+      if (vals[SettingKey.JobAssistantModel]) setModel(vals[SettingKey.JobAssistantModel]);
     });
   }, []);
 
@@ -425,13 +425,13 @@ export default function JobEditPage() {
             setProviderId(pid);
             setModel("");
             void apiClient.patch("/api/settings", {
-              [SettingKey.ToolAssistantProvider]: pid,
+              [SettingKey.JobAssistantProvider]: pid,
             });
           }}
           onChangeModel={(m) => {
             setModel(m);
             void apiClient.patch("/api/settings", {
-              [SettingKey.ToolAssistantModel]: m,
+              [SettingKey.JobAssistantModel]: m,
             });
           }}
           subtitle="Edit, test, and fix this job"
