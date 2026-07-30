@@ -2,21 +2,21 @@ import { AddCircle, UsersGroupTwoRounded } from "@solar-icons/react";
 import { Button } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Agent } from "src/common/types";
+import type { AgentListItem } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import { fetchAgents } from "src/modules/agents/common/agentsSlice";
 import { AgentsBoard } from "src/modules/agents/components/AgentsBoard";
-import { NewAgentPopover } from "src/modules/agents/components/NewAgentDialog";
+import { NewAgentDialog } from "src/modules/agents/components/NewAgentDialog";
 import { fetchTeams } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
-import { NewTeamPopover } from "src/modules/teams/components/NewTeamDialog";
+import { NewTeamDialog } from "src/modules/teams/components/NewTeamDialog";
 import { TeamDialog } from "src/modules/teams/components/TeamDialog";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
 export default function AgentsPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const agents = useAppSelector((s) => s.agents.items) as Agent[];
+  const agents = useAppSelector((s) => s.agents.items) as AgentListItem[];
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
 
   const [editingTeam, setEditingTeam] = useState<TeamWithMembers | null>(null);
@@ -35,12 +35,12 @@ export default function AgentsPage() {
   }, [agents]);
 
   const { teamAgents, ungroupedAgents } = useMemo(() => {
-    const teamMap = new Map<string, Agent[]>();
+    const teamMap = new Map<string, AgentListItem[]>();
     for (const team of teams) {
       teamMap.set(team.id, []);
     }
 
-    const ungrouped: Agent[] = [];
+    const ungrouped: AgentListItem[] = [];
 
     for (const agent of sortedAgents) {
       if (agent.teamId && teamMap.has(agent.teamId)) {
@@ -74,16 +74,16 @@ export default function AgentsPage() {
             <p className="mt-1.5 text-sm text-muted-foreground">Organize agents by team</p>
           </div>
           <div className="flex items-center gap-2">
-            <NewTeamPopover>
+            <NewTeamDialog>
               <Button type="default" icon={<UsersGroupTwoRounded width={16} height={16} />}>
                 New Team
               </Button>
-            </NewTeamPopover>
-            <NewAgentPopover>
+            </NewTeamDialog>
+            <NewAgentDialog>
               <Button type="primary" icon={<AddCircle width={16} height={16} />}>
                 New Agent
               </Button>
-            </NewAgentPopover>
+            </NewAgentDialog>
           </div>
         </div>
 

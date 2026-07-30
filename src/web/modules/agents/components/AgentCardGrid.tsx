@@ -1,8 +1,8 @@
-import type { Agent } from "src/common/types";
+import type { AgentListItem } from "src/common/types";
 import { AgentCard } from "./AgentCard";
 
 interface AgentCardGridProps {
-  agents: Agent[];
+  agents: AgentListItem[];
   onNavigate: (id: string) => void;
 }
 

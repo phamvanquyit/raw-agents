@@ -1,15 +1,15 @@
 import { UsersGroupTwoRounded } from "@solar-icons/react";
-import { Button, Form, Input, Popover } from "antd";
+import { Button, Form, Input, Modal } from "antd";
 import type { InputRef } from "antd";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createTeam } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch } from "src/store/store";
 
-interface NewTeamPopoverProps {
+interface NewTeamDialogProps {
   children: ReactNode;
 }
 
-export function NewTeamPopover({ children }: NewTeamPopoverProps) {
+export function NewTeamDialog({ children }: NewTeamDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -21,9 +21,12 @@ export function NewTeamPopover({ children }: NewTeamPopoverProps) {
     if (open) {
       setName("");
       setError("");
+      setSaving(false);
       setTimeout(() => nameRef.current?.focus(), 150);
     }
   }, [open]);
+
+  const handleClose = () => setOpen(false);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -35,7 +38,7 @@ export function NewTeamPopover({ children }: NewTeamPopoverProps) {
     setError("");
     try {
       await dispatch(createTeam({ name: name.trim() })).unwrap();
-      setOpen(false);
+      handleClose();
     } catch {
       setError("Failed to create team");
     } finally {
@@ -51,61 +54,66 @@ export function NewTeamPopover({ children }: NewTeamPopoverProps) {
   };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      trigger="click"
-      placement="bottomRight"
-      arrow
-      styles={{ root: { width: 360 }, container: { width: 360, padding: 0 } }}
-      content={
-        <div className="w-[360px]">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-            <UsersGroupTwoRounded width={16} height={16} className="text-primary shrink-0" />
-            <span className="text-sm font-semibold text-foreground">New Team</span>
+    <>
+      <span className="inline-flex" onClick={() => setOpen(true)}>
+        {children}
+      </span>
+
+      <Modal
+        open={open}
+        onCancel={handleClose}
+        title={
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+              <div className="text-[14px] leading-none text-muted-foreground">
+                <UsersGroupTwoRounded width={16} height={16} />
+              </div>
+            </div>
+            <span className="truncate font-semibold text-foreground">New Team</span>
           </div>
-
-          <div className="flex flex-col gap-3.5 p-4">
-            <Form.Item
-              label={
-                <span className="text-muted-foreground">
-                  Team Name<span className="text-destructive"> *</span>
-                </span>
-              }
-              className="!mb-0"
-              layout="vertical"
-            >
-              <Input
-                ref={nameRef}
-                id="new-team-name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (error) setError("");
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder="e.g. Marketing, Engineering…"
-                autoComplete="off"
-              />
-            </Form.Item>
-
-            {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
-          </div>
-
-          <div className="flex justify-end gap-2.5 px-4 py-3 border-t border-border">
-            <Button type="text" size="small" onClick={() => setOpen(false)}>
+        }
+        footer={
+          <div className="flex justify-end gap-2.5">
+            <Button type="text" size="small" onClick={handleClose}>
               Cancel
             </Button>
             <Button type="primary" size="small" loading={saving} onClick={handleCreate}>
               {saving ? "Creating…" : "Create Team"}
             </Button>
           </div>
+        }
+        width={420}
+        destroyOnHidden
+      >
+        <div className="flex flex-col gap-4 pt-4">
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Team Name<span className="text-destructive"> *</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
+            <Input
+              ref={nameRef}
+              id="new-team-name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError("");
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. Marketing, Engineering…"
+              autoComplete="off"
+            />
+          </Form.Item>
+
+          {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
         </div>
-      }
-    >
-      {children}
-    </Popover>
+      </Modal>
+    </>
   );
 }
 
-export { NewTeamPopover as NewTeamDialog };
+export { NewTeamDialog as NewTeamPopover };

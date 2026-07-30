@@ -5,28 +5,32 @@
 
 // ─── Agents ───────────────────────────────────────────────────────────────────
 
-export interface Agent {
+/** Slim list/card DTO — GET /api/agents omits heavy/secret fields. */
+export interface AgentListItem {
   id: string;
   name: string;
   description: string | null;
   avatar: string | null;
-  systemPrompt: string | null;
-  callableAgentIds: string[];
   isActive: boolean;
   isPublic: boolean;
-  publicPassword: string | null;
-  cron: string | null;
-  startMessage: string | null;
-  runStatus: "idle" | "running" | "done" | "failed";
   aiProvider: string | null;
   aiModel: string | null;
-
   teamId: string | null;
   createdBy: string | null;
   creatorName: string | null;
   toolCount: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Full agent — GET /api/agents/:id (and mutations). */
+export interface Agent extends AgentListItem {
+  systemPrompt: string | null;
+  callableAgentIds: string[];
+  publicPassword: string | null;
+  cron: string | null;
+  startMessage: string | null;
+  runStatus: "idle" | "running" | "done" | "failed";
 }
 
 export type NewAgent = Partial<Agent> & { name: string };
@@ -88,7 +92,7 @@ export interface AgentMessage {
   agentId: string;
   conversationId: string | null;
   chatAgentId: string | null;
-  role: "user" | "assistant" | "tool";
+  role: "user" | "assistant" | "tool" | "thinking";
   content: string;
   metadata: Record<string, unknown> | null;
   createdAt: Date;

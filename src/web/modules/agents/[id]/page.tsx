@@ -2,15 +2,14 @@
 // Route: /agents/:id/* — Full-screen agent detail with Chat / Editor tabs.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import type { Agent, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
-import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import type { Agent, AgentListItem, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
 import { fetchMcpServers } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { fetchTeams } from "src/modules/teams/common/teamsSlice";
 import { fetchToolFolders } from "src/modules/tools/common/toolFoldersSlice";
 import { fetchTools } from "src/modules/tools/common/toolsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-import { deleteAgent, fetchAgents, fetchOneAgent, updateAgent } from "../common/agentsSlice";
+import { deleteAgent, fetchAgents, fetchOneAgent, updateAgent, upsertAgentLocal } from "../common/agentsSlice";
 import { ChatPage } from "./chat/ChatPage";
 import { type AgentDetailContext, AgentDetailCtx } from "./common/agentDetailContext";
 import { AgentDetailHeader } from "./components/AgentDetailHeader";
@@ -60,15 +59,17 @@ async function apiUpdateCallableAgents(agentId: string, callableAgentIds: string
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useAppDispatch();
-  const agents = useAppSelector((s) => s.agents.items) as Agent[];
+  const isEditor = /\/editor\/?$/.test(location.pathname);
+  const agents = useAppSelector((s) => s.agents.items) as AgentListItem[];
   const allTools = useAppSelector((s) => s.tools.items) as AgentTool[];
   const mcpServers = useAppSelector((s) => s.mcpServers.items) as McpServer[];
   const teams = useAppSelector((s) => s.teams.teams);
   const toolFolders = useAppSelector((s) => s.toolFolders.folders);
 
-  // ── Detail form state ──────────────────────────────────────────────────────
-  const [loaded, setLoaded] = useState(false);
+  // ── Detail form state (hydrated only from GET /:id — never from list cache) ──
+  const [agent, setAgent] = useState<Agent | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -85,46 +86,51 @@ export default function AgentDetailPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [publicPassword, setPublicPassword] = useState("");
 
-  // Reset on agent change
-  useEffect(() => {
-    setLoaded(false);
-  }, [id]);
-
-  // Fetch agent + assignments
+  // Detail GET is the source of truth for the open agent
   useEffect(() => {
     if (!id) return;
-    dispatch(fetchOneAgent(id));
-    dispatch(fetchAgents());
-    fetchAssignments(id).then((a) => setToolAssignments(a));
+    setAgent(null);
+    dispatch(fetchOneAgent(id))
+      .unwrap()
+      .then((ag: Agent) => {
+        setAgent(ag);
+        dispatch(upsertAgentLocal(ag));
+        setName(ag.name);
+        setDescription(ag.description ?? "");
+        setAvatar(ag.avatar ?? null);
+        setTeamId(ag.teamId ?? null);
+        setSystemPrompt(ag.systemPrompt ?? "");
+        setAiModel(ag.aiModel ?? "");
+        setIsPublic(ag.isPublic ?? false);
+        setPublicPassword(ag.publicPassword ?? "");
+        setCallableAgentIds(ag.callableAgentIds ?? []);
+        if (ag.aiProvider) setSelectedProviderId(ag.aiProvider);
+      })
+      .catch(() => {});
   }, [id, dispatch]);
 
-  // Fetch tools + providers + MCP servers + teams + folders
+  // Editor-only catalog + assignments (list endpoints — not the open agent)
   useEffect(() => {
+    if (!id || !isEditor) return;
+    dispatch(fetchAgents());
+    fetchAssignments(id).then(setToolAssignments);
     dispatch(fetchTools());
     dispatch(fetchToolFolders());
-    dispatch(fetchLlmProviders());
     dispatch(fetchMcpServers());
     dispatch(fetchTeams());
-  }, [dispatch]);
+  }, [id, isEditor, dispatch]);
 
-  // Hydrate form state from store
+  // WS / mutations may upsert a full agent into the list store — merge into detail state
   useEffect(() => {
-    if (loaded || !id) return;
-    const ag = agents.find((a) => a.id === id);
-    if (!ag) return;
-
-    setName(ag.name);
-    setDescription(ag.description ?? "");
-    setAvatar(ag.avatar ?? null);
-    setTeamId((ag as typeof ag & { teamId?: string | null }).teamId ?? null);
-    setSystemPrompt(ag.systemPrompt ?? "");
-    setAiModel(ag.aiModel ?? "");
-    setIsPublic(ag.isPublic ?? false);
-    setPublicPassword(ag.publicPassword ?? "");
-    setCallableAgentIds(ag.callableAgentIds ?? []);
-    if (ag.aiProvider) setSelectedProviderId(ag.aiProvider);
-    setLoaded(true);
-  }, [agents, id, loaded]);
+    if (!id) return;
+    const fromStore = agents.find((a) => a.id === id) as Partial<Agent> | undefined;
+    if (!fromStore || !Object.prototype.hasOwnProperty.call(fromStore, "systemPrompt")) return;
+    setAgent((prev) => {
+      if (!prev) return prev;
+      if (fromStore.systemPrompt === prev.systemPrompt && fromStore.updatedAt === prev.updatedAt) return prev;
+      return { ...prev, ...fromStore } as Agent;
+    });
+  }, [agents, id]);
 
   const handleProviderChange = useCallback((pid: string | null) => setSelectedProviderId(pid), []);
 
@@ -268,9 +274,6 @@ export default function AgentDetailPage() {
     },
     [id, dispatch],
   );
-
-  // Find current agent from store
-  const agent = agents.find((a) => a.id === id);
 
   // Loading / not found states
   if (!id) {

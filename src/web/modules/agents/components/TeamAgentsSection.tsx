@@ -1,14 +1,15 @@
-import { PenNewSquare, UsersGroupTwoRounded } from "@solar-icons/react";
+import { AddCircle, PenNewSquare, UsersGroupTwoRounded } from "@solar-icons/react";
 import { Button } from "antd";
-import type { Agent } from "src/common/types";
+import type { AgentListItem } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { AgentCardGrid } from "./AgentCardGrid";
 import { AgentsSectionHeader } from "./AgentsSectionHeader";
+import { NewAgentDialog } from "./NewAgentDialog";
 
 interface TeamAgentsSectionProps {
   team: TeamWithMembers;
-  agents: Agent[];
+  agents: AgentListItem[];
   onNavigate: (id: string) => void;
   onEditTeam: (team: TeamWithMembers) => void;
 }
@@ -24,14 +25,25 @@ export function TeamAgentsSection({ team, agents, onNavigate, onEditTeam }: Team
         }
         title={team.name}
         actions={
-          <Button
-            type="text"
-            size="small"
-            onClick={() => onEditTeam(team)}
-            className="!px-1.5 opacity-0 transition-opacity duration-150 group-hover/team:opacity-100"
-            title="Edit team"
-            icon={<PenNewSquare width={15} height={15} />}
-          />
+          <div className="flex items-center gap-0.5">
+            <NewAgentDialog defaultTeamId={team.id}>
+              <Button
+                type="text"
+                size="small"
+                className="!px-1.5 opacity-0 transition-opacity duration-150 group-hover/team:opacity-100"
+                title="Add agent to team"
+                icon={<AddCircle width={15} height={15} />}
+              />
+            </NewAgentDialog>
+            <Button
+              type="text"
+              size="small"
+              onClick={() => onEditTeam(team)}
+              className="!px-1.5 opacity-0 transition-opacity duration-150 group-hover/team:opacity-100"
+              title="Edit team"
+              icon={<PenNewSquare width={15} height={15} />}
+            />
+          </div>
         }
       />
 

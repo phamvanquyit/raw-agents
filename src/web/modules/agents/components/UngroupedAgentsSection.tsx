@@ -1,10 +1,10 @@
 import { FaceScanSquare } from "@solar-icons/react";
-import type { Agent } from "src/common/types";
+import type { AgentListItem } from "src/common/types";
 import { AgentCardGrid } from "./AgentCardGrid";
 import { AgentsSectionHeader } from "./AgentsSectionHeader";
 
 interface UngroupedAgentsSectionProps {
-  agents: Agent[];
+  agents: AgentListItem[];
   onNavigate: (id: string) => void;
 }
 

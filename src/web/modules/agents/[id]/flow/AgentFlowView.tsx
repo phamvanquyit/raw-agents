@@ -11,7 +11,7 @@ import { Background, BackgroundVariant, type Connection, type Edge, type Node, R
 import "@xyflow/react/dist/style.css";
 import { Modal } from "antd";
 import { useCallback, useMemo, useState } from "react";
-import type { Agent, AgentTeam, AgentTool, AgentToolAssignment, McpServer, ToolFolder } from "src/common/types";
+import type { Agent, AgentListItem, AgentTeam, AgentTool, AgentToolAssignment, McpServer, ToolFolder } from "src/common/types";
 import { PromptPage } from "../prompt/PromptPage";
 import { DeletableEdge } from "./edges/DeletableEdge";
 import { layoutFanoutSection, layoutTwoLevelFanout, measureChildWidth } from "./layout";
@@ -78,7 +78,7 @@ function measureMaxTextWidth(texts: string[], font = "600 12px Inter, system-ui,
 
 interface AgentFlowViewProps {
   agent: Agent;
-  agents: Agent[];
+  agents: AgentListItem[];
   teams: AgentTeam[];
   toolFolders: ToolFolder[];
   allTools: AgentTool[];

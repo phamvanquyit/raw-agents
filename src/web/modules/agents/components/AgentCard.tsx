@@ -2,7 +2,7 @@ import { Clipboard, Global, MenuDots, UsersGroupTwoRounded } from "@solar-icons/
 import { Dropdown, message } from "antd";
 import type { MenuProps } from "antd";
 import { useMemo, useState } from "react";
-import type { Agent } from "src/common/types";
+import type { Agent, AgentListItem } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import { UserAvatar } from "src/components/UserAvatar";
 import { cloneAgent, updateAgent } from "src/modules/agents/common/agentsSlice";
@@ -15,7 +15,7 @@ function modelLabel(aiModel: string | null): string {
 }
 
 export interface AgentCardProps {
-  agent: Agent;
+  agent: AgentListItem;
   onOpen: () => void;
   index?: number;
 }
@@ -36,7 +36,7 @@ export function AgentCard({ agent, onOpen, index = 0 }: AgentCardProps) {
           void (async () => {
             try {
               await dispatch(updateAgent({ id: agent.id, teamId: team.id })).unwrap();
-              message.success(`Moved "${agent.name}" to ${team.name}`);
+              message.success(`Moved "${agent.name}"to ${team.name}`);
             } catch (err: any) {
               message.error(err?.message ?? "Failed to move agent");
             }
@@ -83,7 +83,7 @@ export function AgentCard({ agent, onOpen, index = 0 }: AgentCardProps) {
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (e.key === "Enter" || e.key === "") {
           e.preventDefault();
           onOpen();
         }
@@ -98,7 +98,7 @@ export function AgentCard({ agent, onOpen, index = 0 }: AgentCardProps) {
       </RenderIf>
 
       <div className="absolute right-2 top-2 z-10" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <Dropdown trigger={["click"]} placement="bottomRight" open={menuOpen} onOpenChange={setMenuOpen} menu={{ items: menuItems }}>
+        <Dropdown trigger={["click"]} placement="bottomRight" open={menuOpen} onOpenChange={setMenuOpen} menu={{ items: menuItems, style: { minWidth: 160 } }}>
           <button
             type="button"
             aria-label="Agent actions"
@@ -107,7 +107,7 @@ export function AgentCard({ agent, onOpen, index = 0 }: AgentCardProps) {
               menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
             }`}
           >
-            <MenuDots width={15} height={15} />
+            <MenuDots width={15} height={15} weight="Bold" />
           </button>
         </Dropdown>
       </div>

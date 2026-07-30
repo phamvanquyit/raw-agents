@@ -1,6 +1,6 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { apiClient } from "src/common/api";
-import type { Agent } from "src/common/types";
+import type { Agent, AgentListItem } from "src/common/types";
 import { BaseReducer, type IBaseState } from "src/store/baseSlice";
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ export interface IAgentsState extends IBaseState {
 
 const initialState: IAgentsState = {
   total: 0,
-  items: [] as Agent[],
+  items: [] as AgentListItem[],
   selected: [],
   filter: {},
 };

@@ -1,4 +1,4 @@
-import type { Agent } from "src/common/types";
+import type { AgentListItem } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { AgentsEmptyState } from "./AgentsEmptyState";
@@ -7,8 +7,8 @@ import { UngroupedAgentsSection } from "./UngroupedAgentsSection";
 
 interface AgentsBoardProps {
   teams: TeamWithMembers[];
-  ungroupedAgents: Agent[];
-  teamAgents: Map<string, Agent[]>;
+  ungroupedAgents: AgentListItem[];
+  teamAgents: Map<string, AgentListItem[]>;
   onNavigate: (id: string) => void;
   onEditTeam: (team: TeamWithMembers) => void;
 }

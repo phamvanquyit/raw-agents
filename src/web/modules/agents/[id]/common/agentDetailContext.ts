@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { AgentTool, AgentToolAssignment } from "src/common/types";
-import type { Agent } from "src/common/types";
+import type { Agent, AgentListItem } from "src/common/types";
 
 // ─── Agent Detail Outlet Context ──────────────────────────────────────────────
 
@@ -34,8 +34,8 @@ export interface AgentDetailContext {
   setCallableAgentIds: (v: string[]) => void;
   // Tool catalog (all available tools)
   allTools: AgentTool[];
-  // Shared data
-  agents: Agent[];
+  // Shared data (slim list — other agents for picker / call-agent)
+  agents: AgentListItem[];
   // Actions
   onDelete: () => Promise<void>;
 }
