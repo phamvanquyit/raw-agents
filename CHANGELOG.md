@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Nested editor / flickering tab navigation caused by `srcDoc` iframe + relative URL resolution
+- Chat streaming persists trailing thinking/text before `done` and keeps optimistic segments stable (less refetch race / remount flicker)
+- Chat auto-scroll no longer locks follow when content height shrinks (e.g. thinking collapse)
 
 ### Upgrade notes
 - Rebuild/re-pull the Docker image
@@ -22,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vite proxies `/public/sites` to the API in development
 
 ## [0.14.3] - 2026-07-30
-
 
 ### Added
 - MCP Servers — create/edit/delete servers from a dialog on the list page (replaces the Cursor-format JSON config editor)
@@ -37,8 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Chat streaming commits thinking/text segments locally around tool rounds instead of mid-stream `/messages` refetches
-- Site preview/public iframes keep link clicks in-document (SPA-style): block leaving `about:srcdoc`, open external URLs in a new tab, and only soft-reload SSR for GET forms that need new loader data
-- Site srcDoc frames remount if the iframe navigates away from `about:srcdoc` (no `<base href>` — it broke `#hash` / `:target` tabs)
 
 ### Upgrade notes
 - Rebuild/re-pull the Docker image for the UI and API changes
@@ -243,7 +242,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.15.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.2...v0.14.3
+
 [0.14.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.12.1...v0.13.0

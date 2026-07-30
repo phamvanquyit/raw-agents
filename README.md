@@ -16,7 +16,7 @@ Self-hosted AI agents with a web UI — extend them with Python/JS tools & MCP, 
 - 🗄️ **KV Store** — Key-value storage accessible from Python tools via `import rawagents` (`rawagents.kv`)
 - 🔐 **Secrets Management** — Encrypted secret storage with AES-256-GCM (`rawagents.secrets`)
 - 📊 **Datatables** — Workspace tables (projects → tables → rows) in the UI and via `rawagents.datatable`
-- 📄 **Sites** — AI-assisted JSX sites with draft/publish, SSR preview, and optional public password links
+- 📄 **Sites** — AI-assisted React sites (`app.tsx` / `data.ts` / `actions.ts`) with draft/publish, live HTML preview, and optional public password links
 - 📈 **Usage** — Token usage history, summaries, and a per-chat context meter (system / tools / conversation)
 - ⏰ **Jobs** — Cron-scheduled Bun/TypeScript scripts with admin UI, AI editor, and `rawagents.agents` to call workspace agents
 - 💬 **Real-time Chat** — Live streaming chat with agents; refresh (F5) resumes an in-progress reply
