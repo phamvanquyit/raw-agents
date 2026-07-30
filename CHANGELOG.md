@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.3] - 2026-07-30
+
+### Added
+- MCP Servers — create/edit/delete servers from a dialog on the list page (replaces the Cursor-format JSON config editor)
+- Datatables project list returns `tableCount` so the UI no longer fans out per-project table fetches
+- Separate Job and Site coding-assistant provider/model settings (no longer share the Tool assistant keys)
+- ModelPicker caches provider model lists in Redux (`ensureLlmProviders` / `fetchProviderModels`)
+
+### Changed
+- Agent list API omits heavy/secret fields (`systemPrompt`, `publicPassword`, `callableAgentIds`); detail UI loads from `GET /api/agents/:id`
+- Sidebar regroups Sites/Jobs under Capabilities and Datatables/KV/Secrets under Resources
+- Removed Cursor-format bulk MCP config API (`GET`/`PUT /api/mcp-servers/config`) and the `/mcp-servers/edit` page
+
+### Fixed
+- Chat streaming commits thinking/text segments locally around tool rounds instead of mid-stream `/messages` refetches
+
+### Upgrade notes
+- Rebuild/re-pull the Docker image for the UI and API changes
+- If anything still called `/api/mcp-servers/config`, switch to per-server CRUD (`POST`/`PUT`/`DELETE /api/mcp-servers`)
+
 ## [0.14.1] - 2026-07-29
 
 ### Added
@@ -204,6 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.14.3]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.2...v0.14.3
 [0.14.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.12.1...v0.13.0
