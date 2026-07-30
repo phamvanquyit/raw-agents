@@ -7,7 +7,7 @@ import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
 import { type EditorInstance, MonacoEditor } from "src/components/MonacoEditor";
 import { updateAgent } from "src/modules/agents/common/agentsSlice";
-import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { ensureLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { getSettingValues } from "src/modules/settings/common/settingsApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
@@ -120,7 +120,7 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    dispatch(fetchLlmProviders());
+    void dispatch(ensureLlmProviders());
   }, [dispatch]);
 
   useEffect(() => {

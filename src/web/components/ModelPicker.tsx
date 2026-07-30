@@ -2,10 +2,9 @@ import { AltArrowLeft, Magnifier } from "@solar-icons/react";
 import { Popover } from "antd";
 import type { TooltipPlacement } from "antd/es/tooltip";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiClient } from "src/common/api";
 import type { LlmProvider } from "src/common/types";
 import { cn } from "src/lib/utils";
-import { PROVIDER_META, fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { PROVIDER_META, ensureLlmProviders, fetchProviderModels } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { ProviderIcon } from "src/modules/llm-providers/components/ProviderIcon";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
@@ -59,8 +58,6 @@ export function ModelPicker({
   const [view, setView] = useState<View>({ level: "providers" });
   const [search, setSearch] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(0);
-  const [activeModels, setActiveModels] = useState<string[]>([]);
-  const [loadingModels, setLoadingModels] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -68,6 +65,12 @@ export function ModelPicker({
 
   const dispatch = useAppDispatch();
   const providers = useAppSelector((s) => s.llmProviders.items) as LlmProvider[];
+  const modelsLoadingIds = useAppSelector((s) => s.llmProviders.modelsLoadingIds);
+
+  const viewProviderId = view.level === "models" ? view.providerId : null;
+  const viewProvider = viewProviderId ? (providers.find((p) => p.id === viewProviderId) ?? null) : null;
+  const activeModels = Array.isArray(viewProvider?.models) ? viewProvider.models : [];
+  const loadingModels = viewProviderId ? modelsLoadingIds.includes(viewProviderId) : false;
 
   const syncTriggerWidth = useCallback(() => {
     const width = triggerRef.current?.offsetWidth;
@@ -75,49 +78,40 @@ export function ModelPicker({
   }, []);
 
   useEffect(() => {
-    dispatch(fetchLlmProviders());
+    void dispatch(ensureLlmProviders());
   }, [dispatch]);
 
   const filteredProviders = useMemo(() => {
     return providers.filter((p) => (p as any).countModels > 0 || (p.models?.length ?? 0) > 0);
   }, [providers]);
 
-  const fetchModelsForProvider = async (provider: LlmProvider) => {
-    setActiveModels([]);
-    setLoadingModels(true);
-    try {
-      const models = (await apiClient.get(`/api/providers/${provider.id}/models`)) as string[];
-      setActiveModels(models);
-    } catch {
-      setActiveModels([]);
-    } finally {
-      setLoadingModels(false);
-    }
-  };
+  const ensureModels = useCallback(
+    (providerId: string) => {
+      void dispatch(fetchProviderModels(providerId));
+    },
+    [dispatch],
+  );
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (nextOpen) {
         syncTriggerWidth();
         setSearch("");
-        setActiveModels([]);
         if (selectedProviderId) {
           const provider = providers.find((p) => p.id === selectedProviderId);
           if (provider) {
             setView({ level: "models", providerId: selectedProviderId });
-            fetchModelsForProvider(provider);
+            ensureModels(selectedProviderId);
           } else {
             setView({ level: "providers" });
           }
         } else {
           setView({ level: "providers" });
         }
-      } else {
-        setActiveModels([]);
       }
       setOpen(nextOpen);
     },
-    [selectedProviderId, providers, syncTriggerWidth],
+    [selectedProviderId, providers, syncTriggerWidth, ensureModels],
   );
 
   useEffect(() => {
@@ -128,8 +122,6 @@ export function ModelPicker({
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId) ?? null;
   const providerMeta = selectedProvider ? PROVIDER_META[selectedProvider.provider] : null;
-
-  const viewProvider = view.level === "models" ? (providers.find((p) => p.id === view.providerId) ?? null) : null;
   const viewProviderMeta = viewProvider ? PROVIDER_META[viewProvider.provider] : null;
 
   const filteredModels = useMemo(() => {
@@ -166,7 +158,7 @@ export function ModelPicker({
   const handleSelectProvider = (provider: LlmProvider) => {
     setSearch("");
     setView({ level: "models", providerId: provider.id });
-    fetchModelsForProvider(provider);
+    ensureModels(provider.id);
   };
 
   const handleSelectModel = (model: string) => {
@@ -178,7 +170,6 @@ export function ModelPicker({
 
   const handleBack = () => {
     setSearch("");
-    setActiveModels([]);
     setView({ level: "providers" });
   };
 
@@ -188,7 +179,7 @@ export function ModelPicker({
       disabled={disabled}
       className={cn(
         "w-full h-field-md px-3 rounded-md text-sm text-left",
-        "bg-card border border-border",
+        "bg-secondary border border-border",
         "flex items-center justify-between gap-2",
         "transition-all duration-150 cursor-pointer outline-none",
         open ? "border-primary" : "hover:border-border",
@@ -235,7 +226,7 @@ export function ModelPicker({
           <div className="border-b border-border px-3 py-2.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Select Provider</span>
           </div>
-          <div onWheel={(e) => e.stopPropagation()} className="game-scrollbar min-h-0 flex-1 overflow-y-auto py-1">
+          <div onWheel={(e) => e.stopPropagation()} className="min-h-0 flex-1 overflow-y-auto py-1">
             {filteredProviders.map((p) => {
               const isActive = p.id === selectedProviderId;
               const modelCount = (p as any).countModels ?? p.models?.length ?? 0;
@@ -301,7 +292,7 @@ export function ModelPicker({
             </div>
           )}
 
-          <div ref={listRef} onWheel={(e) => e.stopPropagation()} className="game-scrollbar min-h-0 flex-1 overflow-y-auto py-1">
+          <div ref={listRef} onWheel={(e) => e.stopPropagation()} className="min-h-0 flex-1 overflow-y-auto py-1">
             {loadingModels && <div className="px-3 py-4 text-center text-xs text-muted-foreground">Loading models…</div>}
 
             {!loadingModels &&

@@ -12,7 +12,6 @@ import { useStreamResume } from "src/common/hooks/useStreamResume";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
 import { updateAgent } from "src/modules/agents/common/agentsSlice";
 import { createConversation, fetchConversations, markConversationDone, setActiveConversationId, updateConversation } from "src/modules/chat/common/chatSlice";
-import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { usageApi } from "src/modules/usage/common/usageApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
@@ -204,10 +203,6 @@ export function ChatPage() {
     if (!isServerRunning || !activeConversationId || running) return;
     void loadMessages(activeConversationId);
   }, [isServerRunning, activeConversationId, running, loadMessages]);
-
-  useEffect(() => {
-    dispatch(fetchLlmProviders());
-  }, [dispatch]);
 
   useEffect(() => {
     if (!agent?.id) {
