@@ -38,10 +38,13 @@ export interface JobCodingStreamRequest {
   providerId: string;
   modelId: string;
   messages: (TextMessage | ToolCallMessage)[];
-  maxSteps?: number;
 }
 
 const OMITTED_GENERATE_CODE = "[omitted — see <current_code> for the latest draft]";
+
+function toolCallArgs(input: unknown): Record<string, unknown> {
+  return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+}
 
 function compactGenerateCodeHistory(messages: JobCodingStreamRequest["messages"]): JobCodingStreamRequest["messages"] {
   let lastGenerateIdx = -1;
@@ -57,7 +60,7 @@ function compactGenerateCodeHistory(messages: JobCodingStreamRequest["messages"]
     if (m.role !== "tool-call" || m.toolName !== "generate_code" || i >= lastGenerateIdx) {
       return m;
     }
-    const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
+    const input = toolCallArgs(m.toolInput);
     if (!("code" in input)) return m;
     const { code: _code, ...rest } = input;
     return {
@@ -86,30 +89,30 @@ function buildLangChainMessages(messages: JobCodingStreamRequest["messages"]): B
       continue;
     }
     if (msg.role === "assistant") {
-      const toolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+      const toolMsgs: ToolCallMessage[] = [];
       let j = i + 1;
       while (j < compacted.length && compacted[j].role === "tool-call") {
-        const tc = compacted[j] as ToolCallMessage;
-        toolCalls.push({
-          id: tc.toolCallId || `call_${j}`,
-          name: tc.toolName || "unknown",
-          args: (tc.toolInput as Record<string, unknown>) ?? {},
-        });
+        toolMsgs.push(compacted[j] as ToolCallMessage);
         j++;
       }
-      if (toolCalls.length > 0) {
+      if (toolMsgs.length > 0) {
         result.push(
           new AIMessage({
             content: msg.content || "",
-            tool_calls: toolCalls.map((t) => ({ id: t.id, name: t.name, args: t.args, type: "tool_call" as const })),
+            tool_calls: toolMsgs.map((tc, idx) => ({
+              id: tc.toolCallId || `call_${i + 1 + idx}`,
+              name: tc.toolName || "unknown",
+              args: toolCallArgs(tc.toolInput),
+              type: "tool_call" as const,
+            })),
           }),
         );
-        for (let k = i + 1; k < j; k++) {
-          const tc = compacted[k] as ToolCallMessage;
+        for (let k = 0; k < toolMsgs.length; k++) {
+          const tc = toolMsgs[k];
           result.push(
             new ToolMessage({
-              content: tc.toolOutput ?? tc.content ?? "",
-              tool_call_id: tc.toolCallId || `call_${k}`,
+              content: tc.toolOutput ?? "",
+              tool_call_id: tc.toolCallId || `call_${i + 1 + k}`,
             }),
           );
         }
@@ -117,6 +120,26 @@ function buildLangChainMessages(messages: JobCodingStreamRequest["messages"]): B
       } else {
         result.push(new AIMessage(msg.content));
       }
+      continue;
+    }
+
+    if (msg.role === "tool-call") {
+      const tc = msg as ToolCallMessage;
+      const toolCallId = tc.toolCallId || `call_${i}`;
+      result.push(
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              id: toolCallId,
+              name: tc.toolName || "unknown",
+              args: toolCallArgs(tc.toolInput),
+              type: "tool_call" as const,
+            },
+          ],
+        }),
+      );
+      result.push(new ToolMessage({ content: tc.toolOutput ?? "", tool_call_id: toolCallId }));
     }
   }
 
@@ -124,7 +147,7 @@ function buildLangChainMessages(messages: JobCodingStreamRequest["messages"]): B
 }
 
 export async function streamJobCodingAgent(jobId: string, body: JobCodingStreamRequest, stream: SSEStreamingApi, abortSignal?: AbortSignal): Promise<void> {
-  const { providerId, modelId, messages, maxSteps = 12 } = body;
+  const { providerId, modelId, messages } = body;
   const model = await getChatModel(providerId, modelId);
 
   const tools: StructuredToolInterface[] = [
@@ -147,7 +170,7 @@ export async function streamJobCodingAgent(jobId: string, body: JobCodingStreamR
   await streamAgentSSE({
     agent,
     messages: baseMessages,
-    maxSteps,
+    maxSteps: 20,
     stream,
     abortSignal,
     contextEstimate: { systemPrompt, tools },

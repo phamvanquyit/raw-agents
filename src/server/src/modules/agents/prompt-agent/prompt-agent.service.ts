@@ -150,7 +150,6 @@ export interface PromptStreamRequest {
   providerId: string;
   modelId: string;
   messages: (TextMessage | ToolCallMessage)[];
-  maxSteps?: number;
 }
 
 function buildLangChainMessages(messages: PromptStreamRequest["messages"]): BaseMessage[] {
@@ -243,7 +242,7 @@ function loadCallableAgents(callableAgentIds: string[]): { name: string; descrip
  * @param stream  - Hono SSE stream to write events to
  */
 export async function streamPromptAgent(agentId: string, body: PromptStreamRequest, stream: SSEStreamingApi, abortSignal?: AbortSignal): Promise<void> {
-  const { providerId, modelId, messages, maxSteps = 6 } = body;
+  const { providerId, modelId, messages } = body;
 
   // 1. Resolve model
   const model = await getChatModel(providerId, modelId);
@@ -283,7 +282,7 @@ export async function streamPromptAgent(agentId: string, body: PromptStreamReque
   await streamAgentSSE({
     agent,
     messages: baseMessages,
-    maxSteps,
+    maxSteps: 10,
     stream,
     abortSignal,
     contextEstimate: { systemPrompt: aiSystemPrompt, tools },

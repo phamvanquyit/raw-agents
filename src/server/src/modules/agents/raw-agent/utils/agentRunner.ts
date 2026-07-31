@@ -341,7 +341,7 @@ export async function generateAgent(
     messages: toBaseMessages(messages),
   };
 
-  const maxSteps = options.maxSteps ?? 8;
+  const maxSteps = options.maxSteps ?? 40;
   const result = await reactAgent.invoke(input, {
     recursionLimit: maxSteps * 2 + 1,
     signal: options.abortSignal,
@@ -446,7 +446,7 @@ export async function* streamAgent(
       messages: toBaseMessages(messages),
     };
 
-    const maxSteps = options.maxSteps ?? 30;
+    const maxSteps = options.maxSteps ?? 40;
     const stream = await reactAgent.stream(input, {
       recursionLimit: maxSteps * 2 + 1,
       signal: options.abortSignal,

@@ -35,16 +35,53 @@ export interface SiteAgentStreamRequest {
   providerId: string;
   modelId: string;
   messages: (TextMessage | ToolCallMessage)[];
-  maxSteps?: number;
   /** Browser origin (window.location.origin) — used when PUBLIC_BASE_URL is unset */
   publicOrigin?: string;
 }
 
-function buildLangChainMessages(messages: SiteAgentStreamRequest["messages"]): BaseMessage[] {
-  const result: BaseMessage[] = [];
+export function toolCallArgs(input: unknown): Record<string, unknown> {
+  return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+}
 
+function writeSiteFileKey(m: ToolCallMessage): string {
+  const file = toolCallArgs(m.toolInput).file;
+  return typeof file === "string" && file ? file : "__unknown__";
+}
+
+/** Drop superseded write_site_file calls — keep only the latest write per file path. */
+export function compactSiteWriteHistory(messages: SiteAgentStreamRequest["messages"]): SiteAgentStreamRequest["messages"] {
+  const lastWriteByFile = new Map<string, number>();
   for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
+    const m = messages[i];
+    if (m.role === "tool-call" && m.toolName === "write_site_file") {
+      lastWriteByFile.set(writeSiteFileKey(m as ToolCallMessage), i);
+    }
+  }
+
+  return messages.filter((m, i) => {
+    if (m.role !== "tool-call" || m.toolName !== "write_site_file") return true;
+    return lastWriteByFile.get(writeSiteFileKey(m as ToolCallMessage)) === i;
+  });
+}
+
+function appendToolResults(result: BaseMessage[], toolMsgs: ToolCallMessage[], idFallback: (k: number) => string) {
+  for (let k = 0; k < toolMsgs.length; k++) {
+    const tc = toolMsgs[k];
+    result.push(
+      new ToolMessage({
+        content: tc.toolOutput ?? "",
+        tool_call_id: tc.toolCallId || idFallback(k),
+      }),
+    );
+  }
+}
+
+export function buildLangChainMessages(messages: SiteAgentStreamRequest["messages"]): BaseMessage[] {
+  const result: BaseMessage[] = [];
+  const compacted = compactSiteWriteHistory(messages);
+
+  for (let i = 0; i < compacted.length; i++) {
+    const msg = compacted[i];
 
     if (msg.role === "user") {
       result.push(new HumanMessage(msg.content));
@@ -57,31 +94,25 @@ function buildLangChainMessages(messages: SiteAgentStreamRequest["messages"]): B
     }
 
     if (msg.role === "assistant") {
-      const toolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+      const toolMsgs: ToolCallMessage[] = [];
       let j = i + 1;
-      while (j < messages.length && messages[j].role === "tool-call") {
-        const tc = messages[j] as ToolCallMessage;
-        toolCalls.push({
-          id: tc.toolCallId || `tc-${j}`,
-          name: tc.toolName || "unknown",
-          args: (tc.toolInput as Record<string, unknown>) ?? {},
-        });
+      while (j < compacted.length && compacted[j].role === "tool-call") {
+        toolMsgs.push(compacted[j] as ToolCallMessage);
         j++;
       }
 
-      if (toolCalls.length > 0) {
-        result.push(new AIMessage({ content: msg.content, tool_calls: toolCalls }));
-        for (let k = i + 1; k < j; k++) {
-          const tc = messages[k] as ToolCallMessage;
-          if (tc.toolOutput != null) {
-            result.push(
-              new ToolMessage({
-                content: tc.toolOutput,
-                tool_call_id: tc.toolCallId || `tc-${k}`,
-              }),
-            );
-          }
-        }
+      if (toolMsgs.length > 0) {
+        result.push(
+          new AIMessage({
+            content: msg.content,
+            tool_calls: toolMsgs.map((tc, idx) => ({
+              id: tc.toolCallId || `tc-${i + 1 + idx}`,
+              name: tc.toolName || "unknown",
+              args: toolCallArgs(tc.toolInput),
+            })),
+          }),
+        );
+        appendToolResults(result, toolMsgs, (k) => `tc-${i + 1 + k}`);
         i = j - 1;
       } else {
         result.push(new AIMessage(msg.content));
@@ -90,6 +121,7 @@ function buildLangChainMessages(messages: SiteAgentStreamRequest["messages"]): B
     }
 
     if (msg.role === "tool-call") {
+      // Orphan tool-calls (thinking-only turns): one AIMessage per call — preserves ReAct step order
       const tc = msg as ToolCallMessage;
       const toolCallId = tc.toolCallId || `tc-${i}`;
       result.push(
@@ -99,14 +131,12 @@ function buildLangChainMessages(messages: SiteAgentStreamRequest["messages"]): B
             {
               id: toolCallId,
               name: tc.toolName || "unknown",
-              args: (tc.toolInput as Record<string, unknown>) ?? {},
+              args: toolCallArgs(tc.toolInput),
             },
           ],
         }),
       );
-      if (tc.toolOutput != null) {
-        result.push(new ToolMessage({ content: tc.toolOutput, tool_call_id: toolCallId }));
-      }
+      result.push(new ToolMessage({ content: tc.toolOutput ?? "", tool_call_id: toolCallId }));
     }
   }
 
@@ -120,7 +150,7 @@ export async function streamSiteAgent(
   abortSignal?: AbortSignal,
   request?: Request,
 ): Promise<void> {
-  const { providerId, modelId, messages, maxSteps = 16, publicOrigin } = body;
+  const { providerId, modelId, messages, publicOrigin } = body;
   const site = getSite(siteId);
   const model = await getChatModel(providerId, modelId);
   const publicBaseUrl = resolvePublicBaseUrl({ request, clientOrigin: publicOrigin });
@@ -150,7 +180,7 @@ export async function streamSiteAgent(
   await streamAgentSSE({
     agent,
     messages: buildLangChainMessages(messages),
-    maxSteps,
+    maxSteps: 30,
     stream,
     abortSignal,
     contextEstimate: { systemPrompt, tools },

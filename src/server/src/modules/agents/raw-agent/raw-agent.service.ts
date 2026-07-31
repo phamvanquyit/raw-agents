@@ -476,7 +476,7 @@ export function stopStream(conversationId: string) {
 
 // ─── Generate (non-streaming) ─────────────────────────────────────────────────
 
-export async function generateResponse(agentId: string, message: string, conversationId?: string, maxSteps = 8, opts: { ownerId?: string } = {}) {
+export async function generateResponse(agentId: string, message: string, conversationId?: string, maxSteps = 40, opts: { ownerId?: string } = {}) {
   const history = conversationId ? loadHistory(conversationId) : [];
   const messages = [...history, { role: "user" as const, content: message }];
 

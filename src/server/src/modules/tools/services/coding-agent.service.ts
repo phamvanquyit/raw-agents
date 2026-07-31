@@ -43,19 +43,22 @@ export interface CodingStreamRequest {
   providerId: string;
   modelId: string;
   messages: (TextMessage | ToolCallMessage)[];
-  maxSteps?: number;
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 const OMITTED_GENERATE_CODE = "[omitted — see <current_code> for the latest draft]";
 
+export function toolCallArgs(input: unknown): Record<string, unknown> {
+  return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+}
+
 /**
  * Drop full code payloads from older generate_code tool calls.
  * Keep only the latest generate_code args intact; earlier ones keep summary only.
  * Latest draft is always injected via <current_code> in the system prompt.
  */
-function compactGenerateCodeHistory(messages: CodingStreamRequest["messages"]): CodingStreamRequest["messages"] {
+export function compactGenerateCodeHistory(messages: CodingStreamRequest["messages"]): CodingStreamRequest["messages"] {
   let lastGenerateIdx = -1;
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
@@ -69,7 +72,7 @@ function compactGenerateCodeHistory(messages: CodingStreamRequest["messages"]): 
     if (m.role !== "tool-call" || m.toolName !== "generate_code" || i >= lastGenerateIdx) {
       return m;
     }
-    const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
+    const input = toolCallArgs(m.toolInput);
     if (!("code" in input)) return m;
     const { code: _code, ...rest } = input;
     return {
@@ -89,7 +92,7 @@ function compactGenerateCodeHistory(messages: CodingStreamRequest["messages"]): 
  * Merges assistant text + following tool-calls into a single AIMessage
  * with tool_calls, then appends ToolMessage for each tool result.
  */
-function buildLangChainMessages(messages: CodingStreamRequest["messages"]): BaseMessage[] {
+export function buildLangChainMessages(messages: CodingStreamRequest["messages"]): BaseMessage[] {
   const result: BaseMessage[] = [];
   const compacted = compactGenerateCodeHistory(messages);
 
@@ -107,42 +110,36 @@ function buildLangChainMessages(messages: CodingStreamRequest["messages"]): Base
     }
 
     if (msg.role === "assistant") {
-      // Look ahead: collect any consecutive tool-call messages
-      const toolCalls: { id: string; name: string; args: Record<string, unknown> }[] = [];
+      const toolMsgs: ToolCallMessage[] = [];
       let j = i + 1;
       while (j < compacted.length && compacted[j].role === "tool-call") {
-        const tc = compacted[j] as ToolCallMessage;
-        toolCalls.push({
-          id: tc.toolCallId || `tc-${j}`,
-          name: tc.toolName || "unknown",
-          args: (tc.toolInput as Record<string, unknown>) ?? {},
-        });
+        toolMsgs.push(compacted[j] as ToolCallMessage);
         j++;
       }
 
-      if (toolCalls.length > 0) {
-        // Merge assistant text + tool_calls into one AIMessage
+      if (toolMsgs.length > 0) {
         result.push(
           new AIMessage({
             content: msg.content,
-            tool_calls: toolCalls,
+            tool_calls: toolMsgs.map((tc, idx) => ({
+              id: tc.toolCallId || `tc-${i + 1 + idx}`,
+              name: tc.toolName || "unknown",
+              args: toolCallArgs(tc.toolInput),
+            })),
           }),
         );
 
-        // Append ToolMessage for each tool-call that has output
-        for (let k = i + 1; k < j; k++) {
-          const tc = compacted[k] as ToolCallMessage;
-          if (tc.toolOutput != null) {
-            result.push(
-              new ToolMessage({
-                content: tc.toolOutput,
-                tool_call_id: tc.toolCallId || `tc-${k}`,
-              }),
-            );
-          }
+        for (let k = 0; k < toolMsgs.length; k++) {
+          const tc = toolMsgs[k];
+          result.push(
+            new ToolMessage({
+              content: tc.toolOutput ?? "",
+              tool_call_id: tc.toolCallId || `tc-${i + 1 + k}`,
+            }),
+          );
         }
 
-        i = j - 1; // skip processed tool-calls
+        i = j - 1;
       } else {
         result.push(new AIMessage(msg.content));
       }
@@ -150,7 +147,6 @@ function buildLangChainMessages(messages: CodingStreamRequest["messages"]): Base
     }
 
     if (msg.role === "tool-call") {
-      // Standalone tool-call without preceding assistant text
       const tc = msg as ToolCallMessage;
       const toolCallId = tc.toolCallId || `tc-${i}`;
 
@@ -161,20 +157,18 @@ function buildLangChainMessages(messages: CodingStreamRequest["messages"]): Base
             {
               id: toolCallId,
               name: tc.toolName || "unknown",
-              args: (tc.toolInput as Record<string, unknown>) ?? {},
+              args: toolCallArgs(tc.toolInput),
             },
           ],
         }),
       );
 
-      if (tc.toolOutput != null) {
-        result.push(
-          new ToolMessage({
-            content: tc.toolOutput,
-            tool_call_id: toolCallId,
-          }),
-        );
-      }
+      result.push(
+        new ToolMessage({
+          content: tc.toolOutput ?? "",
+          tool_call_id: toolCallId,
+        }),
+      );
     }
   }
 
@@ -189,7 +183,7 @@ function buildLangChainMessages(messages: CodingStreamRequest["messages"]): Base
  * @param stream  - Hono SSE stream to write events to
  */
 export async function streamCodingAgent(toolId: string, body: CodingStreamRequest, stream: SSEStreamingApi, abortSignal?: AbortSignal): Promise<void> {
-  const { providerId, modelId, messages, maxSteps = 12 } = body;
+  const { providerId, modelId, messages } = body;
 
   // 1. Resolve model
   const model = await getChatModel(providerId, modelId);
@@ -222,7 +216,7 @@ export async function streamCodingAgent(toolId: string, body: CodingStreamReques
   await streamAgentSSE({
     agent,
     messages: baseMessages,
-    maxSteps,
+    maxSteps: 20,
     stream,
     abortSignal,
     contextEstimate: { systemPrompt, tools },
