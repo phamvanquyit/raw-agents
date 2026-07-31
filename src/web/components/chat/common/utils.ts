@@ -37,7 +37,7 @@ export function parseCallAgentToolTargetId(toolName: string): string | null {
 
 /**
  * Converts a snake_case or camelCase tool name to a human-readable Title Case label.
- * e.g. "generate_code" → "Generate Code"
+ * e.g. "edit_code" → "Edit Code"
  *      "getCurrentTime"    → "Get Current Time"
  */
 export function formatToolName(name: string): string {

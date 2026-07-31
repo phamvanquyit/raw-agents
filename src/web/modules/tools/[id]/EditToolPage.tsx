@@ -160,13 +160,22 @@ export default function EditToolPage() {
   const runPanelRef = useRef<RunPanelHandle>(null);
 
   const handleToolAction = useCallback((event: ToolActionEvent) => {
-    if (event.toolName === "generate_code") {
-      if (event.type === "tool-call") {
-        const input = event.input as { code: string; summary?: string };
-        if (input?.code) {
-          // If draft code is the same as current code, skip diff
-          if (input.code === codeRef.current) return;
-          setCodeDraft(input.code);
+    if (event.toolName === "edit_code") {
+      // Primary path: WS tools:updated carries full draftCode.
+      // Fallback: tool-result current_code if WS was missed.
+      if (event.type === "tool-result") {
+        let out: { ok?: boolean; current_code?: string } | null = null;
+        if (typeof event.output === "string") {
+          try {
+            out = JSON.parse(event.output) as { ok?: boolean; current_code?: string };
+          } catch {
+            out = null;
+          }
+        } else if (event.output && typeof event.output === "object") {
+          out = event.output as { ok?: boolean; current_code?: string };
+        }
+        if (out?.ok && typeof out.current_code === "string" && out.current_code !== codeRef.current) {
+          setCodeDraft(out.current_code);
         }
       }
     } else if (event.toolName === "run_current_script") {
@@ -175,7 +184,17 @@ export default function EditToolPage() {
         const input = event.input as { testInput?: unknown };
         runPanelRef.current?.setRunning(true, input?.testInput);
       } else if (event.type === "tool-result") {
-        const out = event.output as { success?: boolean; output?: unknown; error?: string; console?: string };
+        const raw = event.output;
+        const out =
+          typeof raw === "string"
+            ? (() => {
+                try {
+                  return JSON.parse(raw) as { success?: boolean; output?: unknown; error?: string; console?: string };
+                } catch {
+                  return {} as { success?: boolean; output?: unknown; error?: string; console?: string };
+                }
+              })()
+            : ((raw as { success?: boolean; output?: unknown; error?: string; console?: string }) ?? {});
         runPanelRef.current?.setExternalResult({
           ok: out?.success ?? false,
           output: out?.output,

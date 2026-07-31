@@ -4,7 +4,7 @@ export function summarizeCodingToolCall(m: ChatAgentMessage): string | null {
   if (m.role !== "tool-call") return null;
   const name = m.toolName ?? "";
 
-  if (name === "generate_code") return "Updated draft script";
+  if (name === "edit_code") return "Updated draft script";
   if (name === "run_current_job") return "Started a job run";
   if (name === "run_current_script") return "Ran current script";
   if (name === "get_job_run") return "Fetched job run";

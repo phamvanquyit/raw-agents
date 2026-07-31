@@ -255,10 +255,19 @@ export default function JobEditPage() {
   };
 
   const handleToolAction = (event: ToolActionEvent) => {
-    if (event.toolName === "generate_code" && event.type === "tool-call") {
-      const { code } = event.input as { code?: string };
-      if (typeof code === "string" && code !== codeRef.current) {
-        setCodeDraft(code);
+    if (event.toolName === "edit_code" && event.type === "tool-result") {
+      let out: { ok?: boolean; current_code?: string } | null = null;
+      if (typeof event.output === "string") {
+        try {
+          out = JSON.parse(event.output) as { ok?: boolean; current_code?: string };
+        } catch {
+          out = null;
+        }
+      } else if (event.output && typeof event.output === "object") {
+        out = event.output as { ok?: boolean; current_code?: string };
+      }
+      if (out?.ok && typeof out.current_code === "string" && out.current_code !== codeRef.current) {
+        setCodeDraft(out.current_code);
       }
     }
     if (event.toolName === "run_current_job") {
