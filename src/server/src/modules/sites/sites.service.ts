@@ -390,7 +390,7 @@ export async function getSiteThumbnailPng(id: string, tree: SiteTree = "draft") 
   return ensureSiteThumbnail(id, tree);
 }
 
-/** Bundle check / agent preview — returns shell HTML + load() data summary. */
+/** Bundle check / agent preview — returns shell HTML + backend GET data summary. */
 export async function previewSite(id: string, query?: Record<string, string>, tree: SiteTree = "draft") {
   const site = getSiteOrThrow(id);
   ensureReactSiteSources(id, site.slug);
@@ -405,7 +405,6 @@ export async function previewSite(id: string, query?: Record<string, string>, tr
     apiBase: tree === "draft" ? `/api/sites/${id}` : `/api/public/sites/${site.slug}`,
     slug: site.slug,
     assetBase: tree === "draft" ? `/api/sites/${id}/live/assets` : `/public/sites/${site.slug}/assets`,
-    initialData: data,
   });
   return { html, data, cached: bundle.cached, appJsChars: bundle.appJs.length };
 }
@@ -439,18 +438,15 @@ export async function loadDraftSiteData(id: string, request: Request) {
 }
 
 /** HTML document for draft live preview (editor iframe). */
-export async function renderDraftLiveHtml(id: string, request?: Request) {
+export async function renderDraftLiveHtml(id: string, _request?: Request) {
   const site = getSiteOrThrow(id);
   ensureReactSiteSources(id, site.slug);
-  const req = request ?? new Request(`http://site.local/api/sites/${id}/live`);
-  const query = Object.fromEntries(new URL(req.url).searchParams.entries());
-  const [{ data }] = await Promise.all([runSiteLoad(id, "draft", { request: req, query }), buildSiteBundle(id, "draft")]);
+  await buildSiteBundle(id, "draft");
   return buildSiteShellHtml({
     title: `${site.name} (draft)`,
     apiBase: `/api/sites/${id}`,
     slug: site.slug,
     assetBase: `/api/sites/${id}/live/assets`,
-    initialData: data,
   });
 }
 
@@ -477,8 +473,7 @@ export async function renderPublicSiteDocument(slug: string, request: Request, a
       requiresPassword: true,
     };
   }
-  const query = Object.fromEntries(new URL(request.url).searchParams.entries());
-  const [{ data }] = await Promise.all([runSiteLoad(site.id, "prod", { request, query }), buildSiteBundle(site.id, "prod")]);
+  await buildSiteBundle(site.id, "prod");
   return {
     kind: "app" as const,
     html: buildSiteShellHtml({
@@ -487,7 +482,6 @@ export async function renderPublicSiteDocument(slug: string, request: Request, a
       slug: site.slug,
       assetBase: `/public/sites/${site.slug}/assets`,
       siteToken: access?.token,
-      initialData: data,
     }),
     requiresPassword,
   };

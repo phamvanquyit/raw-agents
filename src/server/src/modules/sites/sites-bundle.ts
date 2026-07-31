@@ -149,7 +149,6 @@ export function buildSiteShellHtml(opts: {
   slug: string;
   assetBase: string;
   siteToken?: string | null;
-  initialData?: unknown;
 }): string {
   const qs = new URLSearchParams();
   if (opts.siteToken) qs.set("site_token", opts.siteToken);
@@ -157,11 +156,9 @@ export function buildSiteShellHtml(opts: {
   const suffix = q ? `?${q}` : "";
   const cssHref = `${opts.assetBase}/styles.css${suffix}`;
   const jsHref = `${opts.assetBase}/app.js${suffix}`;
-  const dataScript =
-    opts.initialData !== undefined ? `<script id="__RA_SITE_DATA__" type="application/json">${serializeJsonForHtml(opts.initialData)}</script>` : "";
 
   return compactHtml(
-    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="ra-site-api" content="${opts.apiBase}"/><meta name="ra-site-slug" content="${opts.slug}"/><title>${escapeHtml(opts.title)}</title><link rel="stylesheet" href="${cssHref}"/>${dataScript}</head><body><div id="root"></div><script type="module" src="${jsHref}"></script></body></html>`,
+    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="ra-site-api" content="${opts.apiBase}"/><meta name="ra-site-slug" content="${opts.slug}"/><title>${escapeHtml(opts.title)}</title><link rel="stylesheet" href="${cssHref}"/></head><body><div id="root"></div><script type="module" src="${jsHref}"></script></body></html>`,
   );
 }
 

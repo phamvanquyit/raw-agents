@@ -26,13 +26,16 @@ function numberedExcerpt(lines: string[], line: number, before = 4, after = 10):
 }
 
 function parseAnchor(anchor: string): { file: SiteSourceFile; line: number } | null {
-  const m = /^(app\.tsx|data\.ts|actions\.ts|route\.jsx|loader\.js|action\.js):L(\d+)$/.exec(anchor.trim());
+  const m = /^(app\.tsx|backend\.ts|data\.ts|actions\.ts|route\.jsx|loader\.js|action\.js):L(\d+)$/.exec(anchor.trim());
   if (!m) return null;
   const file = m[1];
-  if (file === "app.tsx" || file === "data.ts" || file === "actions.ts") {
+  if (file === "app.tsx" || file === "backend.ts") {
     return { file, line: Number(m[2]) };
   }
-  // Legacy anchors map to app.tsx
+  // Legacy anchors map to backend or app
+  if (file === "data.ts" || file === "actions.ts") {
+    return { file: "backend.ts", line: Number(m[2]) };
+  }
   return { file: "app.tsx", line: Number(m[2]) };
 }
 

@@ -1,9 +1,15 @@
+/**
+ * site-agent.service.ts — Site coding assistant SSE streaming.
+ */
+
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
 import { createAgent } from "langchain";
 import { browserTool } from "../../../common/ai/agent-tools/browser.tool.js";
+import { fetchUrlTool } from "../../../common/ai/agent-tools/fetch-url.tool.js";
+import { createCompactEditMiddleware, redactEditHistoryPayloads } from "../../../common/ai/compact-edit-middleware.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
 import { resolvePublicBaseUrl } from "../../../common/spa-html.js";
@@ -11,9 +17,9 @@ import { makeDatatableTool } from "../../agents/raw-agent/llm-tools/datatable.to
 import { makeKvStoreTool } from "../../agents/raw-agent/llm-tools/kv-store.tool.js";
 import { makeSecretsTool } from "../../agents/raw-agent/llm-tools/secrets.tool.js";
 import { makeCheckSiteTool } from "../common/agent-tools/check-site.tool.js";
+import { makeAllSiteEditTools } from "../common/agent-tools/edit-site-surface.tool.js";
 import { makePreviewSiteTool } from "../common/agent-tools/preview-site.tool.js";
 import { makeReadSiteFilesTool } from "../common/agent-tools/read-site-files.tool.js";
-import { makeWriteSiteFileTool } from "../common/agent-tools/write-site-file.tool.js";
 import { buildSiteAgentSystemPrompt } from "../common/site-agent-prompt.js";
 import { getSite } from "../sites.service.js";
 
@@ -43,25 +49,9 @@ export function toolCallArgs(input: unknown): Record<string, unknown> {
   return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
 }
 
-function writeSiteFileKey(m: ToolCallMessage): string {
-  const file = toolCallArgs(m.toolInput).file;
-  return typeof file === "string" && file ? file : "__unknown__";
-}
-
-/** Drop superseded write_site_file calls — keep only the latest write per file path. */
+/** Cross-turn: redact ALL site edit payloads (including latest). */
 export function compactSiteWriteHistory(messages: SiteAgentStreamRequest["messages"]): SiteAgentStreamRequest["messages"] {
-  const lastWriteByFile = new Map<string, number>();
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i];
-    if (m.role === "tool-call" && m.toolName === "write_site_file") {
-      lastWriteByFile.set(writeSiteFileKey(m as ToolCallMessage), i);
-    }
-  }
-
-  return messages.filter((m, i) => {
-    if (m.role !== "tool-call" || m.toolName !== "write_site_file") return true;
-    return lastWriteByFile.get(writeSiteFileKey(m as ToolCallMessage)) === i;
-  });
+  return redactEditHistoryPayloads(messages);
 }
 
 function appendToolResults(result: BaseMessage[], toolMsgs: ToolCallMessage[], idFallback: (k: number) => string) {
@@ -121,7 +111,6 @@ export function buildLangChainMessages(messages: SiteAgentStreamRequest["message
     }
 
     if (msg.role === "tool-call") {
-      // Orphan tool-calls (thinking-only turns): one AIMessage per call — preserves ReAct step order
       const tc = msg as ToolCallMessage;
       const toolCallId = tc.toolCallId || `tc-${i}`;
       result.push(
@@ -157,10 +146,11 @@ export async function streamSiteAgent(
 
   const tools: StructuredToolInterface[] = [
     makeReadSiteFilesTool(siteId),
-    makeWriteSiteFileTool(siteId),
+    ...makeAllSiteEditTools(siteId),
     makeCheckSiteTool(siteId),
     makePreviewSiteTool(siteId),
     browserTool,
+    fetchUrlTool,
     makeKvStoreTool(["list"]),
     makeSecretsTool(["list"]),
     makeDatatableTool(["list_projects", "get_schema"]),
@@ -175,6 +165,7 @@ export async function streamSiteAgent(
     model,
     tools,
     systemPrompt,
+    middleware: [createCompactEditMiddleware()],
   });
 
   await streamAgentSSE({

@@ -1,32 +1,11 @@
-/** Injected into each site bundle as `site-api.js` — client helpers for data/actions. */
+/** Injected into each site bundle as `site-api.js` — client helpers for the site backend API. */
 
 export const PLATFORM_SITE_API_SOURCE = `const meta = document.querySelector('meta[name="ra-site-api"]');
 const API_BASE = (meta && meta.getAttribute("content")) || "";
 
-var injectedTaken = false;
-
-function readInjectedRaw() {
-  var el = document.getElementById("__RA_SITE_DATA__");
-  if (!el) return { present: false };
-  try {
-    return { present: true, value: JSON.parse(el.textContent || "null") };
-  } catch (_) {
-    return { present: false };
-  }
-}
-
-/** Sync read of server-injected load() data (does not consume). */
+/** @deprecated Inject removed — always returns undefined. Prefer loadSiteData(). */
 export function peekSiteData() {
-  var raw = readInjectedRaw();
-  return raw.present ? raw.value : undefined;
-}
-
-function takeInjectedData() {
-  if (injectedTaken) return { ok: false };
-  injectedTaken = true;
-  var raw = readInjectedRaw();
-  if (!raw.present) return { ok: false };
-  return { ok: true, value: raw.value };
+  return undefined;
 }
 
 function authHeaders() {
@@ -55,19 +34,8 @@ function withQuery(url, query) {
   return u.pathname + u.search;
 }
 
-function hasQueryKeys(query) {
-  return !!(query && typeof query === "object" && Object.keys(query).length > 0);
-}
-
-/**
- * First call without query uses server-injected __RA_SITE_DATA__ (Next-style).
- * Later calls, or calls with a query object, hit GET …/data.
- */
+/** Always fetches GET …/data (backend.ts handle). */
 export async function loadSiteData(query) {
-  if (!hasQueryKeys(query)) {
-    var injected = takeInjectedData();
-    if (injected.ok) return injected.value;
-  }
   const path = withQuery(API_BASE + "/data", query);
   const res = await fetch(path, { headers: authHeaders(), credentials: "same-origin", cache: "no-store" });
   const data = await res.json().catch(() => ({}));

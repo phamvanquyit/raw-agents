@@ -50,15 +50,22 @@ describe("Sites API", () => {
     const filesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files`);
     expect(filesRes.status).toBe(200);
     const files = (await filesRes.json()) as { files: Record<string, string>; draftDirty: boolean };
-    expect(files.files["data.ts"]).toContain("export async function load");
+    expect(files.files["backend.ts"]).toContain("export async function handle");
     expect(files.files["app.tsx"]).toContain("export default function App");
     expect(files.files["styles.css"]).toContain(".page");
     expect(files.files["app.tsx"]).toContain("loadSiteData");
+    expect(files.files["data.ts"]).toBeUndefined();
+    expect(files.files["actions.ts"]).toBeUndefined();
 
-    const draftData = `export async function load() { return { title: "Draft Title", message: "from draft" }; }
+    const draftBackend = `export async function handle({ request }) {
+  if (request.method === "GET" || request.method === "HEAD") {
+    return { title: "Draft Title", message: "from draft" };
+  }
+  return { ok: false, message: "unknown" };
+}
 `;
-    const putRes = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/data.ts`, {
-      content: draftData,
+    const putRes = await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/backend.ts`, {
+      content: draftBackend,
       tree: "draft",
     });
     expect(putRes.status).toBe(200);
@@ -88,8 +95,8 @@ export default function App() {
     const preview = (await previewRes.json()) as { html: string; data: { title?: string } };
     expect(preview.html).toContain('id="root"');
     expect(preview.html).toContain("ra-site-api");
-    expect(preview.html).toContain("__RA_SITE_DATA__");
-    expect(preview.html).toContain("Draft Title");
+    expect(preview.html).not.toContain("__RA_SITE_DATA__");
+    expect(preview.html).not.toContain("Draft Title");
     expect(preview.data?.title).toBe("Draft Title");
 
     const liveRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/live`);
@@ -98,8 +105,8 @@ export default function App() {
     const liveHtml = await liveRes.text();
     expect(liveHtml).toContain('id="root"');
     expect(liveHtml).toContain("/live/assets/app.js");
-    expect(liveHtml).toContain("__RA_SITE_DATA__");
-    expect(liveHtml).toContain("Draft Title");
+    expect(liveHtml).not.toContain("__RA_SITE_DATA__");
+    expect(liveHtml).not.toContain("Draft Title");
     expect(liveHtml).not.toContain("access_token=");
 
     const sessionRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/live/session`, {});
@@ -137,7 +144,7 @@ export default function App() {
 
     const prodFilesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files?tree=prod`);
     const prodFiles = (await prodFilesRes.json()) as { files: Record<string, string> };
-    expect(prodFiles.files["data.ts"]).toContain("Draft Title");
+    expect(prodFiles.files["backend.ts"]).toContain("Draft Title");
 
     const pubAfter = await app.request("/public/sites/news");
     expect(pubAfter.status).toBe(200);
@@ -149,15 +156,19 @@ export default function App() {
     expect(pubData.status).toBe(200);
     expect(((await pubData.json()) as { data: { title: string } }).data.title).toBe("Draft Title");
 
-    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/data.ts`, {
-      content: `export async function load() { return { title: "Temp", message: "x" }; }\n`,
+    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/backend.ts`, {
+      content: `export async function handle({ request }) {
+  if (request.method === "GET" || request.method === "HEAD") return { title: "Temp", message: "x" };
+  return { ok: false };
+}
+`,
       tree: "draft",
     });
     const discardRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/discard`, {});
     expect(discardRes.status).toBe(200);
     const filesAfterDiscard = await authRequest(app, token, "GET", `/api/sites/${site.id}/files`);
     const discarded = (await filesAfterDiscard.json()) as { files: Record<string, string>; draftDirty: boolean };
-    expect(discarded.files["data.ts"]).toContain("Draft Title");
+    expect(discarded.files["backend.ts"]).toContain("Draft Title");
     expect(discarded.draftDirty).toBe(false);
 
     const delRes = await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
@@ -266,8 +277,11 @@ export default function App() {
     });
     const site = (await createRes.json()) as { id: string };
 
-    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/actions.ts`, {
-      content: `export async function action({ request }) {
+    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/backend.ts`, {
+      content: `export async function handle({ request }) {
+  if (request.method === "GET" || request.method === "HEAD") {
+    return { title: "Actions", message: "hi" };
+  }
   const body = await request.json();
   if (body._action === "ping") return { ok: true, message: "pong" };
   return { ok: false, message: "unknown" };

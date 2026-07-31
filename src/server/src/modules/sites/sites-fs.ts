@@ -3,33 +3,48 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync,
 import { join } from "node:path";
 import { getDataDir } from "../../common/utils/data-dir.js";
 
-export const SITE_SOURCE_FILES = ["app.tsx", "data.ts", "actions.ts", "styles.css", "package.json"] as const;
+export const SITE_SOURCE_FILES = ["app.tsx", "backend.ts", "styles.css", "package.json"] as const;
 export type SiteSourceFile = (typeof SITE_SOURCE_FILES)[number];
 
 /** Legacy Remix-shaped files (migrated on demand). */
 export const SITE_LEGACY_FILES = ["loader.js", "route.jsx", "action.js"] as const;
 
+/** Pre-unified backend files (migrated to backend.ts). */
+export const SITE_SPLIT_BACKEND_FILES = ["data.ts", "actions.ts"] as const;
+
 export type SiteTree = "prod" | "draft";
 
-/** Files copied into the bundle/runtime workspace (app + data modules). */
-export const SITE_RUNTIME_FILES = ["app.tsx", "data.ts", "actions.ts"] as const;
+/** Files copied into the bundle/runtime workspace. */
+export const SITE_RUNTIME_FILES = ["app.tsx", "backend.ts"] as const;
 
-const DEFAULT_DATA = `export async function load({ request, rawagents, query }) {
-  return {
-    title: "Hello Site",
-    message: "Edit app.tsx, data.ts, styles.css, and actions.ts — then Approve to publish.",
-  };
+const DEFAULT_BACKEND = `export async function handle({ request, rawagents, query }) {
+  if (request.method === "GET" || request.method === "HEAD") {
+    return {
+      title: "Hello Site",
+      message: "Edit app.tsx, backend.ts, and styles.css — then Approve to publish.",
+    };
+  }
+
+  const contentType = request.headers.get("content-type") || "";
+  let body = {};
+  if (contentType.includes("application/json")) {
+    body = await request.json().catch(() => ({}));
+  } else {
+    const fd = await request.formData();
+    body = Object.fromEntries(fd.entries());
+  }
+  if (body._action === "ping") {
+    return { ok: true, message: "pong" };
+  }
+  return { ok: false, message: "No actions defined yet" };
 }
 `;
 
 const DEFAULT_APP = `import { useEffect, useState } from "react";
-import { loadSiteData, peekSiteData, siteAction } from "./site-api.js";
+import { loadSiteData, siteAction } from "./site-api.js";
 
 export default function App() {
-  const [data, setData] = useState(() => {
-    const injected = peekSiteData();
-    return injected === undefined ? null : injected;
-  });
+  const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -112,7 +127,15 @@ button {
 }
 `;
 
-const DEFAULT_ACTIONS = `export async function action({ request, rawagents }) {
+const DEFAULT_DATA_LEGACY = `export async function load({ request, rawagents, query }) {
+  return {
+    title: "Hello Site",
+    message: "Edit app.tsx, data.ts, styles.css, and actions.ts — then Approve to publish.",
+  };
+}
+`;
+
+const DEFAULT_ACTIONS_LEGACY = `export async function action({ request, rawagents }) {
   const contentType = request.headers.get("content-type") || "";
   let body = {};
   if (contentType.includes("application/json")) {
@@ -142,6 +165,26 @@ function defaultPackageJson(slug: string) {
     null,
     2,
   )}\n`;
+}
+
+/** Merge legacy load/action modules into a single handle() export. */
+export function composeBackendFromLoadAction(dataTs: string, actionsTs: string): string {
+  const loadBody = dataTs
+    .replace(/export\s+async\s+function\s+loader\b/, "async function load")
+    .replace(/export\s+async\s+function\s+load\b/, "async function load");
+  const actionBody = actionsTs.replace(/export\s+async\s+function\s+action\b/, "async function action");
+
+  return `${loadBody.trim()}
+
+${actionBody.trim()}
+
+export async function handle({ request, rawagents, query, params }) {
+  if (request.method === "GET" || request.method === "HEAD") {
+    return load({ request, rawagents, query, params });
+  }
+  return action({ request, rawagents, params });
+}
+`;
 }
 
 export function getSitesRoot(): string {
@@ -190,8 +233,7 @@ export function writeScaffold(siteId: string, slug: string): void {
 
   const files: Record<SiteSourceFile, string> = {
     "app.tsx": DEFAULT_APP,
-    "data.ts": DEFAULT_DATA,
-    "actions.ts": DEFAULT_ACTIONS,
+    "backend.ts": DEFAULT_BACKEND,
     "styles.css": DEFAULT_STYLES,
     "package.json": defaultPackageJson(slug),
   };
@@ -266,6 +308,51 @@ export function treeHasLegacyRemix(siteId: string, tree: SiteTree): boolean {
   return existsSync(join(dir, "route.jsx")) || existsSync(join(dir, "loader.js"));
 }
 
+function treeHasSplitBackend(siteId: string, tree: SiteTree): boolean {
+  const dir = getTreeDir(siteId, tree);
+  return existsSync(join(dir, "data.ts")) || existsSync(join(dir, "actions.ts"));
+}
+
+function treeHasUnifiedBackend(siteId: string, tree: SiteTree): boolean {
+  return existsSync(join(getTreeDir(siteId, tree), "backend.ts"));
+}
+
+/** Migrate data.ts + actions.ts → backend.ts (once). */
+export function migrateSplitBackendTree(siteId: string, tree: SiteTree): boolean {
+  if (treeHasUnifiedBackend(siteId, tree)) {
+    // Clean leftover split files if backend already exists
+    const dir = getTreeDir(siteId, tree);
+    let cleaned = false;
+    for (const file of SITE_SPLIT_BACKEND_FILES) {
+      const p = join(dir, file);
+      if (existsSync(p)) {
+        rmSync(p);
+        cleaned = true;
+      }
+    }
+    return cleaned;
+  }
+  if (!treeHasSplitBackend(siteId, tree)) return false;
+
+  const dir = getTreeDir(siteId, tree);
+  const dataTs = existsSync(join(dir, "data.ts")) ? readFileSync(join(dir, "data.ts"), "utf8") : DEFAULT_DATA_LEGACY;
+  const actionsTs = existsSync(join(dir, "actions.ts")) ? readFileSync(join(dir, "actions.ts"), "utf8") : DEFAULT_ACTIONS_LEGACY;
+
+  const legacyDir = join(dir, ".legacy-split-backend");
+  mkdirSync(legacyDir, { recursive: true });
+  for (const file of SITE_SPLIT_BACKEND_FILES) {
+    const src = join(dir, file);
+    if (existsSync(src)) copyFileSync(src, join(legacyDir, file));
+  }
+
+  writeFileSync(join(dir, "backend.ts"), composeBackendFromLoadAction(dataTs, actionsTs), "utf8");
+  for (const file of SITE_SPLIT_BACKEND_FILES) {
+    const p = join(dir, file);
+    if (existsSync(p)) rmSync(p);
+  }
+  return true;
+}
+
 /**
  * One-shot migrate Remix-shaped sources → Hono/React files.
  * Wraps old Route in a client App that calls loadSiteData().
@@ -279,8 +366,8 @@ export function migrateLegacyTree(siteId: string, tree: SiteTree, slug: string):
 
   const dir = getTreeDir(siteId, tree);
   const route = existsSync(join(dir, "route.jsx")) ? readFileSync(join(dir, "route.jsx"), "utf8") : "";
-  const loader = existsSync(join(dir, "loader.js")) ? readFileSync(join(dir, "loader.js"), "utf8") : DEFAULT_DATA;
-  const action = existsSync(join(dir, "action.js")) ? readFileSync(join(dir, "action.js"), "utf8") : DEFAULT_ACTIONS;
+  const loader = existsSync(join(dir, "loader.js")) ? readFileSync(join(dir, "loader.js"), "utf8") : DEFAULT_DATA_LEGACY;
+  const action = existsSync(join(dir, "action.js")) ? readFileSync(join(dir, "action.js"), "utf8") : DEFAULT_ACTIONS_LEGACY;
   const styles = existsSync(join(dir, "styles.css")) ? readFileSync(join(dir, "styles.css"), "utf8") : DEFAULT_STYLES;
   const pkg = existsSync(join(dir, "package.json")) ? readFileSync(join(dir, "package.json"), "utf8") : defaultPackageJson(slug);
 
@@ -292,8 +379,7 @@ export function migrateLegacyTree(siteId: string, tree: SiteTree, slug: string):
   }
 
   const dataTs = loader.includes("export async function load") ? loader : loader.replace(/export\s+async\s+function\s+loader\b/, "export async function load");
-
-  const actionsTs = action.includes("export async function action") ? action : DEFAULT_ACTIONS;
+  const actionsTs = action.includes("export async function action") ? action : DEFAULT_ACTIONS_LEGACY;
 
   const routeBody = route.trim()
     ? route
@@ -312,15 +398,12 @@ export function migrateLegacyTree(siteId: string, tree: SiteTree, slug: string):
 `;
 
   const appTsx = `import { useEffect, useState } from "react";
-import { loadSiteData, peekSiteData } from "./site-api.js";
+import { loadSiteData } from "./site-api.js";
 
 ${routeBody}
 
 export default function App() {
-  const [loaderData, setLoaderData] = useState(() => {
-    const injected = peekSiteData();
-    return injected === undefined ? null : injected;
-  });
+  const [loaderData, setLoaderData] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -336,12 +419,15 @@ export default function App() {
 `;
 
   writeFileSync(join(dir, "app.tsx"), appTsx, "utf8");
-  writeFileSync(join(dir, "data.ts"), dataTs, "utf8");
-  writeFileSync(join(dir, "actions.ts"), actionsTs, "utf8");
+  writeFileSync(join(dir, "backend.ts"), composeBackendFromLoadAction(dataTs, actionsTs), "utf8");
   writeFileSync(join(dir, "styles.css"), styles, "utf8");
   writeFileSync(join(dir, "package.json"), pkg, "utf8");
 
   for (const file of SITE_LEGACY_FILES) {
+    const p = join(dir, file);
+    if (existsSync(p)) rmSync(p);
+  }
+  for (const file of SITE_SPLIT_BACKEND_FILES) {
     const p = join(dir, file);
     if (existsSync(p)) rmSync(p);
   }
@@ -351,5 +437,15 @@ export default function App() {
 export function ensureReactSiteSources(siteId: string, slug: string): void {
   for (const tree of ["draft", "prod"] as SiteTree[]) {
     migrateLegacyTree(siteId, tree, slug);
+    migrateSplitBackendTree(siteId, tree);
+    if (!treeHasReactApp(siteId, tree) || !treeHasUnifiedBackend(siteId, tree)) {
+      // Incomplete tree — write missing scaffold files without clobbering existing
+      const dir = getTreeDir(siteId, tree);
+      mkdirSync(dir, { recursive: true });
+      if (!existsSync(join(dir, "app.tsx"))) writeFileSync(join(dir, "app.tsx"), DEFAULT_APP, "utf8");
+      if (!existsSync(join(dir, "backend.ts"))) writeFileSync(join(dir, "backend.ts"), DEFAULT_BACKEND, "utf8");
+      if (!existsSync(join(dir, "styles.css"))) writeFileSync(join(dir, "styles.css"), DEFAULT_STYLES, "utf8");
+      if (!existsSync(join(dir, "package.json"))) writeFileSync(join(dir, "package.json"), defaultPackageJson(slug), "utf8");
+    }
   }
 }

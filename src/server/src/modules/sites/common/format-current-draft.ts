@@ -5,7 +5,7 @@ const FILE_PROMPT_MAX = 24_000;
 /** Only app.tsx is embedded; other draft files are read on demand. */
 export const DRAFT_PROMPT_FILES = ["app.tsx"] as const satisfies readonly SiteSourceFile[];
 
-const OMITTED_DRAFT_FILES = ["data.ts", "actions.ts", "styles.css", "package.json"] as const satisfies readonly SiteSourceFile[];
+const OMITTED_DRAFT_FILES = ["backend.ts", "styles.css", "package.json"] as const satisfies readonly SiteSourceFile[];
 
 export function clipForPrompt(content: string): string {
   if (content.length <= FILE_PROMPT_MAX) return content;

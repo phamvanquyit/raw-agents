@@ -29,11 +29,11 @@ function classifyError(message: string): { stage: string; hint: string } {
       hint: "Client bundle failed — fix app.tsx / imports, or update package.json (deps install automatically on write).",
     };
   }
-  if (m.includes("load()") || m.includes("data.ts") || m.includes("loader")) {
-    return { stage: "load", hint: "data.ts load() threw — check rawagents calls, await usage, and return shape." };
+  if (m.includes("handle(") || m.includes("backend.ts") || m.includes("load()") || m.includes("data.ts") || m.includes("loader")) {
+    return { stage: "backend", hint: "backend.ts handle() threw — check method branching, rawagents calls, await usage, and return shape." };
   }
   if (m.includes("timed out")) {
-    return { stage: "timeout", hint: "Timed out — simplify load() work or fix an infinite loop." };
+    return { stage: "timeout", hint: "Timed out — simplify handle() work or fix an infinite loop." };
   }
   return { stage: "runtime", hint: "Fix the error in draft files, then call check_site again." };
 }
@@ -64,7 +64,7 @@ export function makeCheckSiteTool(siteId: string) {
           ok: true,
           htmlChars: result.html.length,
           dataSummary: summarizeLoaderData(result.data),
-          message: "Draft bundle + load() succeeded.",
+          message: "Draft bundle + backend GET handle() succeeded.",
           ...(hint ? { hint } : {}),
         });
       } catch (err) {
@@ -76,7 +76,7 @@ export function makeCheckSiteTool(siteId: string) {
     {
       name: "check_site",
       description:
-        "Validate the draft site by bundling the React app and running data.ts load(). Returns ok or a structured error. Call after edits when you need to verify. The live preview iframe refreshes after writes.",
+        "Validate the draft site by bundling the React app and running backend.ts handle() for GET. Returns ok or a structured error. Call after edits when you need to verify. The live preview iframe refreshes after writes.",
       schema: z.object({}),
     },
   );

@@ -6,7 +6,7 @@ import { type SiteTree, getTreeDir, readSourceFile, treeContentHash } from "./si
 import { createSiteRawagents } from "./sites-rawagents.js";
 
 const importGeneration = new Map<string, number>();
-const DATA_REV = "data-v1";
+const DATA_REV = "backend-v1";
 
 function treeKey(siteId: string, tree: SiteTree) {
   return `${siteId}:${tree}`;
@@ -27,84 +27,87 @@ function materializeDataDir(siteId: string, tree: SiteTree): string {
   const stamp = `${treeContentHash(siteId, tree)}:${DATA_REV}`;
   const dirFor = (g: number) => join(root, String(g));
   const stampPath = (g: number) => join(dirFor(g), ".stamp");
-  const dataPath = (g: number) => join(dirFor(g), "data.ts");
+  const backendPath = (g: number) => join(dirFor(g), "backend.ts");
 
-  if (existsSync(stampPath(gen)) && readFileSync(stampPath(gen), "utf8") === stamp && existsSync(dataPath(gen))) {
+  if (existsSync(stampPath(gen)) && readFileSync(stampPath(gen), "utf8") === stamp && existsSync(backendPath(gen))) {
     return dirFor(gen);
   }
 
-  if (existsSync(dataPath(gen))) {
+  if (existsSync(backendPath(gen))) {
     gen += 1;
     importGeneration.set(key, gen);
   }
 
   const out = dirFor(gen);
   mkdirSync(out, { recursive: true });
-  writeFileSync(join(out, "data.ts"), readSourceFile(siteId, tree, "data.ts") || "export async function load(){return{}}", "utf8");
-  writeFileSync(join(out, "actions.ts"), readSourceFile(siteId, tree, "actions.ts") || "export async function action(){return{ok:false}}", "utf8");
+  writeFileSync(join(out, "backend.ts"), readSourceFile(siteId, tree, "backend.ts") || "export async function handle(){return{}}", "utf8");
   writeFileSync(stampPath(gen), stamp, "utf8");
   return out;
 }
 
-type LoadFn = (args: {
+type HandleFn = (args: {
   request: Request;
   params: Record<string, string>;
   rawagents: unknown;
   query: Record<string, string>;
 }) => unknown;
 
-type ActionFn = (args: { request: Request; params: Record<string, string>; rawagents: unknown }) => unknown;
-
-async function importSiteModule<T>(runtimeDir: string, file: "data.ts" | "actions.ts"): Promise<T> {
-  const full = join(runtimeDir, file);
+async function importBackendModule(runtimeDir: string): Promise<{ handle?: HandleFn }> {
+  const full = join(runtimeDir, "backend.ts");
   const url = `${pathToFileURL(full).href}?t=${Date.now()}`;
-  return (await import(url)) as T;
+  return (await import(url)) as { handle?: HandleFn };
 }
 
-export async function runSiteLoad(
+export async function runSiteHandle(
   siteId: string,
   tree: SiteTree,
   opts: { request: Request; query?: Record<string, string>; params?: Record<string, string> },
-): Promise<{ data: unknown }> {
+): Promise<{ value: unknown }> {
   const runtimeDir = materializeDataDir(siteId, tree);
-  const mod = await importSiteModule<{ load?: LoadFn; loader?: LoadFn }>(runtimeDir, "data.ts");
-  const loadFn = mod.load ?? mod.loader;
-  if (typeof loadFn !== "function") throw new BadRequestException("data.ts must export async function load");
+  const mod = await importBackendModule(runtimeDir);
+  if (typeof mod.handle !== "function") {
+    throw new BadRequestException("backend.ts must export async function handle");
+  }
 
   const rawagents = createSiteRawagents();
   const query = opts.query ?? Object.fromEntries(new URL(opts.request.url).searchParams.entries());
   try {
-    const data = await loadFn({
+    const value = await mod.handle({
       request: opts.request,
       params: opts.params ?? {},
       rawagents,
       query,
     });
-    return { data };
+    if (opts.request.method !== "GET" && opts.request.method !== "HEAD") {
+      invalidateSiteDataModules(siteId);
+    }
+    return { value };
   } catch (err: unknown) {
-    throw new BadRequestException(`load() failed: ${err instanceof Error ? err.message : String(err)}`);
+    const label = opts.request.method === "GET" || opts.request.method === "HEAD" ? "handle(GET)" : "handle(POST)";
+    throw new BadRequestException(`${label} failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
+/** GET …/data → backend handle */
+export async function runSiteLoad(
+  siteId: string,
+  tree: SiteTree,
+  opts: { request: Request; query?: Record<string, string>; params?: Record<string, string> },
+): Promise<{ data: unknown }> {
+  const getRequest = new Request(opts.request.url, {
+    method: "GET",
+    headers: opts.request.headers,
+  });
+  const { value } = await runSiteHandle(siteId, tree, { ...opts, request: getRequest });
+  return { data: value };
+}
+
+/** POST …/action → backend handle */
 export async function runSiteActionModule(
   siteId: string,
   tree: SiteTree,
   opts: { request: Request; params?: Record<string, string> },
 ): Promise<{ result: unknown }> {
-  const runtimeDir = materializeDataDir(siteId, tree);
-  const mod = await importSiteModule<{ action?: ActionFn }>(runtimeDir, "actions.ts");
-  if (typeof mod.action !== "function") throw new BadRequestException("actions.ts must export async function action");
-
-  const rawagents = createSiteRawagents();
-  try {
-    const result = await mod.action({
-      request: opts.request,
-      params: opts.params ?? {},
-      rawagents,
-    });
-    invalidateSiteDataModules(siteId);
-    return { result };
-  } catch (err: unknown) {
-    throw new BadRequestException(`action() failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  const { value } = await runSiteHandle(siteId, tree, opts);
+  return { result: value };
 }
