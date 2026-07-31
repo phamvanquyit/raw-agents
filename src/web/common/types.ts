@@ -185,7 +185,10 @@ export interface LlmProvider {
   id: string;
   provider: string;
   label: string;
-  apiKey: string;
+  /** Never returned by API — write-only on create/rotate. */
+  apiKey?: string;
+  hasApiKey?: boolean;
+  maskedApiKey?: string;
   customBaseUrl: string;
   models: string[];
   createdAt: Date;

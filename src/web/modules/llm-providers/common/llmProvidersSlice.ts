@@ -6,44 +6,49 @@ import { BaseReducer, type IBaseState } from "src/store/baseSlice";
 
 // ─── Provider metadata ────────────────────────────────────────────────────────
 
-export const PROVIDER_META: Record<string, { id: string; label: string; keyPlaceholder: string; defaultBase: string }> = {
+export type ProviderMeta = {
+  id: string;
+  label: string;
+  keyPlaceholder: string;
+  defaultBase: string;
+  supportsCustomBaseUrl: boolean;
+};
+
+export const PROVIDER_META: Record<string, ProviderMeta> = {
   openai: {
     id: "openai",
     label: "OpenAI",
     keyPlaceholder: "sk-...",
     defaultBase: "https://api.openai.com/v1",
+    supportsCustomBaseUrl: true,
   },
   openrouter: {
     id: "openrouter",
     label: "OpenRouter",
     keyPlaceholder: "sk-or-...",
     defaultBase: "https://openrouter.ai/api/v1",
+    supportsCustomBaseUrl: false,
   },
   anthropic: {
     id: "anthropic",
     label: "Anthropic",
     keyPlaceholder: "sk-ant-...",
     defaultBase: "https://api.anthropic.com",
-  },
-  google: {
-    id: "google",
-    label: "Google Gemini",
-    keyPlaceholder: "AIza...",
-    defaultBase: "",
-  },
-  ollama: {
-    id: "ollama",
-    label: "Ollama",
-    keyPlaceholder: "(not required)",
-    defaultBase: "http://localhost:11434",
-  },
-  custom: {
-    id: "custom",
-    label: "Custom",
-    keyPlaceholder: "...",
-    defaultBase: "",
+    supportsCustomBaseUrl: false,
   },
 };
+
+const FALLBACK_META: ProviderMeta = {
+  id: "unknown",
+  label: "Unknown",
+  keyPlaceholder: "...",
+  defaultBase: "",
+  supportsCustomBaseUrl: false,
+};
+
+export function getProviderMeta(provider: string): ProviderMeta {
+  return PROVIDER_META[provider] ?? { ...FALLBACK_META, id: provider, label: provider };
+}
 
 export const PROVIDER_OPTIONS = Object.entries(PROVIDER_META).map(([value, m]) => ({ value, label: m.label }));
 

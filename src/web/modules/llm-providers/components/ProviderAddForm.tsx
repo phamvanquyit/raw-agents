@@ -2,7 +2,7 @@ import { Button, Form, Input, Select } from "antd";
 import { useState } from "react";
 
 import type { LlmProvider } from "src/common/types";
-import { PROVIDER_META, PROVIDER_OPTIONS, createLlmProvider, generateLabel } from "src/modules/llm-providers/common/llmProvidersSlice";
+import { PROVIDER_OPTIONS, createLlmProvider, generateLabel, getProviderMeta } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
 interface ProviderAddFormProps {
@@ -20,6 +20,9 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
   const [customBaseUrl, setCustomBaseUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const meta = getProviderMeta(provider);
+  const showCustomBaseUrl = meta.supportsCustomBaseUrl;
 
   const providerOptions = PROVIDER_OPTIONS.map((o) => ({
     value: o.value,
@@ -39,7 +42,7 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
           provider,
           label: label.trim(),
           apiKey,
-          customBaseUrl: customBaseUrl.trim(),
+          customBaseUrl: showCustomBaseUrl ? customBaseUrl.trim() : "",
           models: [],
         }),
       ).unwrap();
@@ -67,8 +70,10 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
           <Select
             value={provider}
             onChange={(v) => {
+              const next = getProviderMeta(v);
               setProvider(v);
               setLabel(generateLabel(v, providers));
+              if (!next.supportsCustomBaseUrl) setCustomBaseUrl("");
               setError("");
             }}
             options={providerOptions}
@@ -111,25 +116,28 @@ export function ProviderAddForm({ onClose }: ProviderAddFormProps) {
               setApiKey(e.target.value);
               setError("");
             }}
-            placeholder={PROVIDER_META[provider]?.keyPlaceholder ?? "sk-..."}
+            placeholder={meta.keyPlaceholder}
+            autoComplete="new-password"
           />
         </Form.Item>
-        <Form.Item
-          label={
-            <span className="text-muted-foreground">
-              Base URL <span className="font-normal text-muted-foreground">(optional)</span>
-            </span>
-          }
-          className="!mb-0"
-          layout="vertical"
-        >
-          <Input
-            id="settings-provider-base-url"
-            value={customBaseUrl}
-            onChange={(e) => setCustomBaseUrl(e.target.value)}
-            placeholder={PROVIDER_META[provider]?.defaultBase || "https://…"}
-          />
-        </Form.Item>
+        {showCustomBaseUrl && (
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Base URL <span className="font-normal text-muted-foreground">(optional)</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
+            <Input
+              id="settings-provider-base-url"
+              value={customBaseUrl}
+              onChange={(e) => setCustomBaseUrl(e.target.value)}
+              placeholder={meta.defaultBase || "https://…"}
+            />
+          </Form.Item>
+        )}
         {error && <div className="text-2xs text-destructive font-medium">{error}</div>}
         <div className="flex items-center justify-end gap-2 pt-1">
           <Button type="text" size="small" onClick={handleCancel}>

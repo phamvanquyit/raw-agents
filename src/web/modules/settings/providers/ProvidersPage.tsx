@@ -1,15 +1,15 @@
-import { Eye, EyeClosed, Key, Magnifier, PenNewSquare, Refresh, TrashBinMinimalistic } from "@solar-icons/react";
+import { Key, Magnifier, PenNewSquare, Refresh, TrashBinMinimalistic } from "@solar-icons/react";
 import { Button, Empty, Form, Input, Modal, Select, Skeleton, Tag, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "src/common/api";
 import type { LlmProvider } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import {
-  PROVIDER_META,
   PROVIDER_OPTIONS,
   createLlmProvider,
   deleteLlmProvider,
   generateLabel,
+  getProviderMeta,
   refreshModels,
   updateLlmProvider,
 } from "src/modules/llm-providers/common/llmProvidersSlice";
@@ -35,7 +35,6 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
     apiKey: "",
     customBaseUrl: "",
   });
-  const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,7 +47,7 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
         setForm({
           provider: detail.provider,
           label: detail.label,
-          apiKey: detail.apiKey ?? "",
+          apiKey: "",
           customBaseUrl: detail.customBaseUrl ?? "",
         });
       })
@@ -64,33 +63,38 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
     label: o.label,
   }));
 
-  const meta = PROVIDER_META[form.provider] ?? PROVIDER_META.custom;
+  const meta = getProviderMeta(form.provider);
+  const showCustomBaseUrl = meta.supportsCustomBaseUrl;
 
   const handleSubmit = async () => {
-    if (!form.label.trim() || !form.apiKey.trim()) {
+    if (!form.label.trim()) {
+      setError("Please fill in all required fields");
+      return;
+    }
+    if (!isEdit && !form.apiKey.trim()) {
       setError("Please fill in all required fields");
       return;
     }
     setSaving(true);
     setError("");
+    const customBaseUrl = showCustomBaseUrl ? form.customBaseUrl.trim() : "";
     try {
       if (isEdit) {
-        await dispatch(
-          updateLlmProvider({
-            id: editId,
-            label: form.label.trim(),
-            apiKey: form.apiKey,
-            customBaseUrl: form.customBaseUrl.trim(),
-          }),
-        ).unwrap();
+        const payload: { id: string; label: string; customBaseUrl: string; apiKey?: string } = {
+          id: editId,
+          label: form.label.trim(),
+          customBaseUrl,
+        };
+        if (form.apiKey.trim()) payload.apiKey = form.apiKey.trim();
+        await dispatch(updateLlmProvider(payload)).unwrap();
         message.success(`Provider "${form.label}" updated`);
       } else {
         await dispatch(
           createLlmProvider({
             provider: form.provider,
             label: form.label.trim(),
-            apiKey: form.apiKey,
-            customBaseUrl: form.customBaseUrl.trim(),
+            apiKey: form.apiKey.trim(),
+            customBaseUrl,
             models: [],
           }),
         ).unwrap();
@@ -116,8 +120,8 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
           <span className="truncate font-semibold text-foreground">{isEdit ? "Edit Provider" : "Add Provider"}</span>
         </div>
       }
-      width={460}
-      centered
+      width={560}
+      style={{ top: 120 }}
       destroyOnHidden
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -143,7 +147,13 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
               <Select
                 value={form.provider}
                 onChange={(v) => {
-                  setForm((f) => ({ ...f, provider: v, label: generateLabel(v, providers) }));
+                  const next = getProviderMeta(v);
+                  setForm((f) => ({
+                    ...f,
+                    provider: v,
+                    label: generateLabel(v, providers),
+                    customBaseUrl: next.supportsCustomBaseUrl ? f.customBaseUrl : "",
+                  }));
                   setError("");
                 }}
                 options={providerOptions}
@@ -174,47 +184,43 @@ function ProviderFormDialog({ editId, onClose }: ProviderFormDialogProps) {
           <Form.Item
             label={
               <span className="text-muted-foreground">
-                API Key<span className="text-destructive"> *</span>
+                {isEdit ? "New API Key" : "API Key"}
+                {!isEdit && <span className="text-destructive"> *</span>}
+                {isEdit && <span className="font-normal text-muted-foreground"> (leave blank to keep)</span>}
               </span>
             }
             className="!mb-0"
             layout="vertical"
           >
-            <div className="flex items-center gap-2">
-              <Input
-                type={showKey ? "text" : "password"}
-                value={form.apiKey}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, apiKey: e.target.value }));
-                  setError("");
-                }}
-                placeholder={meta.keyPlaceholder}
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey((v) => !v)}
-                className="shrink-0 w-field-md h-field-md rounded-md bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border transition-colors cursor-pointer"
-              >
-                {showKey ? <EyeClosed className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </Form.Item>
-
-          <Form.Item
-            label={
-              <span className="text-muted-foreground">
-                Base URL <span className="font-normal text-muted-foreground">(optional)</span>
-              </span>
-            }
-            className="!mb-0"
-            layout="vertical"
-          >
-            <Input
-              value={form.customBaseUrl}
-              onChange={(e) => setForm((f) => ({ ...f, customBaseUrl: e.target.value }))}
-              placeholder={meta.defaultBase || "https://…"}
+            <Input.Password
+              value={form.apiKey}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, apiKey: e.target.value }));
+                setError("");
+              }}
+              placeholder={isEdit ? "••••••••" : meta.keyPlaceholder}
+              visibilityToggle={false}
+              autoComplete="new-password"
             />
           </Form.Item>
+
+          <RenderIf condition={showCustomBaseUrl}>
+            <Form.Item
+              label={
+                <span className="text-muted-foreground">
+                  Base URL <span className="font-normal text-muted-foreground">(optional)</span>
+                </span>
+              }
+              className="!mb-0"
+              layout="vertical"
+            >
+              <Input
+                value={form.customBaseUrl}
+                onChange={(e) => setForm((f) => ({ ...f, customBaseUrl: e.target.value }))}
+                placeholder={meta.defaultBase || "https://…"}
+              />
+            </Form.Item>
+          </RenderIf>
 
           <RenderIf condition={!!error}>
             <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -425,9 +431,9 @@ interface ProviderCardProps {
 }
 
 function ProviderCard({ provider, refreshing, onRefresh, onViewModels, onEdit, onDelete }: ProviderCardProps) {
-  const meta = PROVIDER_META[provider.provider] ?? PROVIDER_META.custom;
+  const meta = getProviderMeta(provider.provider);
   const modelCount = Array.isArray(provider.models) ? provider.models.length : (provider as any).countModels || 0;
-  const masked = (provider as any).maskedApiKey || "••••••••";
+  const masked = provider.maskedApiKey || "••••••••";
 
   return (
     <div className="group relative flex flex-col gap-3 overflow-hidden rounded-xl border border-border-subtle bg-card p-3.5 text-card-foreground transition-colors hover:border-border">
