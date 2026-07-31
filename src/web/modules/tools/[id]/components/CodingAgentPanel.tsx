@@ -13,6 +13,7 @@ import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
+import { summarizeCodingToolCall } from "../../common/compactGenerateCodeHistory";
 
 export type { ToolActionEvent };
 
@@ -49,8 +50,8 @@ export function CodingAgentPanel({
 
   const { messages, generating, contextUsage, send, cancel } = useAssistantStreaming({
     streamUrl,
-    maxSteps: 12,
     onToolAction,
+    summarizeToolCall: summarizeCodingToolCall,
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);

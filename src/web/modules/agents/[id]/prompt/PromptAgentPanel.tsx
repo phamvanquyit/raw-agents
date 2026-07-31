@@ -10,13 +10,12 @@ interface PromptAgentPanelProps {
   providerId: string | undefined;
   model: string;
   streamUrl: string;
-  maxSteps?: number;
   onChangeAiProvider: (pid: string) => void;
   onChangeModel: (m: string) => void;
 }
 
-export function PromptAgentPanel({ providerId, model, streamUrl, maxSteps = 6, onChangeAiProvider, onChangeModel }: PromptAgentPanelProps) {
-  const { messages, generating, contextUsage, send, cancel } = useAssistantStreaming({ streamUrl, maxSteps });
+export function PromptAgentPanel({ providerId, model, streamUrl, onChangeAiProvider, onChangeModel }: PromptAgentPanelProps) {
+  const { messages, generating, contextUsage, send, cancel } = useAssistantStreaming({ streamUrl });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { scrollRef: scrollContainerRef, scrollToBottom } = useAutoScroll();

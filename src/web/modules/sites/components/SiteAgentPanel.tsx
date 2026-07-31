@@ -6,6 +6,7 @@ import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
+import { siteTurnSummaryHint, summarizeSiteToolCall } from "../common/compactSiteHistory";
 
 export type { ToolActionEvent };
 
@@ -51,8 +52,9 @@ export function SiteAgentPanel({
 
   const { messages, generating, contextUsage, send, cancel } = useAssistantStreaming({
     streamUrl,
-    maxSteps: 12,
     onToolAction,
+    summarizeToolCall: summarizeSiteToolCall,
+    turnSummaryHint: siteTurnSummaryHint,
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);

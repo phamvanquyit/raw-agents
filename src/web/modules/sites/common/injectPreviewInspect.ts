@@ -207,7 +207,7 @@ export function formatSelectionContext(sel: SitePreviewSelection): string {
     lines.push(sel.jsxExcerpt);
   }
   lines.push("</selected_element>");
-  lines.push("Prefer sourceAnchor + jsxExcerpt over cssPath when editing route.jsx.");
+  lines.push("Prefer sourceAnchor + jsxExcerpt over cssPath when editing app.tsx.");
   return lines.join("\n");
 }
 

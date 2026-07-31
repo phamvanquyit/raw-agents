@@ -298,7 +298,6 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
             providerId={providerId}
             model={model}
             streamUrl={`/api/agents/${id}/assistant/prompt/stream`}
-            maxSteps={6}
             onChangeAiProvider={(pid) => {
               setProviderId(pid);
               setModel("");

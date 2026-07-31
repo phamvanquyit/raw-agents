@@ -6,6 +6,9 @@
  *   thinking → (text)? → tool-call → thinking → …
  * Each thinking / assistant segment becomes its own bubble so multi-round
  * reasoning is never concatenated into one block.
+ *
+ * Domain-specific tool labels / turn-summary hints are injected by callers
+ * (site / tool / job / prompt) — history compaction lives on the server.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,96 +22,46 @@ export type ToolActionEvent =
   | { type: "tool-call"; toolName: string; toolLabel: string; input: unknown }
   | { type: "tool-result"; toolName: string; output: unknown };
 
+export type SummarizeToolCallFn = (m: ChatAgentMessage) => string | null;
+export type TurnSummaryHintFn = (turn: ChatAgentMessage[]) => string;
+
 export interface UseAssistantStreamingOptions {
   streamUrl: string;
-  maxSteps?: number;
   onToolAction?: (event: ToolActionEvent) => void;
+  /** Domain policy: human line for UI-only turn summary */
+  summarizeToolCall?: SummarizeToolCallFn;
+  /** Domain policy: extra footer on UI-only turn summary (e.g. Approve hint) */
+  turnSummaryHint?: TurnSummaryHintFn;
 }
 
-const OMITTED_GENERATE_CODE = "[omitted — see <current_code> for the latest draft]";
-const OMITTED_WRITE_CONTENT = "[omitted — see <current_draft> / latest write_site_file for this file]";
-const OMITTED_WRITE_OUTPUT = "[omitted — see latest write_site_file tool result for current_draft]";
-
-/** Keep full generate_code / write_site_file payloads only for the latest call; redact older drafts. */
-function compactLargeToolInputs(messages: ChatAgentMessage[]): ChatAgentMessage[] {
-  let lastGenerateIdx = -1;
-  /** Latest write_site_file index per file name */
-  const lastWriteByFile = new Map<string, number>();
-  let lastWriteIdx = -1;
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i];
-    if (m.role !== "tool-call") continue;
-    if (m.toolName === "generate_code") lastGenerateIdx = i;
-    if (m.toolName === "write_site_file") {
-      lastWriteIdx = i;
-      const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
-      const file = typeof input.file === "string" ? input.file : "";
-      if (file) lastWriteByFile.set(file, i);
-    }
-  }
-
-  return messages.map((m, i) => {
-    if (m.role !== "tool-call") return m;
-    const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
-
-    if (m.toolName === "generate_code" && i < lastGenerateIdx && "code" in input) {
-      const { code: _code, ...rest } = input;
-      return { ...m, toolInput: { ...rest, code: OMITTED_GENERATE_CODE } };
-    }
-
-    if (m.toolName === "write_site_file") {
-      const file = typeof input.file === "string" ? input.file : "";
-      const isLatestForFile = file ? lastWriteByFile.get(file) === i : i === lastWriteIdx;
-      let next = m;
-      if (!isLatestForFile && "content" in input) {
-        const { content: _content, ...rest } = input;
-        next = { ...next, toolInput: { ...rest, content: OMITTED_WRITE_CONTENT } };
+export function buildAiHistory(messages: ChatAgentMessage[]) {
+  return messages
+    .filter((m) => {
+      if (m.meta?.uiOnly) return false;
+      if (m.role === "user") return m.content.trim() !== "";
+      if (m.role === "assistant") return m.content.trim() !== "";
+      if (m.role === "tool-call") return m.toolOutput != null;
+      return false;
+    })
+    .map((m) => {
+      if (m.role === "tool-call") {
+        return {
+          role: "tool-call" as const,
+          content: "",
+          toolCallId: m.toolCallId,
+          toolName: m.toolName,
+          toolInput: m.toolInput,
+          toolOutput: m.toolOutput,
+        };
       }
-      // Keep only the newest write's current_draft blob in history
-      if (i < lastWriteIdx && typeof next.toolOutput === "string" && next.toolOutput.includes("current_draft")) {
-        try {
-          const parsed = JSON.parse(next.toolOutput) as Record<string, unknown>;
-          if ("current_draft" in parsed) {
-            const { current_draft: _draft, ...rest } = parsed;
-            next = { ...next, toolOutput: JSON.stringify({ ...rest, current_draft: OMITTED_WRITE_OUTPUT }) };
-          }
-        } catch {
-          /* keep raw */
-        }
-      }
-      return next;
-    }
-
-    return m;
-  });
-}
-
-function buildAiHistory(messages: ChatAgentMessage[]) {
-  const history = messages
-    .filter((m) => ["user", "assistant", "tool-call"].includes(m.role))
-    .filter((m) => m.role === "tool-call" || m.content.trim() !== "")
-    .slice(-20);
-
-  return compactLargeToolInputs(history).map((m) => {
-    if (m.role === "tool-call") {
-      return {
-        role: "tool-call" as const,
-        content: "",
-        toolCallId: m.toolCallId,
-        toolName: m.toolName,
-        toolInput: m.toolInput,
-        toolOutput: m.toolOutput,
-      };
-    }
-    return { role: m.role as "user" | "assistant", content: m.content };
-  });
+      return { role: m.role as "user" | "assistant", content: m.content };
+    });
 }
 
 function finalizeStreamingMessages(prev: ChatAgentMessage[]) {
   return prev
     .map((m) => {
       if (m.role === "assistant" && m.streaming) {
-        // Thinking-only bubble → standalone completed thinking
         if (!m.content.trim() && m.meta?.thinking) {
           const thinking = String(m.meta.thinking);
           const duration = (m.meta.thinkingDuration as number | undefined) ?? 0;
@@ -127,49 +80,19 @@ function finalizeStreamingMessages(prev: ChatAgentMessage[]) {
     .filter((m) => !(m.role === "assistant" && !m.content.trim() && !m.meta?.thinking));
 }
 
-function toolCallLine(m: ChatAgentMessage): string | null {
+function defaultToolCallLine(m: ChatAgentMessage): string | null {
   if (m.role !== "tool-call") return null;
-  const name = m.toolName ?? "";
-  const input = m.toolInput && typeof m.toolInput === "object" && !Array.isArray(m.toolInput) ? (m.toolInput as Record<string, unknown>) : {};
-
-  if (name === "write_site_file") {
-    const file = typeof input.file === "string" ? input.file : "draft file";
-    return `Updated \`${file}\``;
-  }
-  if (name === "check_site") {
-    let ok: boolean | undefined;
-    if (typeof m.toolOutput === "string") {
-      try {
-        const parsed = JSON.parse(m.toolOutput) as { ok?: boolean };
-        if (typeof parsed.ok === "boolean") ok = parsed.ok;
-      } catch {
-        /* ignore */
-      }
-    }
-    if (ok === true) return "Validated draft (check_site ok)";
-    if (ok === false) return "Validated draft (check_site failed)";
-    return "Validated draft";
-  }
-  if (name === "read_site_files") {
-    const file = typeof input.file === "string" ? input.file : "";
-    if (file) return `Read \`${file}\``;
-    const tree = typeof input.tree === "string" ? input.tree : "draft";
-    return `Read ${tree} site files`;
-  }
-  if (name === "preview_site") return "Previewed site HTML";
-  if (name === "datatable") return "Looked up datatable";
-  if (name === "kv_store") return "Looked up KV store";
-  if (name === "secrets") return "Looked up secrets";
-  if (name === "browser") return "Used browser tool";
-  if (name === "generate_code") return "Updated job script";
-  if (name === "run_current_job") return "Started a job run";
-
-  const label = m.toolLabel ?? formatToolName(name || "tool");
+  const label = m.toolLabel ?? formatToolName(m.toolName || "tool");
   return `Ran ${label}`;
 }
 
-/** When the model only emits thinking + tools, still show a closing summary. */
-function ensureTurnSummary(prev: ChatAgentMessage[], turnHadVisibleText: boolean): ChatAgentMessage[] {
+/** When the model only emits thinking + tools, still show a closing summary (UI-only). */
+function ensureTurnSummary(
+  prev: ChatAgentMessage[],
+  turnHadVisibleText: boolean,
+  summarizeToolCall?: SummarizeToolCallFn,
+  turnSummaryHint?: TurnSummaryHintFn,
+): ChatAgentMessage[] {
   const finalized = finalizeStreamingMessages(prev);
   if (turnHadVisibleText) return finalized;
 
@@ -185,22 +108,22 @@ function ensureTurnSummary(prev: ChatAgentMessage[], turnHadVisibleText: boolean
   const turn = finalized.slice(lastUserIdx + 1);
   if (turn.some((m) => m.role === "assistant" && m.content.trim())) return finalized;
 
-  const lines = turn.map(toolCallLine).filter((line): line is string => Boolean(line));
+  const lines = turn.map((m) => summarizeToolCall?.(m) ?? defaultToolCallLine(m)).filter((line): line is string => Boolean(line));
   if (lines.length === 0) return finalized;
 
   const unique = [...new Set(lines)];
   const body = unique.map((line) => `- ${line}`).join("\n");
-  const hasWrite = turn.some((m) => m.role === "tool-call" && m.toolName === "write_site_file");
-  const approveHint = hasWrite ? "\n\nClick **Approve** to promote draft → production." : "";
+  const hint = turnSummaryHint?.(turn) ?? "";
 
   return [
     ...finalized,
     {
       id: nextId("a"),
       role: "assistant" as const,
-      content: `Here's what I did:\n${body}${approveHint}`,
+      content: `Here's what I did:\n${body}${hint}`,
       streaming: false,
       timestamp: new Date(),
+      meta: { uiOnly: true },
     },
   ];
 }
@@ -210,7 +133,7 @@ function thinkingDurationSec(startedAt: number): number {
   return Math.round((Date.now() - startedAt) / 1000);
 }
 
-export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }: UseAssistantStreamingOptions) {
+export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCall, turnSummaryHint }: UseAssistantStreamingOptions) {
   const [messages, setMessages] = useState<ChatAgentMessage[]>([]);
   const [generating, setGenerating] = useState(false);
   const [contextUsage, setContextUsage] = useState<ContextUsagePayload | null>(null);
@@ -219,6 +142,10 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
   const abortRef = useRef<AbortController | null>(null);
   const onToolActionRef = useRef(onToolAction);
   onToolActionRef.current = onToolAction;
+  const summarizeToolCallRef = useRef(summarizeToolCall);
+  summarizeToolCallRef.current = summarizeToolCall;
+  const turnSummaryHintRef = useRef(turnSummaryHint);
+  turnSummaryHintRef.current = turnSummaryHint;
 
   useEffect(() => {
     return () => {
@@ -272,14 +199,13 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
 
       let assistantText = "";
       let currentAssistantId = assistantId;
-      /** True after a tool-call until the next text/thinking segment starts a fresh bubble */
       let needsNewBubble = false;
-      /** toolCallIds already painted — early emit + full-args upsert must not double-bubble */
       const seenToolCallIds = new Set<string>();
-      /** Any visible reply text this turn (thinking alone does not count) */
       let turnHadVisibleText = false;
 
-      /** Finalize the open assistant/thinking bubble before a tool-call or segment boundary. */
+      const applyTurnSummary = (prev: ChatAgentMessage[]) =>
+        ensureTurnSummary(prev, turnHadVisibleText, summarizeToolCallRef.current, turnSummaryHintRef.current);
+
       const finalizeOpenBubble = () => {
         const freezeId = currentAssistantId;
         const thinkingSnapshot = thinkingRef.current;
@@ -294,7 +220,6 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
             }),
           );
         } else if (thinkingSnapshot) {
-          // Pure thinking → role "thinking" so MessageBubble renders CompletedThinking
           setMessages((prev) =>
             prev.map((m) =>
               m.id === freezeId
@@ -344,7 +269,6 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
             providerId,
             modelId: model,
             messages: [...aiHistory, { role: "user", content: text }],
-            maxSteps,
             publicOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
           }),
           signal: controller.signal,
@@ -360,7 +284,6 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
           {
             onTextDelta: (delta) => {
               turnHadVisibleText = true;
-              // Close thinking timer when the model starts writing
               if (thinkingRef.current && thinkingStartRef.current) {
                 const duration = thinkingDurationSec(thinkingStartRef.current);
                 const targetId = currentAssistantId;
@@ -382,7 +305,6 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
               }
             },
             onThinkingDelta: (delta) => {
-              // New model step after tools (or missing bubble) → fresh thinking block
               if (needsNewBubble || !currentAssistantId) {
                 thinkingRef.current = delta;
                 thinkingStartRef.current = Date.now();
@@ -410,7 +332,6 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
               if (event.toolCallId) seenToolCallIds.add(event.toolCallId);
 
               if (alreadySeen) {
-                // Full-args upsert of an already-painted bubble
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.role === "tool-call" && m.toolCallId === event.toolCallId
@@ -465,14 +386,14 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
               setContextUsage(usage);
             },
             onDone: () => {
-              setMessages((prev) => ensureTurnSummary(prev, turnHadVisibleText));
+              setMessages(applyTurnSummary);
               setGenerating(false);
               thinkingRef.current = "";
               thinkingStartRef.current = 0;
             },
             onError: (error) => {
               if (error === "Connection lost") {
-                setMessages((prev) => ensureTurnSummary(prev, turnHadVisibleText));
+                setMessages(applyTurnSummary);
                 setGenerating(false);
                 thinkingRef.current = "";
                 thinkingStartRef.current = 0;
@@ -503,8 +424,7 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
           return;
         }
 
-        // Stream ended without explicit done — finalize bubbles
-        setMessages((prev) => ensureTurnSummary(prev, turnHadVisibleText));
+        setMessages(applyTurnSummary);
         setGenerating(false);
       } catch (err: unknown) {
         if ((err as Error)?.name === "AbortError") {
@@ -528,7 +448,7 @@ export function useAssistantStreaming({ streamUrl, maxSteps = 6, onToolAction }:
         abortRef.current = null;
       }
     },
-    [generating, messages, streamUrl, maxSteps],
+    [generating, messages, streamUrl],
   );
 
   return { messages, generating, contextUsage, send, cancel };
