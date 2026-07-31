@@ -10,6 +10,7 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { ChatOpenAI } from "@langchain/openai";
 import { eq } from "drizzle-orm";
+import { decryptProviderApiKey } from "../../modules/llm-providers/llm-providers.service.js";
 import { getDb, llmProviders } from "../db/client.js";
 
 export async function getChatModel(providerId: string, modelId: string): Promise<BaseChatModel> {
@@ -20,7 +21,9 @@ export async function getChatModel(providerId: string, modelId: string): Promise
     throw new Error(`Provider "${providerId}" not found in DB`);
   }
 
-  const { provider, apiKey, customBaseUrl } = p;
+  const provider = p.provider;
+  const apiKey = decryptProviderApiKey(p.apiKey);
+  const customBaseUrl = p.customBaseUrl;
   const baseURL = customBaseUrl?.trim() || undefined;
 
   if (provider === "openai" || provider === "custom") {

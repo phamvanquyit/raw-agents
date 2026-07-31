@@ -45,7 +45,7 @@ export async function fetchModelsForProvider(p: ProviderInfo): Promise<string[]>
       return fetchGoogleModels(p.apiKey, base || DEFAULT_BASE.google || "https://generativelanguage.googleapis.com/v1beta");
 
     case "anthropic":
-      return []; // Anthropic không có public /models endpoint
+      return fetchAnthropicModels(p.apiKey, base || DEFAULT_BASE.anthropic || "https://api.anthropic.com");
 
     default:
       // Thử OpenAI-compatible nếu có base URL custom
@@ -93,4 +93,34 @@ async function fetchGoogleModels(apiKey: string, baseUrl = "https://generativela
   if (!res.ok) throw new Error(`Google /models: ${res.status}`);
   const json = await res.json();
   return (json.models ?? []).map((m: { name: string }) => m.name.replace("models/", "")).sort();
+}
+
+async function fetchAnthropicModels(apiKey: string, baseUrl = "https://api.anthropic.com"): Promise<string[]> {
+  const root = baseUrl.replace(/\/$/, "").replace(/\/v1$/, "");
+  const headers: Record<string, string> = {
+    "anthropic-version": "2023-06-01",
+    "x-api-key": apiKey,
+  };
+
+  const ids: string[] = [];
+  let afterId: string | undefined;
+
+  for (;;) {
+    const params = new URLSearchParams({ limit: "1000" });
+    if (afterId) params.set("after_id", afterId);
+    const res = await fetch(`${root}/v1/models?${params}`, { headers });
+    if (!res.ok) throw new Error(`Anthropic /v1/models: ${res.status} ${res.statusText}`);
+    const json = (await res.json()) as {
+      data?: { id: string }[];
+      has_more?: boolean;
+      last_id?: string | null;
+    };
+    for (const m of json.data ?? []) {
+      if (m.id) ids.push(m.id);
+    }
+    if (!json.has_more || !json.last_id) break;
+    afterId = json.last_id;
+  }
+
+  return ids.sort();
 }

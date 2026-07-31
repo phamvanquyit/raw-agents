@@ -19,10 +19,6 @@ describe("LLM Providers API", () => {
 
   let providerId = "";
 
-  // Note: POST /api/providers requires fetchModelsForProvider which hits external APIs.
-  // We test the direct service-level CRUD via the update/get/delete routes
-  // and test the list route which doesn't require external calls.
-
   test("GET /api/providers — empty list initially", async () => {
     const res = await authRequest(app, token, "GET", "/api/providers");
     expect(res.status).toBe(200);
@@ -33,9 +29,7 @@ describe("LLM Providers API", () => {
   });
 
   test("Directly create a provider via service (bypass fetchModels)", async () => {
-    // We'll use the service directly since POST /api/providers calls fetchModels
-    // which needs a real API key. Instead we insert via the DB.
-    const { createProvider } = await import("../modules/llm-providers/llm-providers.service.js");
+    const { createProvider, getProvider, decryptProviderApiKey } = await import("../modules/llm-providers/llm-providers.service.js");
     const provider = createProvider({
       provider: "openai",
       label: "My OpenAI",
@@ -46,6 +40,13 @@ describe("LLM Providers API", () => {
 
     expect(provider.id).toBeTruthy();
     expect(provider.label).toBe("My OpenAI");
+    // Stored ciphertext — not plaintext
+    expect(provider.apiKey).not.toBe("sk-test-key-12345");
+    expect(provider.apiKey.startsWith("v1:")).toBe(true);
+    expect(decryptProviderApiKey(provider.apiKey)).toBe("sk-test-key-12345");
+
+    const row = getProvider(provider.id);
+    expect(row?.apiKey).not.toBe("sk-test-key-12345");
     providerId = provider.id;
   });
 
@@ -60,20 +61,20 @@ describe("LLM Providers API", () => {
     expect(item.label).toBe("My OpenAI");
     expect(item.provider).toBe("openai");
     expect(item.countModels).toBe(2);
-    // API key should be masked
-    expect(item.maskedApiKey).toBeTruthy();
-    expect(item.maskedApiKey as string).not.toBe("sk-test-key-12345");
-    // Full apiKey should not be in list response
+    expect(item.hasApiKey).toBe(true);
+    expect(item.maskedApiKey).toBe("••••••••");
     expect(item).not.toHaveProperty("apiKey");
   });
 
-  test("GET /api/providers/:id — full detail (includes apiKey)", async () => {
+  test("GET /api/providers/:id — public detail never returns apiKey", async () => {
     const res = await authRequest(app, token, "GET", `/api/providers/${providerId}`);
     expect(res.status).toBe(200);
 
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.id).toBe(providerId);
-    expect(data.apiKey).toBe("sk-test-key-12345");
+    expect(data).not.toHaveProperty("apiKey");
+    expect(data.hasApiKey).toBe(true);
+    expect(data.maskedApiKey).toBe("••••••••");
     expect(data.models).toEqual(["gpt-4", "gpt-3.5-turbo"]);
   });
 
@@ -90,21 +91,49 @@ describe("LLM Providers API", () => {
     expect(data).toEqual(["gpt-4", "gpt-3.5-turbo"]);
   });
 
-  test("PUT /api/providers/:id — update provider", async () => {
+  test("PUT /api/providers/:id — update label keeps key; blank apiKey does not wipe", async () => {
+    const { getProvider, decryptProviderApiKey } = await import("../modules/llm-providers/llm-providers.service.js");
+
     const res = await authRequest(app, token, "PUT", `/api/providers/${providerId}`, {
       label: "Updated OpenAI",
+      apiKey: "",
     });
 
     expect(res.status).toBe(200);
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.label).toBe("Updated OpenAI");
+    expect(data).not.toHaveProperty("apiKey");
+    expect(data.hasApiKey).toBe(true);
+
+    const row = getProvider(providerId);
+    expect(decryptProviderApiKey(row?.apiKey)).toBe("sk-test-key-12345");
+  });
+
+  test("PUT /api/providers/:id — rotate apiKey encrypts new value", async () => {
+    const { getProvider, decryptProviderApiKey } = await import("../modules/llm-providers/llm-providers.service.js");
+
+    const res = await authRequest(app, token, "PUT", `/api/providers/${providerId}`, {
+      apiKey: "sk-rotated-key-99999",
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as Record<string, unknown>;
+    expect(data).not.toHaveProperty("apiKey");
+
+    const row = getProvider(providerId);
+    expect(row?.apiKey.startsWith("v1:")).toBe(true);
+    expect(decryptProviderApiKey(row?.apiKey)).toBe("sk-rotated-key-99999");
+  });
+
+  test("getProviderForUse decrypts for backend use", async () => {
+    const { getProviderForUse } = await import("../modules/llm-providers/llm-providers.service.js");
+    const forUse = getProviderForUse(providerId);
+    expect(forUse?.apiKey).toBe("sk-rotated-key-99999");
   });
 
   test("DELETE /api/providers/:id — delete provider", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/providers/${providerId}`);
     expect(res.status).toBe(200);
 
-    // Verify deleted
     const getRes = await authRequest(app, token, "GET", `/api/providers/${providerId}`);
     expect(getRes.status).toBe(400);
   });

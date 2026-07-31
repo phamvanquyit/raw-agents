@@ -3,29 +3,26 @@ import { llmProviders } from "../../common/db/client.js";
 import { listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { fetchModelsForProvider } from "./fetchModels.js";
-import { createProvider, deleteProvider, getProvider, updateProvider } from "./llm-providers.service.js";
+import { createProvider, deleteProvider, getProvider, getProviderForUse, toProviderPublic, updateProvider } from "./llm-providers.service.js";
 
 const app = new Hono();
 
-function maskApiKey(key?: string) {
-  if (!key) return "";
-  if (key.length > 8) return `${key.slice(0, 4)}••••${key.slice(-4)}`;
-  return "••••••••";
-}
-
 // GET /api/providers?page=1&limit=50&sorts=-createdAt
-// Exclude `models` array and full apiKey from list response to keep payload small
 app.get("/", (c) => {
   const result = listQuery({ table: llmProviders }, c.req.query());
   return c.json({
     ...result,
-    items: result.items.map(({ id, label, provider, models, apiKey }) => ({
-      id,
-      label,
-      provider,
-      countModels: (models ?? []).length,
-      maskedApiKey: maskApiKey(apiKey),
-    })),
+    items: result.items.map((row) => {
+      const pub = toProviderPublic(row as Parameters<typeof toProviderPublic>[0]);
+      return {
+        id: pub.id,
+        label: pub.label,
+        provider: pub.provider,
+        countModels: pub.models.length,
+        hasApiKey: pub.hasApiKey,
+        maskedApiKey: pub.maskedApiKey,
+      };
+    }),
   });
 });
 
@@ -36,29 +33,29 @@ app.get("/:id/models", (c) => {
   return c.json(row.models ?? []);
 });
 
-// GET /api/providers/:id → full provider detail (includes apiKey, models, etc.)
+// GET /api/providers/:id → public detail (apiKey never returned)
 app.get("/:id", (c) => {
   const row = getProvider(c.req.param("id"));
   if (!row) throw new BadRequestException("Provider not found");
-  return c.json(row);
+  return c.json(toProviderPublic(row));
 });
 
 // POST /api/providers
-// → Fetch models trước, nếu OK thì lưu provider + models vào DB
 app.post("/", async (c) => {
   const body = await c.req.json();
   const { provider, apiKey = "", customBaseUrl = "" } = body;
 
-  // Fetch models từ provider để verify
+  if (typeof apiKey !== "string" || !apiKey.trim()) {
+    throw new BadRequestException("API key is required");
+  }
+
   try {
     const models = await fetchModelsForProvider({ provider, apiKey, customBaseUrl });
-    const isAnthropicOk = provider === "anthropic";
-    if (models.length === 0 && !isAnthropicOk) {
+    if (models.length === 0 && provider !== "anthropic") {
       throw new BadRequestException("No models found. Check your API key and Base URL.");
     }
-    // Lưu provider cùng danh sách models
-    const row = createProvider({ ...body, models });
-    return c.json(row, 201);
+    const row = createProvider({ ...body, apiKey: apiKey.trim(), models });
+    return c.json(toProviderPublic(row!), 201);
   } catch (err) {
     if (err instanceof BadRequestException) throw err;
     const msg = err instanceof Error ? err.message : String(err);
@@ -69,14 +66,21 @@ app.post("/", async (c) => {
 // PUT /api/providers/:id
 app.put("/:id", async (c) => {
   const body = await c.req.json();
-  return c.json(updateProvider(c.req.param("id"), body));
+  const patch: Record<string, unknown> = { ...body };
+  // Write-only: blank apiKey means keep existing.
+  if (typeof patch.apiKey === "string" && patch.apiKey.trim() === "") {
+    delete patch.apiKey;
+  } else if (typeof patch.apiKey === "string") {
+    patch.apiKey = patch.apiKey.trim();
+  }
+  const updated = updateProvider(c.req.param("id"), patch);
+  return c.json(toProviderPublic(updated));
 });
 
 // POST /api/providers/:id/refresh-models
-// → Re-fetch models cho provider đã lưu, cập nhật lại DB
 app.post("/:id/refresh-models", async (c) => {
   const id = c.req.param("id");
-  const existing = getProvider(id);
+  const existing = getProviderForUse(id);
   if (!existing) throw new BadRequestException("Provider not found");
 
   try {
@@ -86,7 +90,7 @@ app.post("/:id/refresh-models", async (c) => {
       customBaseUrl: existing.customBaseUrl,
     });
     const updated = updateProvider(id, { models });
-    return c.json(updated);
+    return c.json(toProviderPublic(updated));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new BadRequestException(`Failed to fetch models: ${msg}`);
