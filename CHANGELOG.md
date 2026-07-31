@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-07-31
+
+### Added
+- Builtin `fetch_url` tool: HTTP fetch with `md` / `html` / `raw` output for page and docs reads (prefer over `browser` when no interaction is needed)
+- Coding agents (`tools` / `jobs`): `edit_code` with `mode=replace` (exact hunks) or `mode=full`, plus mid-step history compaction for edit payloads
+- Site agent: per-surface edit tools (`edit_ui`, `edit_styles`, `edit_backend`, `edit_deps`) with the same replace/full edit model
+
+### Changed
+- Sites source layout: `data.ts` + `actions.ts` unified into `backend.ts` (`handle`); client always loads data via API (no `__RA_SITE_DATA__` inject)
+- `generate_code` / `write_site_file` replaced by the edit tools above; editors apply drafts from tool results
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- Existing sites migrate `data.ts`/`actions.ts` → `backend.ts` on access; re-check custom backends after upgrade
+
 ## [0.15.1] - 2026-07-31
 
 ### Added
@@ -260,6 +275,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.16.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.2...v0.14.3
