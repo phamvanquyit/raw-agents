@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.1] - 2026-07-31
+
+### Added
+- LLM provider API keys encrypted at rest; list/detail responses expose `hasApiKey` / `maskedApiKey` only
+- Anthropic model list via the public `/v1/models` API
+- Server-side compaction for site `write_site_file` history and coding `generate_code` payloads
+
+### Changed
+- Provider API keys are write-only: blank on update keeps the existing key; settings UI no longer shows or requires the full key to save
+- Provider add catalog trimmed to OpenAI, OpenRouter, and Anthropic (existing Google / Ollama / custom rows still run)
+- Assistant chat history: turn summaries are UI-only and excluded from the next model request; client no longer redacts large tool inputs
+- Higher default agent `maxSteps` on the server; clients no longer send `maxSteps`
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- Any client of `GET /api/providers` or `GET /api/providers/:id` must stop reading `apiKey` — use `hasApiKey` / `maskedApiKey` instead
+- Existing plaintext provider keys keep working until rotated (then stored encrypted)
+
 ## [0.15.0] - 2026-07-30
 
 ### Changed
@@ -242,6 +260,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.15.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.2...v0.14.3
 
