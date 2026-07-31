@@ -18,7 +18,7 @@ export function makeRunCurrentJobTool(jobId: string) {
     {
       name: "run_current_job",
       description:
-        "Start the current TypeScript job draft (same as manual Run). Returns immediately with { started, runId } — does not wait for completion. REQUIRED right after every generate_code. Logs appear live in the Runs panel.",
+        "Start the current TypeScript job draft (same as manual Run). Returns immediately with { started, runId } — does not wait for completion. REQUIRED right after every edit_code. Logs appear live in the Runs panel.",
       schema: z.object({}),
     },
   );

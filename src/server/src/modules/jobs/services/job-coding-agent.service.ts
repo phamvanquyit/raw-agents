@@ -8,13 +8,15 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
 import { createAgent } from "langchain";
 import { browserTool } from "../../../common/ai/agent-tools/browser.tool.js";
+import { fetchUrlTool } from "../../../common/ai/agent-tools/fetch-url.tool.js";
+import { createCompactEditMiddleware, redactEditHistoryPayloads } from "../../../common/ai/compact-edit-middleware.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
 import { makeAgentsTool } from "../../agents/raw-agent/llm-tools/agents.tool.js";
 import { makeDatatableTool } from "../../agents/raw-agent/llm-tools/datatable.tool.js";
 import { makeKvStoreTool } from "../../agents/raw-agent/llm-tools/kv-store.tool.js";
 import { makeSecretsTool } from "../../agents/raw-agent/llm-tools/secrets.tool.js";
-import { makeJobGenerateCodeTool } from "../common/agent-tools/generate-code.tool.js";
+import { makeJobEditCodeTool } from "../common/agent-tools/edit-code.tool.js";
 import { makeGetJobRunTool } from "../common/agent-tools/get-job-run.tool.js";
 import { makeRunCurrentJobTool } from "../common/agent-tools/run-current-job.tool.js";
 import { buildJobCodingSystemPrompt } from "../common/job-agent-prompt.js";
@@ -40,42 +42,17 @@ export interface JobCodingStreamRequest {
   messages: (TextMessage | ToolCallMessage)[];
 }
 
-const OMITTED_GENERATE_CODE = "[omitted — see <current_code> for the latest draft]";
-
 function toolCallArgs(input: unknown): Record<string, unknown> {
   return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
 }
 
-function compactGenerateCodeHistory(messages: JobCodingStreamRequest["messages"]): JobCodingStreamRequest["messages"] {
-  let lastGenerateIdx = -1;
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i];
-    if (m.role === "tool-call" && m.toolName === "generate_code") {
-      lastGenerateIdx = i;
-    }
-  }
-  if (lastGenerateIdx < 0) return messages;
-
-  return messages.map((m, i) => {
-    if (m.role !== "tool-call" || m.toolName !== "generate_code" || i >= lastGenerateIdx) {
-      return m;
-    }
-    const input = toolCallArgs(m.toolInput);
-    if (!("code" in input)) return m;
-    const { code: _code, ...rest } = input;
-    return {
-      ...m,
-      toolInput: {
-        ...rest,
-        code: OMITTED_GENERATE_CODE,
-      },
-    };
-  });
+function compactEditCodeHistory(messages: JobCodingStreamRequest["messages"]): JobCodingStreamRequest["messages"] {
+  return redactEditHistoryPayloads(messages);
 }
 
 function buildLangChainMessages(messages: JobCodingStreamRequest["messages"]): BaseMessage[] {
   const result: BaseMessage[] = [];
-  const compacted = compactGenerateCodeHistory(messages);
+  const compacted = compactEditCodeHistory(messages);
 
   for (let i = 0; i < compacted.length; i++) {
     const msg = compacted[i];
@@ -151,10 +128,11 @@ export async function streamJobCodingAgent(jobId: string, body: JobCodingStreamR
   const model = await getChatModel(providerId, modelId);
 
   const tools: StructuredToolInterface[] = [
-    makeJobGenerateCodeTool(jobId),
+    makeJobEditCodeTool(jobId),
     makeRunCurrentJobTool(jobId),
     makeGetJobRunTool(jobId),
     browserTool,
+    fetchUrlTool,
     makeKvStoreTool(["list"]),
     makeSecretsTool(["list"]),
     makeDatatableTool(["list_projects", "get_schema"]),
@@ -164,7 +142,12 @@ export async function streamJobCodingAgent(jobId: string, body: JobCodingStreamR
   const currentCode = getDraftCode(jobId);
   const job = getJob(jobId);
   const systemPrompt = buildJobCodingSystemPrompt(currentCode, job);
-  const agent = createAgent({ model, tools, systemPrompt });
+  const agent = createAgent({
+    model,
+    tools,
+    systemPrompt,
+    middleware: [createCompactEditMiddleware()],
+  });
   const baseMessages = buildLangChainMessages(messages);
 
   await streamAgentSSE({

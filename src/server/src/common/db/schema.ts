@@ -209,7 +209,7 @@ export const agentTools = sqliteTable("agent_tools", {
   icon: text("icon"),
   parameters: text("parameters", { mode: "json" }).$type<object>().notNull().default(sql`'{"type":"object","properties":{},"required":[]}'`),
   codeContent: text("code_content").notNull(),
-  /** AI draft code — written by generate_code tool. null = no pending draft. */
+  /** AI draft code — written by edit_code tool. null = no pending draft. */
   draftCode: text("draft_code"),
   /** Optional folder for grouping in the Tools UI */
   folderId: text("folder_id").references(() => toolFolders.id, {

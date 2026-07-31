@@ -16,7 +16,7 @@ export function makeRunCurrentScriptTool(toolId: string) {
       const resultStr = await runDraftCode(toolId, inputJson);
 
       if (!resultStr) {
-        return JSON.stringify({ ok: false, error: "No draft code available. Use generate_code first." });
+        return JSON.stringify({ ok: false, error: "No draft code available. Use edit_code first." });
       }
 
       try {

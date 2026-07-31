@@ -306,7 +306,7 @@ export function runDraftJobCode(jobId: string): { started: boolean; runId?: stri
   const job = getJob(jobId);
   if (!job) return { started: false, error: "Job not found" };
   const code = getDraftCode(jobId);
-  if (!code?.trim()) return { started: false, error: "No draft code available. Use generate_code first." };
+  if (!code?.trim()) return { started: false, error: "No draft code available. Use edit_code first." };
 
   const claimed = tryClaimJob(jobId, "manual");
   if (!claimed) {

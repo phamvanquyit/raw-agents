@@ -9,6 +9,7 @@ interface ToolDefinition {
   parameters: object;
 }
 import { TOOL_DEF as BROWSER_DEF } from "../../common/ai/agent-tools/browser.tool.js";
+import { TOOL_DEF as FETCH_URL_DEF } from "../../common/ai/agent-tools/fetch-url.tool.js";
 import { TOOL_DEF as DATATABLE_DEF } from "../agents/raw-agent/llm-tools/datatable.tool.js";
 import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
 import { TOOL_DEF as KV_STORE_DEF } from "../agents/raw-agent/llm-tools/kv-store.tool.js";
@@ -17,25 +18,38 @@ import { TOOL_DEF as MANAGE_MEMORY_DEF } from "../agents/raw-agent/llm-tools/man
 const ALL_TOOL_DEFS: ToolDefinition[] = [
   GET_TIME_DEF,
   BROWSER_DEF,
+  FETCH_URL_DEF,
   KV_STORE_DEF,
   DATATABLE_DEF,
   MANAGE_MEMORY_DEF,
   {
-    toolName: "generate_code",
-    toolLabel: "Generate Code",
+    toolName: "edit_code",
+    toolLabel: "Edit Code",
     description:
-      "Write the entire Python function body into the editor (COMPLETELY replacing the old content). The 'code' field is the raw Python body — NO 'def main(input):', NO markdown fences. You must call this tool to apply the code; NEVER return code as text in the conversation.",
+      'Edit the Python function body in the editor. mode="replace": exact edits[{ old_string, new_string }]. mode="full": replace entire body with code. Raw Python body only — NO def main, NO markdown fences.',
     parameters: {
       type: "object",
       properties: {
+        mode: { type: "string", enum: ["replace", "full"] },
         code: {
           type: "string",
-          description:
-            "THE ENTIRE Python function body (raw code, NO 'def main(input):' header, NO markdown fences). This is the content that will be placed INSIDE def main(input) by the system. Use import rawagents for kv/secrets/datatable.",
+          description: "Full Python body when mode=full (NO def main, NO markdown fences).",
+        },
+        edits: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              old_string: { type: "string" },
+              new_string: { type: "string" },
+              replace_all: { type: "boolean" },
+            },
+            required: ["old_string", "new_string"],
+          },
         },
         summary: { type: "string", description: "Short description of changes made (shown to the user)." },
       },
-      required: ["code"],
+      required: ["mode"],
     },
   },
   {
@@ -62,7 +76,7 @@ import { wsHub } from "../../common/ws/wsHub.js";
 import { executeTool } from "./common/python-runner.js";
 
 /** Core tools that are always-on and shouldn't appear in user-facing tool lists */
-const ALWAYS_ON_TOOL_NAMES = new Set(["manage_memory", "generate_code", "run_current_script", "update_prompt"]);
+const ALWAYS_ON_TOOL_NAMES = new Set(["manage_memory", "edit_code", "run_current_script", "update_prompt"]);
 
 /** Virtual AgentTool objects built from the tool registry */
 const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.toolName)).map((b) => ({
@@ -229,16 +243,17 @@ export async function runTool(id: string, inputJson = "{}", code?: string) {
   return JSON.parse(resultStr);
 }
 
-/** Update draftCode for a tool and notify FE (used by generate_code tool). */
+/** Update draftCode for a tool and notify FE (used by edit_code tool). */
 export function updateDraftCode(id: string, draftCode: string): void {
   getDb().update(agentTools).set({ draftCode }).where(eq(agentTools.id, id)).run();
   wsHub.emit("tools:updated", { id, draftCode });
 }
 
-/** Get draftCode for a tool (used by run_current_script tool). */
+/** Get draftCode for a tool (used by run_current_script / edit_code). Fallback to published codeContent. */
 export function getDraftCode(id: string): string | null {
-  const row = getDb().select({ draftCode: agentTools.draftCode }).from(agentTools).where(eq(agentTools.id, id)).get();
-  return row?.draftCode ?? null;
+  const row = getDb().select({ draftCode: agentTools.draftCode, codeContent: agentTools.codeContent }).from(agentTools).where(eq(agentTools.id, id)).get();
+  if (!row) return null;
+  return row.draftCode ?? row.codeContent ?? null;
 }
 
 /** Run draftCode of a tool in the Python sandbox (used by run_current_script tool). */
