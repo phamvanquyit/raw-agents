@@ -3,7 +3,7 @@
  *
  * Handles the business logic for the prompt assistant:
  *   - Resolves AI model
- *   - Builds tools (generate_prompt, browser, datatable discovery)
+ *   - Builds tools (generate_prompt, browser, fetch_url, datatable discovery)
  *   - Creates a ReAct agent and streams SSE events
  *   - generate_prompt saves directly to DB and emits agents:updated via WS
  */
@@ -14,6 +14,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { SSEStreamingApi } from "hono/streaming";
 import { createAgent } from "langchain";
 import { browserTool } from "../../../common/ai/agent-tools/browser.tool.js";
+import { fetchUrlTool } from "../../../common/ai/agent-tools/fetch-url.tool.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
 import { agents as agentsTable, getDb } from "../../../common/db/client.js";
@@ -49,7 +50,8 @@ When the user asks to write or edit a prompt:
 
 <your_tools>
 - \`generate_prompt\` — Apply the new system prompt to the editor and save it.
-- \`browser\` — Stealth headless Chromium (navigate, click, fill, snapshot, etc.). Use when the user points to a URL/docs you should read before writing or improving the prompt (works for SPA / JS-rendered pages).
+- \`fetch_url\` — HTTP fetch (prefer over browser). output_mode: md (main page content — default when reading info), html (main filtered HTML), raw (full HTML as-is incl. script/style).
+- \`browser\` — Stealth headless Chromium (navigate, click, fill, snapshot, etc.). ONLY for SPA / JS-rendered pages that need interaction — not for simple page/docs reads.
 - \`datatable\` — Discover workspace datatables (read-only). Actions:
   - \`list_projects\` — list projects (\`id\` + \`name\`); prefer using \`id\` afterward
   - \`get_schema\` with \`project\` (id preferred) — full schema (all tables + columns)
@@ -266,7 +268,7 @@ export async function streamPromptAgent(agentId: string, body: PromptStreamReque
 
   // 3. Build tools — generate_prompt saves to DB + emits WS
   // datatable is discovery-only so the prompt writer can reference real projects/tables/columns
-  const tools: StructuredToolInterface[] = [makeGeneratePromptTool(agentId), browserTool, makeDatatableTool(["list_projects", "get_schema"])];
+  const tools: StructuredToolInterface[] = [makeGeneratePromptTool(agentId), browserTool, fetchUrlTool, makeDatatableTool(["list_projects", "get_schema"])];
 
   // 4. Create agent
   const agent = createAgent({

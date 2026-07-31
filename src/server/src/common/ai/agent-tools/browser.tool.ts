@@ -13,6 +13,8 @@ export const browserTool = tool(
     name: "browser",
     description: `Open a stealth headless browser (CloakBrowser — anti-bot / fingerprint patched Chromium), run a sequence of actions in order, then close the browser. Interactions use human-like mouse/keyboard timing.
 
+Do NOT use for simple page/docs/API reads — prefer fetch_url (md for page content) first. Only use browser for SPA/JS-rendered pages that need interaction (click/fill/login) or a post-render snapshot.
+
 Pass **actions** as an ordered list. Supported action types:
 - **navigate** — \`{ action: "navigate", url }\`
 - **click** — \`{ action: "click", selector }\`
@@ -53,7 +55,7 @@ export const TOOL_DEF = {
   toolName: "browser",
   toolLabel: "Browser",
   description:
-    "Open a stealth browser (CloakBrowser), run a sequence of actions (navigate, click, fill, type, press, wait, scroll, select, snapshot, screenshot), then close. Pass actions as an ordered list. Bypasses common bot detection.",
+    "Open a stealth browser (CloakBrowser), run actions (navigate, click, fill, type, press, wait, scroll, select, snapshot, screenshot), then close. Prefer fetch_url (md) for simple page reads; use browser only for SPA/JS that needs interaction or post-render snapshot.",
   parameters: {
     type: "object",
     properties: {

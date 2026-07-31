@@ -19,6 +19,7 @@ import { buildMcpLangGraphName, parseMcpToolId } from "../../../mcp-servers/mcp-
 import { runTool } from "../../../tools/tools.service.js";
 
 import { browserTool } from "../../../../common/ai/agent-tools/browser.tool.js";
+import { fetchUrlTool } from "../../../../common/ai/agent-tools/fetch-url.tool.js";
 import { type CallAgentTarget, isCallAgentToolName, makeCallAgentTools, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { datatableTool } from "../llm-tools/datatable.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
@@ -28,6 +29,7 @@ import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
 const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   get_current_time: getCurrentTimeTool,
   browser: browserTool,
+  fetch_url: fetchUrlTool,
   kv_store: kvStoreTool,
   datatable: datatableTool,
 };
@@ -48,6 +50,7 @@ export function getToolLabel(toolName: string): string {
   const KNOWN_LABELS: Record<string, string> = {
     get_current_time: "Get Current Time",
     browser: "Browser",
+    fetch_url: "Fetch URL",
     kv_store: "KV Store",
     datatable: "Datatable",
     call_agent: "Call Agent",
