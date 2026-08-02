@@ -7,11 +7,13 @@ import { useNow } from "src/common/hooks/useNow";
 import type { Job } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
-import { jobsApi } from "./common/jobsApi";
+import { useAppDispatch, useAppSelector } from "src/store/store";
+import { createJob, fetchJobs, removeJobLocal, updateJobLocal, upsertJobLocal } from "./common/jobsSlice";
 import { jobIsScheduled } from "./common/schedule";
 import { JobCard } from "./components/JobCard";
 
 function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (job: Job) => void }) {
+  const dispatch = useAppDispatch();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
@@ -25,7 +27,7 @@ function CreateJobDialog({ onClose, onCreated }: { onClose: () => void; onCreate
     setSaving(true);
     setError("");
     try {
-      const job = await jobsApi.create({ name: n, cron: "" });
+      const job = (await dispatch(createJob({ name: n, cron: "" })).unwrap()) as Job;
       message.success("Job created");
       onCreated(job);
       onClose();
@@ -61,44 +63,45 @@ function hasImminentNextRun(items: Job[]): boolean {
 }
 
 export default function JobsPage() {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [items, setItems] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
+  const items = useAppSelector((s) => s.jobs.items) as Job[];
+  const [loading, setLoading] = useState(items.length === 0);
   const [showCreate, setShowCreate] = useState(false);
   const now = useNow(hasImminentNextRun(items) ? 1_000 : 15_000);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await jobsApi.list({ limit: 100, sorts: "-updatedAt" });
-      setItems(res.items);
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void load();
-  }, []);
+    let cancelled = false;
+    void (async () => {
+      try {
+        await dispatch(fetchJobs({ limit: 100, sorts: "-updatedAt" })).unwrap();
+      } catch (err: unknown) {
+        if (!cancelled) message.error(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch]);
 
   useEffect(() => {
     const unsubUpdated = wsClient.on<Partial<Job> & { id: string }>("jobs:updated", (payload) => {
-      setItems((prev) => prev.map((j) => (j.id === payload.id ? { ...j, ...payload } : j)));
+      dispatch(updateJobLocal(payload));
     });
     const unsubCreated = wsClient.on<Job>("jobs:created", (payload) => {
-      setItems((prev) => (prev.some((j) => j.id === payload.id) ? prev : [payload, ...prev]));
+      dispatch(upsertJobLocal(payload));
     });
     const unsubDeleted = wsClient.on<{ id: string }>("jobs:deleted", (payload) => {
-      setItems((prev) => prev.filter((j) => j.id !== payload.id));
+      dispatch(removeJobLocal(payload.id));
     });
     return () => {
       unsubUpdated();
       unsubCreated();
       unsubDeleted();
     };
-  }, []);
+  }, [dispatch]);
 
   const scheduledCount = items.filter((j) => j.enabled && jobIsScheduled(j.cron)).length;
 
@@ -140,8 +143,8 @@ export default function JobsPage() {
       >
         <Spin spinning={loading && items.length === 0}>
           <div className="flex flex-col gap-2">
-            {items.map((job, index) => (
-              <JobCard key={job.id} job={job} index={index} now={now} onOpen={() => navigate(`/jobs/${job.id}`)} />
+            {items.map((job) => (
+              <JobCard key={job.id} job={job} now={now} onOpen={() => navigate(`/jobs/${job.id}`)} />
             ))}
           </div>
         </Spin>
@@ -151,7 +154,6 @@ export default function JobsPage() {
         <CreateJobDialog
           onClose={() => setShowCreate(false)}
           onCreated={(job) => {
-            setItems((prev) => [job, ...prev]);
             navigate(`/jobs/${job.id}`);
           }}
         />

@@ -11,7 +11,7 @@ function statusOf(site: Site): { label: string; className: string } {
   return { label: "Public", className: "text-success" };
 }
 
-export function SiteCard({ site, onOpen, index = 0 }: { site: Site; onOpen: () => void; index?: number }) {
+export function SiteCard({ site, onOpen }: { site: Site; onOpen: () => void }) {
   const [thumbSrc, setThumbSrc] = useState<string | null>(null);
   const [thumbLoading, setThumbLoading] = useState(true);
   const [thumbFailed, setThumbFailed] = useState(false);
@@ -49,12 +49,10 @@ export function SiteCard({ site, onOpen, index = 0 }: { site: Site; onOpen: () =
       type="button"
       onClick={onOpen}
       aria-label={`Open ${site.name}`}
-      style={{ animationDelay: `${index * 40}ms` }}
       className={cn(
         "group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-border-subtle bg-card px-3 py-3 text-left",
         "transition-[border-color,background-color] duration-200",
         "hover:border-brand/30 hover:bg-secondary",
-        "motion-safe:animate-[fadeIn_0.35s_ease-out_both]",
       )}
     >
       <div className="relative h-[72px] w-[116px] shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-muted">

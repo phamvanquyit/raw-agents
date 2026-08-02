@@ -5,10 +5,12 @@ import { authReducer } from "src/common/authSlice";
 import { agentsReducer } from "src/modules/agents/common/agentsSlice";
 import { chatReducer } from "src/modules/chat/common/chatSlice";
 import { datatableProjectsReducer } from "src/modules/datatables/common/datatableProjectsSlice";
+import { jobsReducer } from "src/modules/jobs/common/jobsSlice";
 import { kvStoreReducer } from "src/modules/kvstore/common/kvStoreSlice";
 import { llmProvidersReducer } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { mcpServersReducer } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { secretsReducer } from "src/modules/secrets/common/secretsSlice";
+import { sitesReducer } from "src/modules/sites/common/sitesSlice";
 import { teamsReducer } from "src/modules/teams/common/teamsSlice";
 import { toolFoldersReducer } from "src/modules/tools/common/toolFoldersSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
@@ -25,6 +27,8 @@ export const store = configureStore({
     mcpServers: mcpServersReducer,
     kvStore: kvStoreReducer,
     secrets: secretsReducer,
+    sites: sitesReducer,
+    jobs: jobsReducer,
     datatableProjects: datatableProjectsReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),

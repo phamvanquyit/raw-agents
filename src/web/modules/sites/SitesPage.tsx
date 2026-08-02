@@ -5,12 +5,14 @@ import { useNavigate } from "react-router-dom";
 import type { Site } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
-import { sitesApi } from "./common/sitesApi";
+import { useAppDispatch, useAppSelector } from "src/store/store";
+import { createSite, fetchSites } from "./common/sitesSlice";
 import { SiteCard } from "./components/SiteCard";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function CreateSiteDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (site: Site) => void }) {
+  const dispatch = useAppDispatch();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
@@ -30,7 +32,7 @@ function CreateSiteDialog({ onClose, onCreated }: { onClose: () => void; onCreat
     setSaving(true);
     setError("");
     try {
-      const site = await sitesApi.create({ name: n, slug: s });
+      const site = (await dispatch(createSite({ name: n, slug: s })).unwrap()) as Site;
       message.success("Site created");
       onCreated(site);
       onClose();
@@ -83,26 +85,27 @@ function CreateSiteDialog({ onClose, onCreated }: { onClose: () => void; onCreat
 }
 
 export default function SitesPage() {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [items, setItems] = useState<Site[]>([]);
-  const [loading, setLoading] = useState(true);
+  const items = useAppSelector((s) => s.sites.items) as Site[];
+  const [loading, setLoading] = useState(items.length === 0);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await sitesApi.list({ limit: 100, sorts: "-updatedAt" });
-      setItems(res.items);
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : "Failed to load sites");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void load();
-  }, []);
+    let cancelled = false;
+    void (async () => {
+      try {
+        await dispatch(fetchSites({ limit: 100, sorts: "-updatedAt" })).unwrap();
+      } catch (err: unknown) {
+        if (!cancelled) message.error(err instanceof Error ? err.message : "Failed to load sites");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch]);
 
   const publicCount = items.filter((s) => s.isPublished && !s.hasPublicPassword).length;
 
@@ -142,8 +145,8 @@ export default function SitesPage() {
       >
         <Spin spinning={loading && items.length === 0}>
           <div className="flex flex-col gap-2">
-            {items.map((site, index) => (
-              <SiteCard key={site.id} site={site} index={index} onOpen={() => navigate(`/sites/${site.id}`)} />
+            {items.map((site) => (
+              <SiteCard key={site.id} site={site} onOpen={() => navigate(`/sites/${site.id}`)} />
             ))}
           </div>
         </Spin>
@@ -153,7 +156,6 @@ export default function SitesPage() {
         <CreateSiteDialog
           onClose={() => setDialogOpen(false)}
           onCreated={(site) => {
-            void load();
             navigate(`/sites/${site.id}`);
           }}
         />

@@ -22,12 +22,10 @@ function nextRunMeta(nextRunAt: Date | string, now: number): { eta: string; immi
 
 export function JobCard({
   job,
-  index = 0,
   now = Date.now(),
   onOpen,
 }: {
   job: Job;
-  index?: number;
   now?: number;
   onOpen: () => void;
 }) {
@@ -48,12 +46,10 @@ export function JobCard({
           onOpen();
         }
       }}
-      style={{ animationDelay: `${index * 40}ms` }}
       className={cn(
         "group relative flex w-full cursor-pointer items-center gap-4 rounded-xl border border-border-subtle bg-card px-3 py-3 text-left",
         "transition-[border-color,background-color] duration-200",
         "hover:border-brand/30 hover:bg-secondary",
-        "motion-safe:animate-[fadeIn_0.35s_ease-out_both]",
         !scheduled && "opacity-80 hover:opacity-100",
       )}
     >

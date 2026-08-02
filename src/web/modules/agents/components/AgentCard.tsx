@@ -17,10 +17,9 @@ function modelLabel(aiModel: string | null): string {
 export interface AgentCardProps {
   agent: AgentListItem;
   onOpen: () => void;
-  index?: number;
 }
 
-export function AgentCard({ agent, onOpen, index = 0 }: AgentCardProps) {
+export function AgentCard({ agent, onOpen }: AgentCardProps) {
   const dispatch = useAppDispatch();
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
   const [menuOpen, setMenuOpen] = useState(false);
@@ -88,8 +87,7 @@ export function AgentCard({ agent, onOpen, index = 0 }: AgentCardProps) {
           onOpen();
         }
       }}
-      style={{ animationDelay: `${index * 40}ms` }}
-      className="group relative flex min-h-56 flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl border border-border-subtle bg-card px-6 py-10 text-center transition-[border-color,background-color] duration-200 hover:border-brand/35 hover:bg-secondary cursor-pointer motion-safe:animate-[fadeIn_0.35s_ease-out_both]"
+      className="group relative flex min-h-56 flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl border border-border-subtle bg-card px-6 py-10 text-center transition-[border-color,background-color] duration-200 hover:border-brand/35 hover:bg-secondary cursor-pointer"
     >
       <RenderIf condition={agent.isPublic}>
         <span title="Published" className="absolute left-2 top-2 z-10 flex size-7 items-center justify-center rounded-md bg-success/15 text-success">

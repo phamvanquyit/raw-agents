@@ -36,13 +36,11 @@ function pathOf(url: string): string {
 
 export function McpServerCard({
   server,
-  index = 0,
   toggling,
   onOpen,
   onToggleActive,
 }: {
   server: McpServer;
-  index?: number;
   toggling: boolean;
   onOpen: () => void;
   onToggleActive: (checked: boolean) => void;
@@ -62,11 +60,10 @@ export function McpServerCard({
           onOpen();
         }
       }}
-      style={{ animationDelay: `${index * 40}ms` }}
       className={cn(
         "group relative flex min-h-[188px] flex-col overflow-hidden rounded-2xl border border-border-subtle bg-card p-5 text-left",
         "transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-secondary",
-        "cursor-pointer motion-safe:animate-[fadeIn_0.35s_ease-out_both]",
+        "cursor-pointer",
         tone === "off" && "opacity-70 hover:opacity-100",
       )}
     >

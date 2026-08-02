@@ -140,11 +140,10 @@ export default function McpServersPage() {
         }
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {servers.map((server, index) => (
+          {servers.map((server) => (
             <McpServerCard
               key={server.id}
               server={server}
-              index={index}
               toggling={togglingIds.has(server.id)}
               onOpen={() => setDrawerId(server.id)}
               onToggleActive={(checked) => handleToggleActive(server.id, checked)}
