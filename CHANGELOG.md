@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-08-02
+
+### Added
+- Datatable schema editor with streaming schema agent (table/column CRUD via tools)
+- Tools page tree view by folder (replaces kanban board)
+- App-wide NotFound page and AuthGuard via React Router Outlet
+- Redux list caches for Jobs, Sites, and Datatable projects
+
+### Changed
+- Agent flow graph layout simplified (removed group-branch node)
+- Removed token/context usage tracking: `/api/usage`, Settings Usage tab, and chat context meter
+
+### Fixed
+- Chat Mermaid fences while streaming and auto-scroll follow behavior
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- Clients of `/api/usage` or the context-usage SSE events must drop those integrations
+
 ## [0.16.0] - 2026-07-31
 
 ### Added
@@ -275,6 +294,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.17.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.14.3...v0.15.0
