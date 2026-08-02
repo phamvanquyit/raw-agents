@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   COLUMN_TYPES,
   type ColumnType,
@@ -109,10 +109,10 @@ function validateRowData(columns: DatatableColumn[], data: Record<string, unknow
 export function listProjects() {
   const db = getDb();
   const projects = db.select().from(datatableProjects).orderBy(asc(datatableProjects.name)).all();
-  if (projects.length === 0) return [] as Array<DatatableProject & { tableCount: number }>;
+  if (projects.length === 0) return [] as Array<DatatableProject & { tableCount: number; tableNames: string[] }>;
 
-  const counts = db
-    .select({ projectId: datatableTables.projectId, tableCount: count() })
+  const tables = db
+    .select({ projectId: datatableTables.projectId, name: datatableTables.name })
     .from(datatableTables)
     .where(
       inArray(
@@ -120,11 +120,20 @@ export function listProjects() {
         projects.map((p) => p.id),
       ),
     )
-    .groupBy(datatableTables.projectId)
+    .orderBy(asc(datatableTables.name))
     .all();
-  const countMap = new Map(counts.map((r) => [r.projectId, r.tableCount]));
 
-  return projects.map((p) => ({ ...p, tableCount: countMap.get(p.id) ?? 0 }));
+  const namesMap = new Map<string, string[]>();
+  for (const t of tables) {
+    const list = namesMap.get(t.projectId);
+    if (list) list.push(t.name);
+    else namesMap.set(t.projectId, [t.name]);
+  }
+
+  return projects.map((p) => {
+    const tableNames = namesMap.get(p.id) ?? [];
+    return { ...p, tableCount: tableNames.length, tableNames };
+  });
 }
 
 export function getProject(id: string): DatatableProject | null {
@@ -311,6 +320,15 @@ export function listColumns(tableId: string) {
 
 export function getColumn(id: string): DatatableColumn | null {
   return getDb().select().from(datatableColumns).where(eq(datatableColumns.id, id)).get() ?? null;
+}
+
+/** Resolve column within a table by column id first, then by name. */
+export function resolveColumnInTable(tableId: string, columnRef: string): DatatableColumn | null {
+  const key = String(columnRef ?? "").trim();
+  if (!key) return null;
+  const byId = getColumn(key);
+  if (byId && byId.tableId === tableId) return byId;
+  return listColumns(tableId).find((c) => c.name === key) ?? null;
 }
 
 export function getSchemaByNames(projectName: string, tableName: string) {

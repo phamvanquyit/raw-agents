@@ -1,7 +1,9 @@
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { BadRequestException, NotFoundException } from "../../common/exceptions/http.exception.js";
 import { requireAuth } from "../../common/middleware/auth.middleware.js";
 import * as svc from "./datatables.service.js";
+import { type DatatableAgentStreamRequest, streamDatatableAgent } from "./services/datatable-agent.service.js";
 
 const app = new Hono();
 
@@ -37,6 +39,17 @@ app.delete("/projects/:projectId", (c) => {
 app.get("/projects/:projectId/tables", (c) => c.json(svc.listTables(c.req.param("projectId"))));
 
 app.get("/projects/:projectId/schema", (c) => c.json(svc.getProjectSchema(c.req.param("projectId"))));
+
+app.post("/projects/:projectId/agent/stream", async (c) => {
+  const projectId = c.req.param("projectId");
+  if (!svc.getProject(projectId)) throw new NotFoundException("Project not found");
+  const body = await c.req.json<DatatableAgentStreamRequest>();
+  return streamSSE(c, async (stream) => {
+    const abort = new AbortController();
+    stream.onAbort(() => abort.abort());
+    await streamDatatableAgent(projectId, body, stream, abort.signal);
+  });
+});
 
 app.post("/projects/:projectId/tables", async (c) => {
   const body = await c.req.json();

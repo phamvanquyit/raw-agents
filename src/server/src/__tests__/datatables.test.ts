@@ -37,10 +37,11 @@ describe("Datatables API", () => {
   test("GET /api/datatables/projects — list", async () => {
     const res = await authRequest(app, token, "GET", "/api/datatables/projects");
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { name: string; tableCount: number }[];
+    const data = (await res.json()) as { name: string; tableCount: number; tableNames: string[] }[];
     const crm = data.find((p) => p.name === "CRM");
     expect(crm).toBeDefined();
     expect(crm!.tableCount).toBe(0);
+    expect(crm!.tableNames).toEqual([]);
   });
 
   test("POST /api/datatables/projects/:id/tables — create table", async () => {
@@ -51,8 +52,10 @@ describe("Datatables API", () => {
     tableId = data.id;
 
     const list = await authRequest(app, token, "GET", "/api/datatables/projects");
-    const projects = (await list.json()) as { name: string; tableCount: number }[];
-    expect(projects.find((p) => p.name === "CRM")?.tableCount).toBe(1);
+    const projects = (await list.json()) as { name: string; tableCount: number; tableNames: string[] }[];
+    const crm = projects.find((p) => p.name === "CRM");
+    expect(crm?.tableCount).toBe(1);
+    expect(crm?.tableNames).toEqual(["Customers"]);
   });
 
   test("POST /api/datatables/tables/:id/columns — create columns", async () => {
@@ -144,5 +147,14 @@ describe("Datatables API", () => {
   test("GET /api/datatables/projects — unauthenticated → 401", async () => {
     const res = await app.request("/api/datatables/projects");
     expect(res.status).toBe(401);
+  });
+
+  test("POST /api/datatables/projects/:id/agent/stream — project not found", async () => {
+    const res = await authRequest(app, token, "POST", "/api/datatables/projects/missing-project/agent/stream", {
+      providerId: "p",
+      modelId: "m",
+      messages: [],
+    });
+    expect(res.status).toBe(404);
   });
 });
