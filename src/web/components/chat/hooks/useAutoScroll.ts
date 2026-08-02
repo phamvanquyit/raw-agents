@@ -8,9 +8,9 @@ import { useCallback, useEffect, useRef } from "react";
  *
  * Key design:
  * - `userScrolledUpRef` is the single source of truth for "should we scroll?"
- * - Scrolled-up is only set when scrollTop decreases (user moved up), not when
- *   layout/resize leaves us short of the bottom (textarea grow, stream paint).
- * - Returning to the bottom clears the flag.
+ * - Intentional scroll-up is detected via wheel / touch (not scrollTop heuristics —
+ *   layout/stream height changes also move scrollTop and must not lock follow).
+ * - Returning to the bottom (scroll or wheel down) clears the flag.
  * - `programmaticScrollRef` ignores scroll events from our own scrollTop writes.
  * - Mutations / ResizeObserver are debounced via rAF (1 scroll per frame max).
  * - `scrollToBottom()` is soft by default (respects user scroll-up).
@@ -28,16 +28,15 @@ export function useAutoScroll(opts?: {
   const observerRef = useRef<MutationObserver | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const scrollListenerRef = useRef<(() => void) | null>(null);
+  const wheelListenerRef = useRef<((e: WheelEvent) => void) | null>(null);
+  const touchStartYRef = useRef(0);
+  const touchListenerRef = useRef<{ start: (e: TouchEvent) => void; move: (e: TouchEvent) => void } | null>(null);
 
   // The authoritative flag: true = user has scrolled away, don't auto-scroll.
   const userScrolledUpRef = useRef(false);
 
   // Suppresses scroll-handler updates caused by our own programmatic scrolls.
   const programmaticScrollRef = useRef(false);
-
-  // Track last scrollTop / scrollHeight to distinguish user scroll-up vs layout shrink.
-  const lastScrollTopRef = useRef(0);
-  const lastScrollHeightRef = useRef(0);
 
   // rAF handle for debouncing mutations/resizes.
   const rafIdRef = useRef<number | null>(null);
@@ -54,46 +53,51 @@ export function useAutoScroll(opts?: {
   // ── Setup / teardown ─────────────────────────────────────────────────────
   const setup = useCallback(
     (el: HTMLElement) => {
-      lastScrollTopRef.current = el.scrollTop;
-      lastScrollHeightRef.current = el.scrollHeight;
-
       const handleScroll = () => {
-        // Ignore scroll events caused by our own programmatic scrollTop changes.
-        if (programmaticScrollRef.current) {
-          lastScrollTopRef.current = el.scrollTop;
-          lastScrollHeightRef.current = el.scrollHeight;
-          return;
-        }
+        if (programmaticScrollRef.current) return;
+        // Only resume follow when user (or layout) returns to bottom.
+        // Do NOT infer scroll-up from scrollTop — stream/layout moves it too.
+        if (checkNearBottom(el)) setScrolledUp(false);
+      };
 
-        const nearBottom = checkNearBottom(el);
-        if (nearBottom) {
-          // User (or layout) returned to bottom — resume follow.
+      const handleWheel = (e: WheelEvent) => {
+        if (e.deltaY < 0) {
+          // Defer: ignore rubber-band ticks that leave us still near bottom.
+          requestAnimationFrame(() => {
+            if (!checkNearBottom(el)) setScrolledUp(true);
+          });
+        } else if (checkNearBottom(el)) {
           setScrolledUp(false);
-        } else if (el.scrollTop < lastScrollTopRef.current - 1) {
-          // Content shrink (thinking collapse, generating dots leave) also lowers
-          // scrollTop via clamp / overflow-anchor — that is NOT user intent.
-          const heightShrunk = el.scrollHeight < lastScrollHeightRef.current - 1;
-          if (!heightShrunk) {
-            setScrolledUp(true);
-          }
         }
+      };
 
-        lastScrollTopRef.current = el.scrollTop;
-        lastScrollHeightRef.current = el.scrollHeight;
+      const handleTouchStart = (e: TouchEvent) => {
+        touchStartYRef.current = e.touches[0]?.clientY ?? 0;
+      };
+
+      const handleTouchMove = (e: TouchEvent) => {
+        const y = e.touches[0]?.clientY ?? 0;
+        const dy = y - touchStartYRef.current;
+        // Finger moving down ⇒ content scrolls up
+        if (dy > 8) {
+          requestAnimationFrame(() => {
+            if (!checkNearBottom(el)) setScrolledUp(true);
+          });
+        } else if (dy < -8 && checkNearBottom(el)) {
+          setScrolledUp(false);
+        }
       };
 
       const scrollToEl = () => {
+        const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+        // Already glued to bottom — skip write (avoids micro-jitter on no-op mutations).
+        if (distance < 1) return;
+
         programmaticScrollRef.current = true;
         el.scrollTop = el.scrollHeight;
-        lastScrollTopRef.current = el.scrollTop;
-        lastScrollHeightRef.current = el.scrollHeight;
-        // Double rAF: wait until the browser has flushed the scroll event
-        // from our assignment before re-enabling the scroll handler.
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             programmaticScrollRef.current = false;
-            lastScrollTopRef.current = el.scrollTop;
-            lastScrollHeightRef.current = el.scrollHeight;
           });
         });
       };
@@ -128,8 +132,6 @@ export function useAutoScroll(opts?: {
         characterData: true,
       });
 
-      // Content/container size changes (stream paint, textarea flex resize) often
-      // don't fire useful scroll events — pin to bottom while following.
       const resizeObserver = new ResizeObserver(scheduleFollow);
       resizeObserver.observe(el);
       if (el.firstElementChild instanceof HTMLElement) {
@@ -137,8 +139,10 @@ export function useAutoScroll(opts?: {
       }
 
       el.addEventListener("scroll", handleScroll, { passive: true });
+      el.addEventListener("wheel", handleWheel, { passive: true });
+      el.addEventListener("touchstart", handleTouchStart, { passive: true });
+      el.addEventListener("touchmove", handleTouchMove, { passive: true });
 
-      // Initial scroll — always go to bottom on mount.
       setScrolledUp(false);
       requestAnimationFrame(() => {
         scrollToEl();
@@ -150,6 +154,8 @@ export function useAutoScroll(opts?: {
       observerRef.current = observer;
       resizeObserverRef.current = resizeObserver;
       scrollListenerRef.current = handleScroll;
+      wheelListenerRef.current = handleWheel;
+      touchListenerRef.current = { start: handleTouchStart, move: handleTouchMove };
     },
     [threshold, setScrolledUp],
   );
@@ -162,6 +168,15 @@ export function useAutoScroll(opts?: {
     if (scrollListenerRef.current) {
       el.removeEventListener("scroll", scrollListenerRef.current);
       scrollListenerRef.current = null;
+    }
+    if (wheelListenerRef.current) {
+      el.removeEventListener("wheel", wheelListenerRef.current);
+      wheelListenerRef.current = null;
+    }
+    if (touchListenerRef.current) {
+      el.removeEventListener("touchstart", touchListenerRef.current.start);
+      el.removeEventListener("touchmove", touchListenerRef.current.move);
+      touchListenerRef.current = null;
     }
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
@@ -199,13 +214,9 @@ export function useAutoScroll(opts?: {
       setScrolledUp(false);
       programmaticScrollRef.current = true;
       el.scrollTop = el.scrollHeight;
-      lastScrollTopRef.current = el.scrollTop;
-      lastScrollHeightRef.current = el.scrollHeight;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           programmaticScrollRef.current = false;
-          lastScrollTopRef.current = el.scrollTop;
-          lastScrollHeightRef.current = el.scrollHeight;
         });
       });
     },

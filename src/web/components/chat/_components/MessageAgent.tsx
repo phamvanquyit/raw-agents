@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { UserAvatar } from "src/components/UserAvatar";
 import type { ChatAgentMessage } from "../common/types";
-import { markdownComponents, markdownRootClass } from "./markdown";
+import { type MarkdownStreamState, createMarkdownComponents, markdownRootClass } from "./markdown";
 
 interface MessageAgentProps {
   msg: ChatAgentMessage;
@@ -35,23 +35,28 @@ export function AgentAvatar({
   );
 }
 
-/** Live streaming thinking — expanded, auto-scrolls as content arrives */
+/** Live streaming thinking — expands in the outer chat scroller (no nested overflow) */
 function ActiveThinking({ thinking }: { thinking: string }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [thinking]);
+    setElapsedSec(0);
+    const started = Date.now();
+    const id = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const label = elapsedSec < 1 ? "Thinking for <1s" : `Thinking for ${elapsedSec}s`;
 
   return (
-    <div className="px-4 pb-1">
+    <div className="px-4 pb-1" style={{ overflowAnchor: "none" }}>
       <div className="flex items-center gap-1.5 py-0.5">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
-        <span className="text-xs text-tertiary-foreground select-none">Thinking…</span>
+        <span className="text-xs text-tertiary-foreground select-none">{label}</span>
       </div>
-      <div ref={scrollRef} className="mt-1 px-3 py-2 rounded-lg border border-border bg-muted/50 max-h-40 overflow-y-auto">
+      <div className="mt-1 px-3 py-2 rounded-lg border border-border bg-muted/50">
         <p className="text-xs text-tertiary-foreground leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
       </div>
     </div>
@@ -81,6 +86,14 @@ export function MessageAgent({ msg }: MessageAgentProps) {
   const thinkingDuration = msg.meta?.thinkingDuration as number | undefined;
   const isThinkingDone = thinkingDuration != null;
 
+  const streamStateRef = useRef<MarkdownStreamState>({ content: msg.content, streaming: !!msg.streaming });
+  streamStateRef.current = { content: msg.content, streaming: !!msg.streaming };
+
+  const componentsRef = useRef<ReturnType<typeof createMarkdownComponents> | null>(null);
+  if (!componentsRef.current) {
+    componentsRef.current = createMarkdownComponents(() => streamStateRef.current);
+  }
+
   return (
     <div className="mt-1 animate-[fadeIn_0.28s_ease-out_both]">
       {/* Thinking / reasoning content */}
@@ -90,7 +103,7 @@ export function MessageAgent({ msg }: MessageAgentProps) {
       {msg.content ? (
         <div className="px-4 pb-0.5">
           <div className={markdownRootClass}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={componentsRef.current}>
               {msg.content}
             </ReactMarkdown>
           </div>

@@ -48,7 +48,6 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
         const { svg } = await mermaid.render(renderId, raw);
         if (!cancelled) {
           setSvgContent(svg);
-          if (containerRef.current) containerRef.current.innerHTML = svg;
           setError(null);
         }
         return;
@@ -64,7 +63,6 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
         const { svg } = await mermaid.render(sanitizedId, sanitized);
         if (!cancelled) {
           setSvgContent(svg);
-          if (containerRef.current) containerRef.current.innerHTML = svg;
           setError(null);
         }
       } catch (err) {
@@ -79,6 +77,12 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
       cancelled = true;
     };
   }, [children, id, theme, isDark]);
+
+  useEffect(() => {
+    if (containerRef.current && svgContent) {
+      containerRef.current.innerHTML = svgContent;
+    }
+  }, [svgContent]);
 
   useEffect(() => {
     if (dialogRef.current?.open && fullscreenRef.current && svgContent) {
@@ -174,6 +178,19 @@ export function MermaidBlock({ children }: MermaidBlockProps) {
       <div className="my-3.5 rounded-md bg-accent border border-destructive/30 p-4 text-xs text-destructive">
         <p className="font-medium mb-1">Mermaid render error</p>
         <pre className="whitespace-pre-wrap text-[11px] opacity-70">{error}</pre>
+      </div>
+    );
+  }
+
+  // Keep source visible until SVG is ready — avoids empty-box height collapse (scroll jitter).
+  if (!svgContent) {
+    return (
+      <div className="my-3.5 last:mb-0 rounded-md overflow-hidden bg-black/20 border border-white/5">
+        <div className="flex items-center gap-1.5 px-3 py-2 select-none border-b border-white/5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
+          <span className="font-mono text-[11px] text-white/30">Mermaid</span>
+        </div>
+        <pre className="m-0 p-3 text-[12.5px] leading-relaxed text-white/60 whitespace-pre-wrap font-mono">{children}</pre>
       </div>
     );
   }

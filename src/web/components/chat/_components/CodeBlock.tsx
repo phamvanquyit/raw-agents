@@ -50,9 +50,11 @@ const LANG_LABELS: Record<string, string> = {
 interface CodeBlockProps {
   language?: string;
   children: string;
+  /** When true, show Mermaid source instead of rendering (incomplete stream). */
+  pendingMermaid?: boolean;
 }
 
-export function CodeBlock({ language = "", children }: CodeBlockProps) {
+export function CodeBlock({ language = "", children, pendingMermaid = false }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
   const lang = language.toLowerCase().trim();
@@ -66,7 +68,18 @@ export function CodeBlock({ language = "", children }: CodeBlockProps) {
     });
   };
 
-  // Mermaid — completely separate block, no header
+  if (isMermaid && pendingMermaid) {
+    return (
+      <div className="my-3.5 last:mb-0 rounded-md overflow-hidden bg-black/20 border border-white/5">
+        <div className="flex items-center gap-1.5 px-3 py-2 select-none border-b border-white/5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
+          <span className="font-mono text-[11px] text-white/30">Mermaid</span>
+        </div>
+        <pre className="m-0 p-3 text-[12.5px] leading-relaxed text-white/60 whitespace-pre-wrap font-mono">{children}</pre>
+      </div>
+    );
+  }
+
   if (isMermaid) {
     return <MermaidBlock>{children}</MermaidBlock>;
   }

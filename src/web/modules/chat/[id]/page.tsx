@@ -179,8 +179,14 @@ export default function PublicChatPage() {
   handleConnectionLostRef.current = handleConnectionLost;
 
   useEffect(() => {
+    if (isScrolledUp) return;
     scrollToBottom();
-  }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, scrollToBottom]);
+    const id = requestAnimationFrame(() => {
+      scrollToBottom();
+      messagesEndRef.current?.scrollIntoView({ block: "end" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, isScrolledUp, scrollToBottom]);
 
   useEffect(() => {
     if (!id) return;
@@ -497,7 +503,7 @@ export default function PublicChatPage() {
         <div className={["relative flex-1 min-h-0 flex flex-col", !sidebarOpen ? "pt-10" : ""].join(" ")}>
           <MessageList
             messages={liveMessages}
-            generating={running && !streamingContent}
+            generating={running && !streamingContent && !thinkingContent}
             activityStatus={activityStatus}
             assistantLabel={agent.name}
             emptyStateContent={<ChatEmptyState agent={agent} onStarter={(text) => void handleSend(text)} disabled={running} />}

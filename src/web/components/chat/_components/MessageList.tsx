@@ -112,11 +112,13 @@ export function MessageList({
   const items = buildRenderItems(messages);
   const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
   const lastIsAgent = lastMsg ? isAgentRole(lastMsg.role) : false;
+  const hasActiveThinking = lastMsg?.role === "assistant" && Boolean(lastMsg.meta?.thinking) && lastMsg.meta?.thinkingDuration == null;
+  const showFooter = generating && !hasActiveThinking;
 
   // Elapsed seconds while generating so long "Thinking..."waits don't look frozen
   const [elapsedSec, setElapsedSec] = useState(0);
   useEffect(() => {
-    if (!generating) {
+    if (!showFooter) {
       setElapsedSec(0);
       return;
     }
@@ -126,7 +128,7 @@ export function MessageList({
       setElapsedSec(Math.floor((Date.now() - started) / 1000));
     }, 1000);
     return () => clearInterval(id);
-  }, [generating, activityStatus]);
+  }, [showFooter, activityStatus]);
 
   const statusLabel = elapsedSec >= 3 ? `${activityStatus} ${elapsedSec}s` : activityStatus;
 
@@ -163,7 +165,7 @@ export function MessageList({
             )}
 
             {/* Thinking / generating indicator */}
-            <RenderIf condition={generating}>
+            <RenderIf condition={showFooter}>
               <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
                 <RenderIf condition={!lastIsAgent}>
                   <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">

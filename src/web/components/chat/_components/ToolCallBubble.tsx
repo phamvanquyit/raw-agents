@@ -36,13 +36,25 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
   const hasOutput = msg.toolOutput != null;
   const hasInput = msg.toolInput != null;
   const hasError = Boolean(msg.toolError);
+  const isPending = !hasOutput && !hasError;
   const [open, setOpen] = useState(false);
-  // Check if the conversation is still running — if not, don't show "Running..."spinner
+  // Check if the conversation is still running — if not, don't show spinner
   const activeConvId = useAppSelector((s) => s.chat.activeConversationId);
   const conversations = useAppSelector((s) => s.chat.conversations);
   const isConvRunning = conversations.find((c) => c.id === activeConvId)?.status === "running";
 
   const label = msg.toolLabel ?? formatToolName(msg.toolName ?? "Tool");
+
+  if (isPending) {
+    return (
+      <div className="rounded-lg border border-border overflow-hidden mb-1.5">
+        <div className="w-full flex items-center gap-2 px-3 py-1.5 bg-card/40">
+          <StatusIcon hasError={false} hasOutput={false} isConvRunning={!!isConvRunning} size={13} />
+          <span className="text-[12px] font-medium text-muted-foreground truncate flex-1 text-left">{label}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-border overflow-hidden mb-1.5">
@@ -70,7 +82,7 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
         </svg>
       </button>
 
-      {/* Expandable detail */}
+      {/* Expandable detail — only after tool finishes */}
       <RenderIf condition={open}>
         <div className="border-t border-border font-mono text-[11px]">
           <RenderIf condition={hasInput}>
@@ -82,39 +94,10 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
             </div>
           </RenderIf>
           <div className="px-3 py-2">
-            <span
-              className={["text-2xs uppercase tracking-widest font-sans font-semibold", hasOutput ? "text-muted-foreground" : "text-muted-foreground"].join(
-                " ",
-              )}
-            >
-              output
-            </span>
-            <pre
-              className={[
-                "m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal",
-                hasOutput ? "text-muted-foreground" : "text-muted-foreground italic",
-              ].join(" ")}
-            >
-              {hasOutput ? prettyJson(msg.toolOutput) : hasError ? "Tool execution failed" : "Waiting…"}
+            <span className="text-2xs uppercase tracking-widest font-sans font-semibold text-muted-foreground">output</span>
+            <pre className="m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal text-muted-foreground">
+              {hasOutput ? prettyJson(msg.toolOutput) : "Tool execution failed"}
             </pre>
-          </div>
-        </div>
-      </RenderIf>
-
-      {/* Collapsed — waiting indicator (only when conversation is actively running) */}
-      <RenderIf condition={!open && !hasOutput && !hasError && !!isConvRunning}>
-        <div className="border-t border-border/40 px-3 py-1">
-          <div className="flex items-center gap-1.5">
-            <div className="flex gap-0.5">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="w-1 h-1 rounded-full bg-primary/35 inline-block"
-                  style={{ animation: `ca-dot-bounce 1.1s ease-in-out ${i * 0.18}s infinite` }}
-                />
-              ))}
-            </div>
-            <span className="text-[10px] text-muted-foreground italic">Running…</span>
           </div>
         </div>
       </RenderIf>
