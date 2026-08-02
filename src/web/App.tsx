@@ -1,6 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import RenderIf from "src/components/RenderIf";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getAuthToken } from "./common/api";
 import { fetchCurrentUser } from "./common/authSlice";
 import { useSocket } from "./common/hooks/useSocket";
@@ -24,16 +23,18 @@ const KvStorePage = lazy(() => import("./modules/kvstore/KvStorePage"));
 const SecretsPage = lazy(() => import("./modules/secrets/SecretsPage"));
 const DatatablesPage = lazy(() => import("./modules/datatables/DatatablesPage"));
 const DatatableProjectPage = lazy(() => import("./modules/datatables/DatatableProjectPage"));
+const DatatableSchemaEditorPage = lazy(() => import("./modules/datatables/DatatableSchemaEditorPage"));
 const SitesPage = lazy(() => import("./modules/sites/SitesPage"));
 const SiteEditorPage = lazy(() => import("./modules/sites/[id]/SiteEditorPage"));
 const JobsPage = lazy(() => import("./modules/jobs/JobsPage"));
 const JobEditPage = lazy(() => import("./modules/jobs/[id]/JobEditPage"));
+const NotFoundPage = lazy(() => import("./modules/not-found/NotFoundPage"));
 
 // ── Public routes (no sidebar, no auth) ─────────────────────────────────────
-const PUBLIC_ROUTE_PREFIXES = ["/chat", "/login", "/setup"];
+const PUBLIC_ROUTE_PREFIXES = ["/chat"];
 
 // ── Auth guard ──────────────────────────────────────────────────────────────
-function AuthGuard({ children }: { children: React.ReactNode }) {
+function AuthGuard() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
@@ -48,8 +49,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const token = getAuthToken();
-  return <RenderIf condition={!!token}>{children}</RenderIf>;
+  if (!getAuthToken()) return null;
+  return <Outlet />;
 }
 
 // ── Admin guard — redirects non-admin users to dashboard ────────────────────
@@ -100,6 +101,7 @@ function AppContent() {
           <Suspense fallback={null}>
             <Routes>
               <Route path="/chat/:id" element={<PublicChatPage />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </div>
@@ -107,11 +109,11 @@ function AppContent() {
     );
   }
 
-  // Authenticated routes
+  // App routes — protected pages under AuthGuard; unknown paths → 404
   return (
-    <AuthGuard>
-      <Suspense fallback={null}>
-        <Routes>
+    <Suspense fallback={null}>
+      <Routes>
+        <Route element={<AuthGuard />}>
           {/* Full-page routes (no sidebar) */}
           <Route path="/tools/:id" element={<EditToolPage />} />
           <Route path="/sites/:id" element={<SiteEditorPage />} />
@@ -137,8 +139,8 @@ function AppContent() {
             <Route path="/providers" element={<Navigate to="/settings/providers" replace />} />
             <Route path="/kvstore" element={<KvStorePage />} />
             <Route path="/datatables" element={<DatatablesPage />} />
+            <Route path="/datatables/:projectId/editor" element={<DatatableSchemaEditorPage />} />
             <Route path="/datatables/:projectId" element={<DatatableProjectPage />} />
-            <Route path="/usage" element={<Navigate to="/settings/usage" replace />} />
             <Route
               path="/secrets"
               element={
@@ -164,9 +166,11 @@ function AppContent() {
               }
             />
           </Route>
-        </Routes>
-      </Suspense>
-    </AuthGuard>
+        </Route>
+
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </Suspense>
   );
 }
 
