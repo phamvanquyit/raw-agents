@@ -1,16 +1,17 @@
 // ─── Tools Page ──────────────────────────────────────────────────────────────
-// Route: /tools — Full-height Trello-style kanban of custom tool folders.
+// Route: /tools — Custom tools organized by folder.
 
 import { message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AgentTool } from "src/common/types";
+import { PageShell } from "src/components/PageShell";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { deleteToolFolder, fetchToolFolders } from "./common/toolFoldersSlice";
 import type { ToolFolderWithTools } from "./common/toolFoldersSlice";
 import { fetchTools } from "./common/toolsSlice";
 import { FolderDialog } from "./components/FolderDialog";
-import { ToolsKanbanBoard } from "./components/ToolsKanbanBoard";
+import { ToolsTreeView } from "./components/ToolsTreeView";
 
 export default function ToolsPage() {
   const dispatch = useAppDispatch();
@@ -19,6 +20,7 @@ export default function ToolsPage() {
   const folders = useAppSelector((s) => s.toolFolders.folders) as ToolFolderWithTools[];
 
   const [editingFolder, setEditingFolder] = useState<ToolFolderWithTools | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   useEffect(() => {
     dispatch(fetchTools());
@@ -29,10 +31,6 @@ export default function ToolsPage() {
 
   const handleToolClick = (toolId: string) => {
     navigate(`/tools/${toolId}`);
-  };
-
-  const handleEditFolder = (folder: ToolFolderWithTools) => {
-    setEditingFolder(folder);
   };
 
   const handleDeleteFolder = async (folderId: string) => {
@@ -47,8 +45,8 @@ export default function ToolsPage() {
 
   return (
     <>
-      <div className="h-full min-h-0 flex flex-col overflow-hidden">
-        <div className="shrink-0 px-8 pt-6 pb-7">
+      <PageShell>
+        <div className="mb-8">
           <h1 className="m-0 text-xl font-semibold leading-tight text-foreground">Tools</h1>
           <p className="m-0 mt-1.5 text-sm text-muted-foreground">
             Manage your custom tools
@@ -58,19 +56,25 @@ export default function ToolsPage() {
           </p>
         </div>
 
-        <div className="flex-1 min-h-0 min-w-0">
-          <ToolsKanbanBoard
-            tools={customTools}
-            folders={folders}
-            onToolClick={handleToolClick}
-            onToolCreated={handleToolClick}
-            onEditFolder={handleEditFolder}
-            onDeleteFolder={handleDeleteFolder}
-          />
-        </div>
-      </div>
+        <ToolsTreeView
+          tools={customTools}
+          folders={folders}
+          onToolClick={handleToolClick}
+          onToolCreated={handleToolClick}
+          onEditFolder={setEditingFolder}
+          onDeleteFolder={handleDeleteFolder}
+          onCreateFolder={() => setCreatingFolder(true)}
+        />
+      </PageShell>
 
-      <FolderDialog open={!!editingFolder} onClose={() => setEditingFolder(null)} folder={editingFolder} />
+      <FolderDialog
+        open={!!editingFolder || creatingFolder}
+        onClose={() => {
+          setEditingFolder(null);
+          setCreatingFolder(false);
+        }}
+        folder={editingFolder}
+      />
     </>
   );
 }

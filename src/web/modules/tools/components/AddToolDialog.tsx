@@ -1,18 +1,21 @@
-import { Button, Form, Input, Popover } from "antd";
+import { AddCircle } from "@solar-icons/react";
+import { Button, Form, Input, Modal } from "antd";
 import type { InputRef } from "antd";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { fetchToolFolders } from "src/modules/tools/common/toolFoldersSlice";
 import { createTool, fetchTools } from "src/modules/tools/common/toolsSlice";
 import { toSnakeCase } from "src/modules/tools/common/utils";
 import { useAppDispatch } from "src/store/store";
 
-interface AddToolPopoverProps {
+interface AddToolDialogProps {
   onCreated: (toolId: string) => void;
-  children: React.ReactNode;
+  children: ReactNode;
   defaultFolderId?: string | null;
+  triggerClassName?: string;
 }
 
-export function AddToolPopover({ onCreated, children, defaultFolderId = null }: AddToolPopoverProps) {
+export function AddToolDialog({ onCreated, children, defaultFolderId = null, triggerClassName = "inline-flex w-full" }: AddToolDialogProps) {
   const dispatch = useAppDispatch();
   const inputRef = useRef<InputRef>(null);
 
@@ -28,18 +31,22 @@ export function AddToolPopover({ onCreated, children, defaultFolderId = null }: 
       setDescription("");
       setError("");
       setLoading(false);
-      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      const t = setTimeout(() => inputRef.current?.focus(), 150);
       return () => clearTimeout(t);
     }
   }, [open]);
+
+  const handleClose = () => setOpen(false);
 
   const handleSubmit = async () => {
     const trimmed = label.trim();
     if (!trimmed) {
       setError("Please enter a tool name.");
+      inputRef.current?.focus();
       return;
     }
     setLoading(true);
+    setError("");
     try {
       const name = toSnakeCase(trimmed);
       const tool = await dispatch(
@@ -55,78 +62,91 @@ export function AddToolPopover({ onCreated, children, defaultFolderId = null }: 
       ).unwrap();
       await dispatch(fetchTools());
       await dispatch(fetchToolFolders());
-      setOpen(false);
+      handleClose();
       onCreated(tool.id);
     } catch (err) {
       setError(String(err));
+    } finally {
       setLoading(false);
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      trigger="click"
-      placement="topLeft"
-      arrow={false}
-      styles={{ root: { width: 320 }, container: { width: 320, padding: 0 } }}
-      content={
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSubmit();
-          }}
-          className="flex flex-col"
-        >
-          <div className="px-4 pt-4 pb-3">
-            <h3 className="text-sm font-semibold text-foreground m-0">New Tool</h3>
+    <>
+      <span className={triggerClassName} onClick={() => setOpen(true)}>
+        {children}
+      </span>
+
+      <Modal
+        open={open}
+        onCancel={handleClose}
+        title={
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-field-sm w-field-sm shrink-0 items-center justify-center rounded-lg bg-muted/60">
+              <div className="text-[14px] leading-none text-muted-foreground">
+                <AddCircle width={16} height={16} />
+              </div>
+            </div>
+            <span className="truncate font-semibold text-foreground">New Tool</span>
           </div>
-          <div className="flex flex-col gap-3.5 px-4 pb-4">
-            <Form.Item
-              label={
-                <span className="text-muted-foreground">
-                  Tool Name<span className="text-destructive"> *</span>
-                </span>
-              }
-              className="!mb-0"
-              layout="vertical"
-            >
-              <Input
-                ref={inputRef}
-                id="new-tool-label"
-                placeholder="e.g. Get Current Time"
-                value={label}
-                onChange={(e) => {
-                  setLabel(e.target.value);
-                  setError("");
-                }}
-              />
-            </Form.Item>
-            <Form.Item label={<span className="text-muted-foreground">Description</span>} className="!mb-0" layout="vertical">
-              <Input.TextArea
-                id="new-tool-description"
-                placeholder="What does this tool do?"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="!min-h-0"
-              />
-            </Form.Item>
-            {error && <div className="text-[11px] font-medium text-destructive">{error}</div>}
-          </div>
-          <div className="flex flex-row gap-2.5 justify-end px-4 py-3 border-t border-border/40">
-            <Button type="default" size="small" htmlType="button" onClick={() => setOpen(false)}>
+        }
+        width={420}
+        centered
+        destroyOnHidden
+        footer={
+          <div className="flex justify-end gap-2.5">
+            <Button type="text" size="small" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="primary" size="small" htmlType="submit" loading={loading} disabled={!label.trim()}>
-              {loading ? "Creating..." : "Create & Edit"}
+            <Button type="primary" size="small" loading={loading} onClick={handleSubmit} disabled={!label.trim()}>
+              {loading ? "Creating…" : "Create & Edit"}
             </Button>
           </div>
-        </form>
-      }
-    >
-      {children}
-    </Popover>
+        }
+      >
+        <div className="flex flex-col gap-4 pt-4">
+          <Form.Item
+            label={
+              <span className="text-muted-foreground">
+                Tool Name<span className="text-destructive"> *</span>
+              </span>
+            }
+            className="!mb-0"
+            layout="vertical"
+          >
+            <Input
+              ref={inputRef}
+              id="new-tool-label"
+              placeholder="e.g. Get Current Time"
+              value={label}
+              onChange={(e) => {
+                setLabel(e.target.value);
+                setError("");
+              }}
+              onKeyDown={handleKeyDown}
+              autoComplete="off"
+            />
+          </Form.Item>
+          <Form.Item label={<span className="text-muted-foreground">Description</span>} className="!mb-0" layout="vertical">
+            <Input.TextArea
+              id="new-tool-description"
+              placeholder="What does this tool do?"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="!min-h-0"
+            />
+          </Form.Item>
+          {error && <div className="text-[12px] text-destructive font-medium">{error}</div>}
+        </div>
+      </Modal>
+    </>
   );
 }
