@@ -1,11 +1,13 @@
 // ─── Tools Node ───────────────────────────────────────────────────────────────
 // Single card node. Click opens a popover listing builtin tools + custom tools
-// grouped by folder, each with a small Switch.
+// grouped by folder (tree lines), each with a small Switch.
+// Connected leaves: folder icon + name → tool icon + name (built in AgentFlowView).
 
 import { CloseCircle, Programming } from "@solar-icons/react";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";
+import { cn } from "src/common/lib/cn";
 
 export type ToolToggleItem = {
   id: string;
@@ -14,7 +16,7 @@ export type ToolToggleItem = {
 };
 
 export type ToolFolderGroup = {
-  id: string | null; // null = builtin or ungrouped
+  id: string | null; // null = ungrouped; "__builtin__" = builtins
   name: string;
   tools: ToolToggleItem[];
 };
@@ -28,6 +30,28 @@ export type ToolsNodeData = {
 export type ToolsNodeType = Node<ToolsNodeData, "tools">;
 
 const TOOL_COLOR = "var(--edge-tool)";
+const TREE_STROKE = "text-muted-foreground/40";
+const TREE_LINE_FILL = "bg-muted-foreground/40";
+
+function TreeGuide({ isLast }: { isLast: boolean }) {
+  return (
+    <div className={cn("pointer-events-none relative w-5 shrink-0 self-stretch", TREE_STROKE)} aria-hidden>
+      {isLast ? (
+        <>
+          <div className={cn("absolute left-1/2 top-0 w-px -translate-x-1/2", TREE_LINE_FILL, "h-[calc(50%-6px)]")} />
+          <svg className="absolute left-[calc(50%-0.5px)] top-[calc(50%-6px)] overflow-visible" width="12" height="7" viewBox="0 0 12 7" fill="none">
+            <path d="M0.5 0 V1 Q0.5 6.5 6 6.5 H12" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+          </svg>
+        </>
+      ) : (
+        <>
+          <div className={cn("absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2", TREE_LINE_FILL)} />
+          <div className={cn("absolute left-1/2 top-1/2 h-px w-2.5 -translate-y-1/2", TREE_LINE_FILL)} />
+        </>
+      )}
+    </div>
+  );
+}
 
 export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
   const [open, setOpen] = useState(false);
@@ -44,27 +68,19 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
 
   return (
     <div className="relative" style={data.width ? { width: data.width } : undefined}>
-      {/* Edge into the central config node */}
       {hasConnection && (
-        <Handle
-          id="to-config"
-          type="source"
-          position={Position.Left}
-          className="!w-2 !h-2 !bg-muted !border-2 transition-all duration-150 !left-1.5"
-          style={{ borderColor: "color-mix(in srgb, var(--edge-tool) 60%, transparent)" }}
-        />
+        <Handle id="to-config" type="source" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !left-0" />
       )}
 
-      {/* Fan-out to connected folder branch nodes */}
       {hasConnection && (
-        <Handle id="to-folders" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />
+        <Handle id="to-tools" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />
       )}
 
       <Popover
         open={open}
         onOpenChange={setOpen}
         trigger="click"
-        placement={hasConnection ? "bottom" : "right"}
+        placement={"right"}
         arrow={{ pointAtCenter: true }}
         styles={{
           root: { width: 340 },
@@ -111,22 +127,30 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
                 <div className="px-3.5 py-6 text-[12px] text-muted-foreground text-center">No tools available</div>
               ) : (
                 data.groups.map((group) => (
-                  <div key={group.id ?? group.name} className="pb-1">
-                    <div className="px-3.5 pt-2.5 pb-1">
+                  <div key={group.id ?? group.name} className="pb-1.5">
+                    <div className="px-3.5 pt-2.5 pb-2 pl-5.5">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{group.name}</span>
                     </div>
 
-                    {group.tools.map((tool) => (
-                      <div key={tool.id} className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-muted/40 transition-colors">
-                        <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>
-                        <Switch
-                          size="small"
-                          checked={tool.connected}
-                          onChange={(checked) => data.onToggleTool(tool.id, checked)}
-                          aria-label={`Toggle ${tool.label}`}
-                        />
-                      </div>
-                    ))}
+                    <div className="px-3.5">
+                      {group.tools.map((tool, index) => {
+                        const isLast = index === group.tools.length - 1;
+                        return (
+                          <div key={tool.id} className="flex items-stretch hover:bg-muted/40 transition-colors">
+                            <TreeGuide isLast={isLast} />
+                            <div className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5">
+                              <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>
+                              <Switch
+                                size="small"
+                                checked={tool.connected}
+                                onChange={(checked) => data.onToggleTool(tool.id, checked)}
+                                aria-label={`Toggle ${tool.label}`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))
               )}
@@ -136,8 +160,10 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
       >
         <button
           type="button"
-          className={`nodrag nopan relative flex items-center gap-2 w-full pl-3.5 pr-2.5 py-2 rounded-md border bg-card cursor-pointer transition-all duration-150 text-left font-[inherit] ${
-            hasConnection ? "border-edge-tool/35 hover:border-edge-tool/55 hover:bg-edge-tool/6" : "border-border hover:border-edge-tool/25 hover:bg-muted/40"
+          className={`nodrag nopan relative flex items-center gap-2 w-full pl-3.5 pr-2.5 py-2 rounded-md border cursor-pointer transition-all duration-150 text-left font-[inherit] ${
+            hasConnection
+              ? "border-edge-tool/25 bg-edge-tool/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-edge-tool/40 hover:bg-edge-tool/18"
+              : "border-border/50 bg-muted/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-border hover:bg-muted/55"
           }`}
         >
           <div

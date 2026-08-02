@@ -1,9 +1,9 @@
 // ─── Agent Flow View ──────────────────────────────────────────────────────────
 // React Flow canvas with current agent at center. To the right:
-//   • Tools — single card; popover toggles builtin + folder tools
-//     Connected folders fan out mid-level, then each fans out to its tools
+//   • Tools — single card; popover toggles tools grouped by folder
+//     Connected tools fan out as leaves: folder icon + name → tool icon + name
 //   • MCP Servers — single card; popover toggles tools grouped by server
-//     Connected servers fan out mid-level, then each fans out to its tools
+//     Connected tools fan out as leaves: server icon + name → tool icon + name
 //   • Call Agents — single card; popover toggles agents grouped by team
 //     Connected agents fan out as child nodes to the right of Call Agents
 
@@ -14,12 +14,11 @@ import { useCallback, useMemo, useState } from "react";
 import type { Agent, AgentListItem, AgentTeam, AgentTool, AgentToolAssignment, McpServer, ToolFolder } from "src/common/types";
 import { PromptPage } from "../prompt/PromptPage";
 import { DeletableEdge } from "./edges/DeletableEdge";
-import { layoutFanoutSection, layoutTwoLevelFanout, measureChildWidth } from "./layout";
+import { layoutFanoutSection, measureChildWidth } from "./layout";
 import { AgentConfigNode, type AgentConfigNodeType } from "./nodes/AgentConfigNode";
 import { type CallAgentTeamGroup, CallAgentsNode, type CallAgentsNodeType } from "./nodes/CallAgentsNode";
 import { CallableAgentNode, type CallableAgentNodeType } from "./nodes/CallableAgentNode";
 import { ConnectedToolNode, type ConnectedToolNodeType } from "./nodes/ConnectedToolNode";
-import { GroupBranchNode, type GroupBranchNodeType } from "./nodes/GroupBranchNode";
 import { type McpServerGroup, McpServersNode, type McpServersNodeType } from "./nodes/McpServersNode";
 import { PublishNode, type PublishNodeType } from "./nodes/PublishNode";
 import { type ToolFolderGroup, ToolsNode, type ToolsNodeType } from "./nodes/ToolsNode";
@@ -29,7 +28,6 @@ import { type ToolFolderGroup, ToolsNode, type ToolsNodeType } from "./nodes/Too
 const nodeTypes = {
   tools: ToolsNode,
   connectedTool: ConnectedToolNode,
-  groupBranch: GroupBranchNode,
   mcpServers: McpServersNode,
   callAgents: CallAgentsNode,
   callableAgent: CallableAgentNode,
@@ -49,11 +47,11 @@ const CENTER_Y = 400;
 const ITEMS_COL_X = CENTER_X + 420;
 const SIDE_CARD_H = 56;
 const FANOUT_CHILD_GAP_X = 100; // gap between levels of fan-out
-const FANOUT_CHILD_GAP_Y = 56; // vertical spacing between sibling children
-const FANOUT_CHILD_H = 40; // plain child card height (tool / agent leaf)
-const GROUP_MID_H = 40; // folder / MCP server mid-level card height (single line)
-const TOOL_CHILD_CHROME = 28; // paddings for connected tool cards
-const GROUP_MID_CHROME = 36; // paddings for folder / MCP mid branch cards
+const FANOUT_CHILD_GAP_Y = 56; // vertical spacing between sibling agent children
+const FANOUT_CHILD_H = 40; // agent leaf card height
+const TOOL_FANOUT_GAP_Y = 40; // vertical spacing for tool / mcp leaves
+const TOOL_FANOUT_H = 20; // compact tool leaf height (icon + label, no padding)
+const TOOL_CHILD_CHROME = 44; // group icon + tool icon + gaps for connected tool cards
 const AGENT_CHILD_CHROME = 64; // avatar + gaps + paddings for callable agent cards
 const SECTION_GAP = 28; // min vertical gap between packed sections
 
@@ -154,8 +152,8 @@ function AgentFlowInner({
 
   const toolGroups = useMemo((): ToolFolderGroup[] => {
     const activeTools = allTools.filter((t) => t.isActive !== false && t.name !== "call_agent");
-    const builtin: ToolToggleLike[] = [];
-    const byFolder = new Map<string | null, ToolToggleLike[]>();
+    const builtin: { id: string; label: string; connected: boolean; sortOrder: number }[] = [];
+    const byFolder = new Map<string | null, { id: string; label: string; connected: boolean; sortOrder: number }[]>();
     const folderMeta = new Map(toolFolders.map((f) => [f.id, f]));
 
     for (const tool of activeTools) {
@@ -174,7 +172,7 @@ function AgentFlowInner({
       byFolder.get(fid)!.push(item);
     }
 
-    const sortTools = (items: ToolToggleLike[]) =>
+    const sortTools = (items: typeof builtin) =>
       [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label)).map(({ id, label, connected }) => ({ id, label, connected }));
 
     const groups: ToolFolderGroup[] = [];
@@ -261,16 +259,19 @@ function AgentFlowInner({
 
     // ── Connected children (needed for auto layout) ─────────────────────────
 
-    // Only folders that have ≥1 connected tool appear as mid-level branches
-    const connectedToolBranches = toolGroups
-      .map((g) => ({
-        id: String(g.id ?? "__ungrouped__"),
-        name: g.name,
-        tools: g.tools.filter((t) => t.connected).sort((a, b) => a.label.localeCompare(b.label)),
-      }))
-      .filter((g) => g.tools.length > 0);
+    const connectedTools = toolGroups.flatMap((g) => {
+      const isFolder = g.id !== null && g.id !== "__builtin__";
+      return g.tools
+        .filter((t) => t.connected)
+        .map((t) => ({
+          id: t.id,
+          label: t.label,
+          folder: isFolder ? g.name : undefined,
+          connected: t.connected,
+        }));
+    });
 
-    // Only servers that have ≥1 connected tool appear as mid-level branches
+    // Servers with ≥1 connected tool, flattened to leaves
     const connectedMcpBranches = mcpGroups
       .map((g) => ({
         id: g.id,
@@ -280,6 +281,16 @@ function AgentFlowInner({
       .filter((g) => g.tools.length > 0)
       .sort((a, b) => a.name.localeCompare(b.name));
 
+    // Flat leaves: server icon + name → tool icon + name
+    const connectedMcpTools = connectedMcpBranches.flatMap((b) =>
+      b.tools.map((t) => ({
+        id: t.id,
+        label: t.label,
+        folder: b.name,
+        connected: t.connected,
+      })),
+    );
+
     const connectedAgents = callAgentTeams
       .flatMap((t) => t.agents)
       .filter((a) => a.connected)
@@ -287,27 +298,11 @@ function AgentFlowInner({
 
     // ── Pack sections top→bottom so fan-outs never collide ──────────────────
 
-    const toolsLayout0 = layoutTwoLevelFanout(
-      0,
-      SIDE_CARD_H,
-      connectedToolBranches.map((b) => b.tools.length),
-      GROUP_MID_H,
-      FANOUT_CHILD_GAP_Y,
-      FANOUT_CHILD_H,
-      SECTION_GAP,
-    );
-    const toolsSectionH = toolsLayout0.sectionHeight;
+    const toolsLayout0 = layoutFanoutSection(0, SIDE_CARD_H, connectedTools.length, TOOL_FANOUT_GAP_Y, TOOL_FANOUT_H);
+    const toolsSectionH = toolsLayout0.sectionBottom;
 
-    const mcpLayout0 = layoutTwoLevelFanout(
-      0,
-      SIDE_CARD_H,
-      connectedMcpBranches.map((b) => b.tools.length),
-      GROUP_MID_H,
-      FANOUT_CHILD_GAP_Y,
-      FANOUT_CHILD_H,
-      SECTION_GAP,
-    );
-    const mcpSectionH = mcpGroups.length > 0 ? mcpLayout0.sectionHeight : 0;
+    const mcpLayout0 = layoutFanoutSection(0, SIDE_CARD_H, connectedMcpTools.length, TOOL_FANOUT_GAP_Y, TOOL_FANOUT_H);
+    const mcpSectionH = mcpGroups.length > 0 ? mcpLayout0.sectionBottom : 0;
 
     const agentsLayout0 = layoutFanoutSection(0, SIDE_CARD_H, connectedAgents.length, FANOUT_CHILD_GAP_Y, FANOUT_CHILD_H);
     const agentsSectionH = agentsLayout0.sectionBottom;
@@ -320,26 +315,10 @@ function AgentFlowInner({
 
     let cursorY = CENTER_Y - totalHeight / 2 + 20;
 
-    const toolsLayout = layoutTwoLevelFanout(
-      cursorY,
-      SIDE_CARD_H,
-      connectedToolBranches.map((b) => b.tools.length),
-      GROUP_MID_H,
-      FANOUT_CHILD_GAP_Y,
-      FANOUT_CHILD_H,
-      SECTION_GAP,
-    );
+    const toolsLayout = layoutFanoutSection(cursorY, SIDE_CARD_H, connectedTools.length, TOOL_FANOUT_GAP_Y, TOOL_FANOUT_H);
     cursorY = toolsLayout.sectionBottom + SECTION_GAP;
 
-    const mcpLayout = layoutTwoLevelFanout(
-      cursorY,
-      SIDE_CARD_H,
-      connectedMcpBranches.map((b) => b.tools.length),
-      GROUP_MID_H,
-      FANOUT_CHILD_GAP_Y,
-      FANOUT_CHILD_H,
-      SECTION_GAP,
-    );
+    const mcpLayout = layoutFanoutSection(cursorY, SIDE_CARD_H, connectedMcpTools.length, TOOL_FANOUT_GAP_Y, TOOL_FANOUT_H);
     if (mcpGroups.length > 0) {
       cursorY = mcpLayout.sectionBottom + SECTION_GAP;
     }
@@ -347,8 +326,6 @@ function AgentFlowInner({
     const agentsLayout = layoutFanoutSection(cursorY, SIDE_CARD_H, connectedAgents.length, FANOUT_CHILD_GAP_Y, FANOUT_CHILD_H);
 
     const midX = ITEMS_COL_X + groupInnerWidth + FANOUT_CHILD_GAP_X;
-    // leaf column shares width with mid column for a clean cascade
-    const leafX = midX + groupInnerWidth + FANOUT_CHILD_GAP_X;
 
     // ── 0. Config Node (central node) ──────────────────────────────────────
 
@@ -393,13 +370,13 @@ function AgentFlowInner({
       result.push(publishNode);
     }
 
-    // ── 1. Tools — root → folder branches → tool leaves ────────────────────
+    // ── 1. Tools — root → tool leaves (flat) ─────────────────────────────────
 
     {
       const toolsNode: ToolsNodeType = {
         id: "tools",
         type: "tools",
-        position: { x: ITEMS_COL_X, y: toolsLayout.rootY },
+        position: { x: ITEMS_COL_X, y: toolsLayout.parentY },
         draggable: false,
         connectable: false,
         data: {
@@ -410,65 +387,41 @@ function AgentFlowInner({
       };
       result.push(toolsNode);
 
-      if (connectedToolBranches.length > 0) {
-        const midWidth = measureChildWidth(
-          connectedToolBranches.map((b) => b.name),
-          GROUP_MID_CHROME,
-          groupInnerWidth,
-          measureMaxTextWidth,
-        );
-        const leafWidth = measureChildWidth(
-          connectedToolBranches.flatMap((b) => b.tools.map((t) => t.label)),
+      if (connectedTools.length > 0) {
+        const childWidth = measureChildWidth(
+          connectedTools.map((t) => (t.folder ? `${t.folder} → ${t.label}` : t.label)),
           TOOL_CHILD_CHROME,
           groupInnerWidth,
           measureMaxTextWidth,
         );
 
-        connectedToolBranches.forEach((branch, bi) => {
-          const bl = toolsLayout.branches[bi]!;
-
-          const mid: GroupBranchNodeType = {
-            id: `tool-folder-${branch.id}`,
-            type: "groupBranch",
-            position: { x: midX, y: bl.midY },
+        connectedTools.forEach((tool, i) => {
+          const leaf: ConnectedToolNodeType = {
+            id: `tool-child-${tool.id}`,
+            type: "connectedTool",
+            position: { x: midX, y: toolsLayout.childTop + i * TOOL_FANOUT_GAP_Y },
             draggable: false,
             connectable: false,
             selectable: false,
             data: {
-              name: branch.name,
-              width: midWidth,
+              label: tool.label,
+              folder: tool.folder,
+              width: childWidth,
               accent: "tool",
             },
           };
-          result.push(mid);
-
-          branch.tools.forEach((tool, ti) => {
-            const leaf: ConnectedToolNodeType = {
-              id: `tool-child-${tool.id}`,
-              type: "connectedTool",
-              position: { x: leafX, y: bl.leafTop + ti * FANOUT_CHILD_GAP_Y },
-              draggable: false,
-              connectable: false,
-              selectable: false,
-              data: {
-                label: tool.label,
-                width: leafWidth,
-                accent: "tool",
-              },
-            };
-            result.push(leaf);
-          });
+          result.push(leaf);
         });
       }
     }
 
-    // ── 2. MCP Servers — root → server branches → tool leaves ────────────
+    // ── 2. MCP Servers — root → tool leaves (flat) ───────────────────────────
 
     if (mcpGroups.length > 0) {
       const mcpNode: McpServersNodeType = {
         id: "mcp-servers",
         type: "mcpServers",
-        position: { x: ITEMS_COL_X, y: mcpLayout.rootY },
+        position: { x: ITEMS_COL_X, y: mcpLayout.parentY },
         draggable: false,
         connectable: false,
         data: {
@@ -479,54 +432,30 @@ function AgentFlowInner({
       };
       result.push(mcpNode);
 
-      if (connectedMcpBranches.length > 0) {
-        const midWidth = measureChildWidth(
-          connectedMcpBranches.map((b) => b.name),
-          GROUP_MID_CHROME,
-          groupInnerWidth,
-          measureMaxTextWidth,
-        );
-        const leafWidth = measureChildWidth(
-          connectedMcpBranches.flatMap((b) => b.tools.map((t) => t.label)),
+      if (connectedMcpTools.length > 0) {
+        const childWidth = measureChildWidth(
+          connectedMcpTools.map((t) => `${t.folder} → ${t.label}`),
           TOOL_CHILD_CHROME,
           groupInnerWidth,
           measureMaxTextWidth,
         );
 
-        connectedMcpBranches.forEach((branch, bi) => {
-          const bl = mcpLayout.branches[bi]!;
-
-          const mid: GroupBranchNodeType = {
-            id: `mcp-branch-${branch.id}`,
-            type: "groupBranch",
-            position: { x: midX, y: bl.midY },
+        connectedMcpTools.forEach((tool, i) => {
+          const leaf: ConnectedToolNodeType = {
+            id: `tool-child-${tool.id}`,
+            type: "connectedTool",
+            position: { x: midX, y: mcpLayout.childTop + i * TOOL_FANOUT_GAP_Y },
             draggable: false,
             connectable: false,
             selectable: false,
             data: {
-              name: branch.name,
-              width: midWidth,
+              label: tool.label,
+              folder: tool.folder,
+              width: childWidth,
               accent: "mcp",
             },
           };
-          result.push(mid);
-
-          branch.tools.forEach((tool, ti) => {
-            const leaf: ConnectedToolNodeType = {
-              id: `tool-child-${tool.id}`,
-              type: "connectedTool",
-              position: { x: leafX, y: bl.leafTop + ti * FANOUT_CHILD_GAP_Y },
-              draggable: false,
-              connectable: false,
-              selectable: false,
-              data: {
-                label: tool.label,
-                width: leafWidth,
-                accent: "mcp",
-              },
-            };
-            result.push(leaf);
-          });
+          result.push(leaf);
         });
       }
     }
@@ -632,7 +561,7 @@ function AgentFlowInner({
   const edges = useMemo(() => {
     const result: Edge[] = [];
 
-    // Tools: root → config, root → each connected folder branch → tool leaves
+    // Tools: root → config, root → each connected tool leaf
     if (localAssignedToolIds.length > 0) {
       result.push({
         id: "edge-tools",
@@ -641,7 +570,7 @@ function AgentFlowInner({
         target: "config",
         targetHandle: "tools",
         type: "deletable",
-        animated: true,
+        animated: false,
         selected: selectedEdgeId === "edge-tools",
         data: {
           onDelete: () => {
@@ -651,43 +580,23 @@ function AgentFlowInner({
         style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
       });
 
-      // Rebuild folder → tool map from current groups so branch ids match nodes
-      for (const group of toolGroups) {
-        const connected = group.tools.filter((t) => localAssignedToolIds.includes(t.id));
-        if (connected.length === 0) continue;
-        const folderId = String(group.id ?? "__ungrouped__");
-
+      for (const toolId of localAssignedToolIds) {
         result.push({
-          id: `edge-tool-folder-${folderId}`,
+          id: `edge-tool-child-${toolId}`,
           source: "tools",
-          sourceHandle: "to-folders",
-          target: `tool-folder-${folderId}`,
+          sourceHandle: "to-tools",
+          target: `tool-child-${toolId}`,
           type: "default",
-          animated: true,
+          animated: false,
           selectable: false,
           deletable: false,
           focusable: false,
-          style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
+          style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 0.5, opacity: 0.45 },
         });
-
-        for (const tool of connected) {
-          result.push({
-            id: `edge-tool-child-${tool.id}`,
-            source: `tool-folder-${folderId}`,
-            sourceHandle: "to-leaves",
-            target: `tool-child-${tool.id}`,
-            type: "default",
-            animated: true,
-            selectable: false,
-            deletable: false,
-            focusable: false,
-            style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
-          });
-        }
       }
     }
 
-    // MCP: root → config, root → each connected server branch → tool leaves
+    // MCP: root → config, root → each connected tool leaf
     const allMcpConnectedIds = [...mcpServerConnectedIds.values()].flat();
     if (allMcpConnectedIds.length > 0) {
       result.push({
@@ -705,12 +614,12 @@ function AgentFlowInner({
         style: { stroke: MCP_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
       });
 
-      for (const [serverId, toolIds] of mcpServerConnectedIds) {
+      for (const toolId of allMcpConnectedIds) {
         result.push({
-          id: `edge-mcp-branch-${serverId}`,
+          id: `edge-mcp-child-${toolId}`,
           source: "mcp-servers",
           sourceHandle: "to-servers",
-          target: `mcp-branch-${serverId}`,
+          target: `tool-child-${toolId}`,
           type: "default",
           animated: true,
           selectable: false,
@@ -718,21 +627,6 @@ function AgentFlowInner({
           focusable: false,
           style: { stroke: MCP_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
         });
-
-        for (const toolId of toolIds) {
-          result.push({
-            id: `edge-mcp-child-${toolId}`,
-            source: `mcp-branch-${serverId}`,
-            sourceHandle: "to-leaves",
-            target: `tool-child-${toolId}`,
-            type: "default",
-            animated: true,
-            selectable: false,
-            deletable: false,
-            focusable: false,
-            style: { stroke: MCP_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
-          });
-        }
       }
     }
 
@@ -788,7 +682,6 @@ function AgentFlowInner({
     return result;
   }, [
     localAssignedToolIds,
-    toolGroups,
     callableAgentIds,
     selectedEdgeId,
     onRemoveToolAssignment,
@@ -903,13 +796,6 @@ function AgentFlowInner({
     </div>
   );
 }
-
-type ToolToggleLike = {
-  id: string;
-  label: string;
-  connected: boolean;
-  sortOrder: number;
-};
 
 // ─── Exported Component (with ReactFlowProvider) ────────────────────────────
 

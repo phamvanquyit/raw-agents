@@ -46,16 +46,10 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
   return (
     <div className="relative" style={data.width ? { width: data.width } : undefined}>
       {hasConnection && (
-        <Handle
-          id="to-config"
-          type="source"
-          position={Position.Left}
-          className="!w-2 !h-2 !bg-muted !border-2 transition-all duration-150 !left-1.5"
-          style={{ borderColor: "color-mix(in srgb, var(--edge-mcp) 60%, transparent)" }}
-        />
+        <Handle id="to-config" type="source" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !left-0" />
       )}
 
-      {/* Fan-out to connected server branch nodes */}
+      {/* Fan-out to connected tool leaves */}
       {hasConnection && (
         <Handle id="to-servers" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />
       )}
@@ -136,8 +130,10 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
       >
         <button
           type="button"
-          className={`nodrag nopan relative flex items-center gap-2 w-full pl-3.5 pr-2.5 py-2 rounded-md border bg-card cursor-pointer transition-all duration-150 text-left font-[inherit] ${
-            hasConnection ? "border-edge-mcp/35 hover:border-edge-mcp/55 hover:bg-edge-mcp/6" : "border-border hover:border-edge-mcp/25 hover:bg-muted/40"
+          className={`nodrag nopan relative flex items-center gap-2 w-full pl-3.5 pr-2.5 py-2 rounded-md border cursor-pointer transition-all duration-150 text-left font-[inherit] ${
+            hasConnection
+              ? "border-edge-mcp/25 bg-edge-mcp/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-edge-mcp/40 hover:bg-edge-mcp/18"
+              : "border-border/50 bg-muted/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-border hover:bg-muted/55"
           }`}
         >
           <div
