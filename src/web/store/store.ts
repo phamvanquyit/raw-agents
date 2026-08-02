@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { authReducer } from "src/common/authSlice";
 import { agentsReducer } from "src/modules/agents/common/agentsSlice";
 import { chatReducer } from "src/modules/chat/common/chatSlice";
+import { datatableProjectsReducer } from "src/modules/datatables/common/datatableProjectsSlice";
 import { kvStoreReducer } from "src/modules/kvstore/common/kvStoreSlice";
 import { llmProvidersReducer } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { mcpServersReducer } from "src/modules/mcp-servers/common/mcpServersSlice";
@@ -24,6 +25,7 @@ export const store = configureStore({
     mcpServers: mcpServersReducer,
     kvStore: kvStoreReducer,
     secrets: secretsReducer,
+    datatableProjects: datatableProjectsReducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false }),
 });

@@ -1,4 +1,4 @@
-import { Database, MenuDots, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import { AddCircle, Database, MenuDots, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
 import { Button, Dropdown, Modal, message } from "antd";
 import { type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useAppTimezone } from "src/common/hooks/useAppTimezone";
@@ -15,19 +15,13 @@ import { RowDialog } from "./RowDialog";
 
 type EditingCell = { rowId: string; colId: string };
 
-export type TableRowsCreateControls = {
-  openCreate: () => void;
-  enabled: boolean;
-};
-
 type TableRowsPanelProps = {
   tableId: string;
   /** Schema already loaded on the project page — don't refetch here. */
   columns: DatatableColumn[];
-  onCreateControlsChange?: (controls: TableRowsCreateControls | null) => void;
 };
 
-export function TableRowsPanel({ tableId, columns, onCreateControlsChange }: TableRowsPanelProps) {
+export function TableRowsPanel({ tableId, columns }: TableRowsPanelProps) {
   const timeZone = useAppTimezone();
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [rows, setRows] = useState<DatatableRow[]>([]);
@@ -150,15 +144,6 @@ export function TableRowsPanel({ tableId, columns, onCreateControlsChange }: Tab
   useEffect(() => {
     syncColumnWidths(columns);
   }, [columns]);
-
-  useEffect(() => {
-    if (!onCreateControlsChange) return;
-    onCreateControlsChange({
-      openCreate: () => setRowDialog("create"),
-      enabled: !loading && columns.length > 0,
-    });
-    return () => onCreateControlsChange(null);
-  }, [onCreateControlsChange, loading, columns.length]);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -309,20 +294,30 @@ export function TableRowsPanel({ tableId, columns, onCreateControlsChange }: Tab
               <Database width={24} height={24} weight="BoldDuotone" />
             </span>
             <p className="m-0 text-sm font-medium text-foreground">No properties yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">Edit properties on the schema node to start the table</p>
+            <p className="mt-1 text-sm text-muted-foreground">Open Schema editor to add properties for this table</p>
           </div>
         </RenderIf>
       </div>
 
       <RenderIf condition={showStatusBar}>
-        <div className="absolute inset-x-0 bottom-0 z-10 flex h-8 items-center justify-end border-t border-border-subtle bg-card px-3">
+        <div className="absolute inset-x-0 bottom-0 z-10 flex h-8 items-center justify-between gap-3 border-t border-border-subtle bg-card px-3">
+          <Button
+            type="text"
+            size="small"
+            disabled={loading || columns.length === 0}
+            icon={<AddCircle width={14} height={14} />}
+            onClick={() => setRowDialog("create")}
+            className="text-muted-foreground"
+          >
+            Add new row
+          </Button>
           <span className="text-xs tabular-nums text-muted-foreground">
             {loadedCount === 0 && total === 0
               ? "0 rows"
               : loadedCount >= total
                 ? `${total.toLocaleString()} ${total === 1 ? "row" : "rows"}`
                 : `${loadedCount.toLocaleString()} of ${total.toLocaleString()} rows`}
-            {loadingMore ? "· Loading…" : null}
+            {loadingMore ? " · Loading…" : null}
           </span>
         </div>
       </RenderIf>

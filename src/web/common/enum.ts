@@ -24,6 +24,10 @@ export enum SettingKey {
   SiteAssistantProvider = "siteAssistantProvider",
   SiteAssistantModel = "siteAssistantModel",
 
+  // Datatable Schema Assistant
+  DatatableAssistantProvider = "datatableAssistantProvider",
+  DatatableAssistantModel = "datatableAssistantModel",
+
   // Prompt Assistant
   PromptAssistantProvider = "prompt_assistant_provider",
   PromptAssistantModel = "prompt_assistant_model",

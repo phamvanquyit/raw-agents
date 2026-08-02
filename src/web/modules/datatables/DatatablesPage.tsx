@@ -1,47 +1,45 @@
-import { AddCircle, Document, Folder } from "@solar-icons/react";
-import { Button, Modal, message } from "antd";
+import { AddCircle, Database } from "@solar-icons/react";
+import { Button, Modal, Spin, message } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DatatableProject } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
-import { datatablesApi } from "./common/datatablesApi";
-import { ProjectCard, type ProjectCardModel } from "./components/ProjectCard";
+import { useAppDispatch, useAppSelector } from "src/store/store";
+import { type DatatableProjectListItem, deleteDatatableProject, fetchDatatableProjects } from "./common/datatableProjectsSlice";
+import { ProjectCard } from "./components/ProjectCard";
 import { ProjectDialog } from "./components/ProjectDialog";
 
 export default function DatatablesPage() {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [items, setItems] = useState<ProjectCardModel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const items = useAppSelector((s) => s.datatableProjects.items) as DatatableProjectListItem[];
+  const [loading, setLoading] = useState(items.length === 0);
   const [dialog, setDialog] = useState<DatatableProject | "create" | null>(null);
   const [deleting, setDeleting] = useState<DatatableProject | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      setItems(await datatablesApi.listProjects());
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void load();
-  }, []);
+    let cancelled = false;
+    void (async () => {
+      try {
+        await dispatch(fetchDatatableProjects()).unwrap();
+      } catch (err: unknown) {
+        if (!cancelled) message.error(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch]);
 
   return (
-    <PageShell className="box-border flex h-full min-h-0 flex-col overflow-hidden" contentClassName="flex min-h-0 flex-1 flex-col">
-      <div className="mb-8 flex shrink-0 items-end justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-brand-soft">
-            <Document width={22} height={22} weight="BoldDuotone" />
-          </span>
-          <div>
-            <h1 className="m-0 text-2xl font-semibold leading-8 text-foreground">Datatables</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Structured tables for agent tools</p>
-          </div>
+    <PageShell>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="m-0 text-xl font-semibold leading-tight text-foreground">Datatables</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">Structured tables for agent tools</p>
         </div>
         <Button type="primary" icon={<AddCircle width={16} height={16} />} onClick={() => setDialog("create")}>
           New project
@@ -51,20 +49,20 @@ export default function DatatablesPage() {
       <RenderIf
         condition={items.length > 0 || loading}
         fallback={
-          <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border px-5 py-16">
-            <span className="mb-3 flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-              <Folder width={24} height={24} weight="BoldDuotone" />
-            </span>
-            <p className="m-0 text-sm font-medium text-foreground">No projects yet</p>
-            <p className="mt-1 mb-4 text-sm text-muted-foreground">Create a project to hold your tables</p>
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border px-5 py-16">
+            <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-brand/12 text-brand-soft">
+              <Database width={28} height={28} weight="BoldDuotone" />
+            </div>
+            <p className="mb-1 text-base font-semibold text-foreground">No projects yet</p>
+            <p className="m-0 mb-5 max-w-sm text-center text-sm text-muted-foreground">Create a project to hold your tables</p>
             <Button type="primary" icon={<AddCircle width={16} height={16} />} onClick={() => setDialog("create")}>
               New project
             </Button>
           </div>
         }
       >
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Spin spinning={loading && items.length === 0}>
+          <div className="flex flex-col gap-3">
             {items.map((project) => (
               <ProjectCard
                 key={project.id}
@@ -74,20 +72,18 @@ export default function DatatablesPage() {
                 onDelete={() => setDeleting(project)}
               />
             ))}
-            <button
-              type="button"
-              className="flex min-h-[168px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-transparent text-muted-foreground transition-colors hover:border-border hover:bg-muted/40 hover:text-foreground"
-              onClick={() => setDialog("create")}
-            >
-              <AddCircle width={22} height={22} />
-              <span className="text-sm font-medium">New project</span>
-            </button>
           </div>
-        </div>
+        </Spin>
       </RenderIf>
 
       <RenderIf condition={dialog !== null}>
-        <ProjectDialog edit={dialog === "create" ? null : dialog} onClose={() => setDialog(null)} onSaved={load} />
+        <ProjectDialog
+          edit={dialog === "create" ? null : dialog}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            void dispatch(fetchDatatableProjects());
+          }}
+        />
       </RenderIf>
 
       <Modal
@@ -98,10 +94,13 @@ export default function DatatablesPage() {
         onCancel={() => setDeleting(null)}
         onOk={async () => {
           if (!deleting) return;
-          await datatablesApi.deleteProject(deleting.id);
-          message.success("Deleted");
-          setDeleting(null);
-          await load();
+          try {
+            await dispatch(deleteDatatableProject(deleting.id)).unwrap();
+            message.success("Deleted");
+            setDeleting(null);
+          } catch (err: unknown) {
+            message.error(err instanceof Error ? err.message : String(err));
+          }
         }}
       >
         <p className="m-0 text-sm text-muted-foreground">All tables and rows in this project will be deleted.</p>

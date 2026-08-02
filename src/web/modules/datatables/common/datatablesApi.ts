@@ -4,7 +4,7 @@ import type { DatatableColumn, DatatableColumnType, DatatableProject, DatatableR
 const BASE = "/api/datatables";
 
 export const datatablesApi = {
-  listProjects: () => apiClient.get<Array<DatatableProject & { tableCount: number }>>(`${BASE}/projects`),
+  listProjects: () => apiClient.get<Array<DatatableProject & { tableCount: number; tableNames: string[] }>>(`${BASE}/projects`),
   createProject: (name: string) => apiClient.post<DatatableProject>(`${BASE}/projects`, { name }),
   updateProject: (id: string, name: string) => apiClient.put<DatatableProject>(`${BASE}/projects/${id}`, { name }),
   deleteProject: (id: string) => apiClient.delete(`${BASE}/projects/${id}`),

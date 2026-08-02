@@ -1,9 +1,11 @@
-import { Folder, MenuDots, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
-import { Button, Dropdown } from "antd";
+import { Database, MenuDots, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import { Button, Dropdown, Tag } from "antd";
 import type { MenuProps } from "antd";
+import { cn } from "src/common/lib/cn";
 import type { DatatableProject } from "src/common/types";
+import RenderIf from "src/components/RenderIf";
 
-export type ProjectCardModel = DatatableProject & { tableCount: number };
+export type ProjectCardModel = DatatableProject & { tableCount: number; tableNames: string[] };
 
 export function ProjectCard({
   project,
@@ -23,32 +25,55 @@ export function ProjectCard({
   ];
 
   return (
-    <div className="group relative flex min-h-[168px] flex-col rounded-xl border border-border-subtle bg-card p-5 transition-colors hover:border-border hover:bg-card/90">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-pointer rounded-xl border-0 bg-transparent"
-        onClick={onOpen}
-        aria-label={`Open ${project.name}`}
-      />
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        <span className="flex size-12 items-center justify-center rounded-xl bg-secondary text-brand-soft">
-          <Folder width={26} height={26} weight="BoldDuotone" />
-        </span>
-        <Dropdown menu={{ items: menuItems }} trigger={["click"]}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${project.name}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className={cn(
+        "group relative flex w-full cursor-pointer items-center gap-4 rounded-xl border border-border-subtle bg-card px-4 py-4 text-left",
+        "transition-[border-color,background-color] duration-200",
+        "hover:border-brand/30 hover:bg-secondary",
+      )}
+    >
+      <div className="relative flex size-11 shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-muted text-muted-foreground">
+        <Database width={20} height={20} weight="BoldDuotone" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <h2 className="m-0 truncate text-base font-semibold leading-6 text-foreground">{project.name}</h2>
+        <RenderIf condition={project.tableNames.length > 0} fallback={<p className="mt-1.5 mb-0 text-[12px] leading-4 text-muted-foreground">No tables</p>}>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {project.tableNames.map((name) => (
+              <Tag key={name} variant="filled" className="!m-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] font-normal leading-none text-muted-foreground">
+                {name}
+              </Tag>
+            ))}
+          </div>
+        </RenderIf>
+      </div>
+
+      <div
+        className="relative z-10 shrink-0"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <Dropdown menu={{ items: menuItems }} trigger={["click"]} placement="bottomRight">
           <Button
             type="text"
             size="small"
+            aria-label="Project actions"
             className="opacity-0 group-hover:opacity-100 focus:opacity-100"
             icon={<MenuDots width={16} height={16} weight="Bold" />}
-            onClick={(e) => e.stopPropagation()}
           />
         </Dropdown>
-      </div>
-      <div className="relative z-10 mt-auto pt-8 pointer-events-none">
-        <h2 className="m-0 truncate text-lg font-semibold leading-7 text-foreground">{project.name}</h2>
-        <p className="mt-1 mb-0 text-sm text-muted-foreground">
-          {project.tableCount} {project.tableCount === 1 ? "table" : "tables"}
-        </p>
       </div>
     </div>
   );
