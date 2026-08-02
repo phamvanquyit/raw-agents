@@ -14,7 +14,7 @@
 import { useCallback, useRef, useState } from "react";
 import { authorizedFetch } from "src/common/api";
 import type { Agent } from "src/common/types";
-import type { AgentSseCallbacks, ContextUsagePayload } from "src/components/chat/common/sse";
+import type { AgentSseCallbacks } from "src/components/chat/common/sse";
 import { parseSseStream } from "src/components/chat/common/sse";
 import { updateAgent, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
 import { createConversation, fetchConversations } from "src/modules/chat/common/chatSlice";
@@ -41,7 +41,6 @@ interface AgentStreamCallbacks {
   onThinking: (chunk: string) => void;
   onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
-  onContextUsage?: (usage: ContextUsagePayload) => void;
   onDone: (text: string) => void;
   onError: (err: string) => void;
   abortSignal?: AbortSignal;
@@ -54,7 +53,6 @@ function toSseCallbacks(callbacks: {
   onThinking: (chunk: string) => void;
   onToolCall: AgentStreamCallbacks["onToolCall"];
   onToolResult: AgentStreamCallbacks["onToolResult"];
-  onContextUsage?: (usage: ContextUsagePayload) => void;
   onDone: (text: string) => void | Promise<void>;
   onError: (err: string) => void | Promise<void>;
 }): AgentSseCallbacks {
@@ -63,7 +61,6 @@ function toSseCallbacks(callbacks: {
     onThinkingDelta: callbacks.onThinking,
     onToolCall: callbacks.onToolCall,
     onToolResult: callbacks.onToolResult,
-    onContextUsage: callbacks.onContextUsage,
     onDone: callbacks.onDone,
     onError: callbacks.onError,
   };
@@ -81,7 +78,7 @@ async function streamAgentChat(
   callbacks: AgentStreamCallbacks,
   options?: { fingerprint?: string },
 ): Promise<void> {
-  const { onChunk, onThinking, onToolCall, onToolResult, onContextUsage, onDone, onError, abortSignal, password, token } = callbacks;
+  const { onChunk, onThinking, onToolCall, onToolResult, onDone, onError, abortSignal, password, token } = callbacks;
 
   if (abortSignal?.aborted) return;
 
@@ -119,7 +116,7 @@ async function streamAgentChat(
     return;
   }
 
-  await parseSseStream(res.body, toSseCallbacks({ onChunk, onThinking, onToolCall, onToolResult, onContextUsage, onDone, onError }), {
+  await parseSseStream(res.body, toSseCallbacks({ onChunk, onThinking, onToolCall, onToolResult, onDone, onError }), {
     signal: abortSignal,
   });
 }
@@ -146,7 +143,6 @@ interface ChatSSECallbacks {
   onThinking: (chunk: string) => void;
   onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
-  onContextUsage?: (usage: ContextUsagePayload) => void;
   onDone: (text: string) => void;
   onError: (err: string) => void;
   abortSignal?: AbortSignal;
@@ -237,7 +233,6 @@ interface RunOptions {
   onThinking?: (chunk: string) => void;
   onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
-  onContextUsage?: (usage: ContextUsagePayload) => void;
   /** Called when server is done — messages already saved by server */
   onDone: (text: string) => void;
   onError: (err: string) => void;
@@ -256,8 +251,7 @@ export function useAgentRunner() {
   const conversationIdRef = useRef<string>("");
 
   const run = useCallback(async (options: RunOptions) => {
-    const { agent, conversationId, userMessage, onChunk, onThinking, onToolCall, onToolResult, onContextUsage, onDone, onError, password, token, fingerprint } =
-      options;
+    const { agent, conversationId, userMessage, onChunk, onThinking, onToolCall, onToolResult, onDone, onError, password, token, fingerprint } = options;
 
     agentIdRef.current = agent.id;
     conversationIdRef.current = conversationId;
@@ -279,7 +273,6 @@ export function useAgentRunner() {
           onThinking: onThinking ?? (() => {}),
           onToolCall,
           onToolResult,
-          onContextUsage,
           onDone,
           onError,
           abortSignal: abort.signal,

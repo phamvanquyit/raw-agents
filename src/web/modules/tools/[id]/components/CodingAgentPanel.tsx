@@ -48,7 +48,7 @@ export function CodingAgentPanel({
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ active: false, startX: 0, startW: 0 });
 
-  const { messages, generating, contextUsage, send, cancel } = useAssistantStreaming({
+  const { messages, generating, send, cancel } = useAssistantStreaming({
     streamUrl,
     onToolAction,
     summarizeToolCall: summarizeCodingToolCall,
@@ -146,7 +146,6 @@ export function CodingAgentPanel({
           onProviderChange={onChangeAiProvider}
           onModelChange={onChangeModel}
           enableTypeToFocus={false}
-          contextUsage={contextUsage}
         />
       </div>
     </div>

@@ -4,7 +4,6 @@ import { PageShell } from "src/components/PageShell";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch } from "src/store/store";
 
-import UsagePage from "src/modules/usage/UsagePage";
 import type { SettingsTab } from "./common/constants";
 import { GeneralPage } from "./general/GeneralPage";
 import { ProvidersPage } from "./providers/ProvidersPage";
@@ -13,21 +12,19 @@ import { UsersPage } from "./users/UsersPage";
 const TAB_COMPONENTS: Record<SettingsTab, React.ComponentType> = {
   general: GeneralPage,
   providers: ProvidersPage,
-  usage: UsagePage,
   users: UsersPage,
 };
 
 const TAB_META: Record<SettingsTab, { title: string; description: string }> = {
   general: { title: "General", description: "Workspace defaults and preferences" },
   providers: { title: "LLM Providers", description: "Configure API keys and models for agents" },
-  usage: { title: "Usage", description: "Token usage per agent run — provider totals with estimate fallback" },
   users: { title: "Users", description: "Manage accounts and roles" },
 };
 
 function useActiveTab(): SettingsTab | null {
   const { pathname } = useLocation();
   const segment = pathname.split("/").filter(Boolean)[1];
-  if (segment === "general" || segment === "providers" || segment === "usage" || segment === "users") return segment;
+  if (segment === "general" || segment === "providers" || segment === "users") return segment;
   return null;
 }
 

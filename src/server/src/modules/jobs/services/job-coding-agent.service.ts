@@ -156,6 +156,5 @@ export async function streamJobCodingAgent(jobId: string, body: JobCodingStreamR
     maxSteps: 20,
     stream,
     abortSignal,
-    contextEstimate: { systemPrompt, tools },
   });
 }

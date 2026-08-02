@@ -13,7 +13,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authorizedFetch } from "src/common/api";
-import type { ContextUsagePayload } from "src/components/chat/common/sse";
 import { parseSseStream } from "src/components/chat/common/sse";
 import type { ChatAgentMessage } from "src/components/chat/common/types";
 import { formatToolName, nextId } from "src/components/chat/common/utils";
@@ -136,7 +135,6 @@ function thinkingDurationSec(startedAt: number): number {
 export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCall, turnSummaryHint }: UseAssistantStreamingOptions) {
   const [messages, setMessages] = useState<ChatAgentMessage[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [contextUsage, setContextUsage] = useState<ContextUsagePayload | null>(null);
   const thinkingRef = useRef("");
   const thinkingStartRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -382,9 +380,6 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
               });
               onToolActionRef.current?.({ type: "tool-result", toolName: event.toolName, output: rawOutput });
             },
-            onContextUsage: (usage) => {
-              setContextUsage(usage);
-            },
             onDone: () => {
               setMessages(applyTurnSummary);
               setGenerating(false);
@@ -451,5 +446,5 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
     [generating, messages, streamUrl],
   );
 
-  return { messages, generating, contextUsage, send, cancel };
+  return { messages, generating, send, cancel };
 }

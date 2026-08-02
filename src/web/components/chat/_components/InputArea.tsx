@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { cn } from "src/common/lib/cn";
 import RenderIf from "src/components/RenderIf";
-import { ContextUsageButton, type ContextUsageView } from "./ContextUsageButton";
 import { SelectModel } from "./SelectModel";
 
 const borderlessInputTheme = {
@@ -31,8 +30,6 @@ interface InputAreaProps {
   focusSignal?: string | null;
   /** Redirect bare keypresses into this input when focus is elsewhere (default true) */
   enableTypeToFocus?: boolean;
-  /** Estimated context usage for the current conversation */
-  contextUsage?: ContextUsageView | null;
 }
 
 function isEditableTarget(el: EventTarget | null): boolean {
@@ -60,7 +57,6 @@ export function InputArea({
   hideConfig,
   focusSignal,
   enableTypeToFocus = true,
-  contextUsage = null,
 }: InputAreaProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<TextAreaRef>(null);
@@ -163,8 +159,6 @@ export function InputArea({
         <RenderIf condition={!hideConfig}>
           <SelectModel providerId={providerId} model={model} onProviderChange={onProviderChange} onModelChange={onModelChange} />
         </RenderIf>
-
-        <ContextUsageButton usage={contextUsage} />
 
         <div className="flex-1" />
 

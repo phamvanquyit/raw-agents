@@ -165,6 +165,5 @@ export async function streamCodingAgent(toolId: string, body: CodingStreamReques
     maxSteps: 20,
     stream,
     abortSignal,
-    contextEstimate: { systemPrompt, tools },
   });
 }

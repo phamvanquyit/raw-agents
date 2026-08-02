@@ -12,7 +12,6 @@ import { useStreamResume } from "src/common/hooks/useStreamResume";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
 import { updateAgent } from "src/modules/agents/common/agentsSlice";
 import { createConversation, fetchConversations, markConversationDone, setActiveConversationId, updateConversation } from "src/modules/chat/common/chatSlice";
-import { usageApi } from "src/modules/usage/common/usageApi";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { useAgentDetailContext } from "../common/agentDetailContext";
 import { ChatEmptyState } from "./components/ChatEmptyState";
@@ -120,23 +119,13 @@ export function ChatPage() {
 
   // ── Streaming hook (local messages, no Redux) ───────────────────────────────
 
-  const {
-    setMessages,
-    streamingContent,
-    thinkingContent,
-    activityStatus,
-    clearStreamingState,
-    buildSSECallbacks,
-    loadMessages,
-    liveMessages,
-    contextUsage,
-    setContextUsage,
-  } = useChatStreaming({
-    toDisplayMsg,
-    fetchMessages,
-    onConversationDone: handleConversationDone,
-    onConversationError: handleConversationError,
-  });
+  const { setMessages, streamingContent, thinkingContent, activityStatus, clearStreamingState, buildSSECallbacks, loadMessages, liveMessages } =
+    useChatStreaming({
+      toDisplayMsg,
+      fetchMessages,
+      onConversationDone: handleConversationDone,
+      onConversationError: handleConversationError,
+    });
 
   // Detect if server-side conversation is still running (survives F5)
   const activeConversation = useMemo(() => conversations.find((c) => c.id === activeConversationId), [conversations, activeConversationId]);
@@ -214,30 +203,17 @@ export function ChatPage() {
     void loadMessages(activeConversationId);
   }, [isServerRunning, activeConversationId, running, loadMessages]);
 
-  useEffect(() => {
-    if (!agent?.id) {
-      setContextUsage(null);
-      return;
-    }
-    let cancelled = false;
-    void usageApi
-      .context(agent.id, activeConversationId)
-      .then((data) => {
-        if (!cancelled) setContextUsage(data);
-      })
-      .catch(() => {
-        if (!cancelled) setContextUsage(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [agent?.id, activeConversationId, activeConversation?.status, setContextUsage]);
-
   // Keep scroll pinned when content changes — backup for MutationObserver
   // which can miss auto-scroll when textarea resize changes clientHeight
   useEffect(() => {
+    if (isScrolledUp) return;
     scrollToBottom();
-  }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, scrollToBottom]);
+    const id = requestAnimationFrame(() => {
+      scrollToBottom();
+      messagesEndRef.current?.scrollIntoView({ block: "end" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, isScrolledUp, scrollToBottom]);
 
   // Load conversations when agent changes
   useEffect(() => {
@@ -448,7 +424,7 @@ export function ChatPage() {
           <div className={["relative flex-1 min-h-0 flex flex-col", !sidebarOpen ? "pt-10" : ""].join(" ")}>
             <MessageList
               messages={liveMessages}
-              generating={showGenerating && !streamingContent}
+              generating={showGenerating && !streamingContent && !thinkingContent}
               activityStatus={isServerRunning && !running ? "Processing..." : activityStatus}
               assistantLabel={agent.name}
               emptyStateContent={<ChatEmptyState agent={agent} onStarter={(text) => void handleSend(text)} disabled={showGenerating} />}
@@ -481,7 +457,6 @@ export function ChatPage() {
               onProviderChange={(pid) => void dispatch(updateAgent({ id: agent.id, aiProvider: pid }))}
               onModelChange={(m) => void dispatch(updateAgent({ id: agent.id, aiModel: m }))}
               focusSignal={activeConversationId}
-              contextUsage={contextUsage}
             />
           </div>
         )}

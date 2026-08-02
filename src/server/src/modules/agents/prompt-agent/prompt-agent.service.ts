@@ -287,6 +287,5 @@ export async function streamPromptAgent(agentId: string, body: PromptStreamReque
     maxSteps: 10,
     stream,
     abortSignal,
-    contextEstimate: { systemPrompt: aiSystemPrompt, tools },
   });
 }

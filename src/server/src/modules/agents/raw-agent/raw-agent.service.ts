@@ -4,7 +4,6 @@ import { agentConversations, agentMessages, agents, getDb } from "../../../commo
 import { wsHub } from "../../../common/ws/wsHub.js";
 import { patchMessageMetadata, saveMessage, updateConversationStatus } from "../../conversations/conversations.service.js";
 import { verifyPublicToken } from "../../public/public.service.js";
-import { recordTokenUsage } from "../../usage/usage.service.js";
 import type { AgentStreamEvent, MessageParam } from "./utils/agentRunner.js";
 import { generateAgent, streamAgent } from "./utils/agentRunner.js";
 import { loadHistory } from "./utils/loadHistory.js";
@@ -251,30 +250,6 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
           break;
         }
 
-        case "context-usage":
-        case "token-usage":
-          if (event.type === "token-usage") {
-            try {
-              recordTokenUsage({
-                agentId: msgAgentId,
-                conversationId,
-                ownerId,
-                providerId: event.providerId,
-                model: event.model,
-                inputTokens: event.inputTokens,
-                outputTokens: event.outputTokens,
-                totalTokens: event.totalTokens,
-                systemPromptTokens: event.systemPromptTokens,
-                toolDefTokens: event.toolDefTokens,
-                conversationTokens: event.conversationTokens,
-                estimatedTotal: event.estimatedTotal,
-              });
-            } catch {
-              /* best-effort */
-            }
-          }
-          break;
-
         case "done":
           if (!fullText && !hasSavedSegments) fullText = event.text || "";
           // Persist trailing thinking/text BEFORE clients see done (avoids refetch race).
@@ -486,30 +461,9 @@ export async function generateResponse(agentId: string, message: string, convers
     if (conv?.ownerId) ownerId = conv.ownerId;
   }
 
-  const result = await generateAgent(agentId, messages, {
+  return generateAgent(agentId, messages, {
     maxSteps,
     ownerId,
     conversationId: conversationId ?? null,
   });
-  if (result.usage) {
-    try {
-      recordTokenUsage({
-        agentId,
-        conversationId: conversationId ?? null,
-        ownerId,
-        providerId: result.usage.providerId,
-        model: result.usage.model,
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
-        totalTokens: result.usage.totalTokens,
-        systemPromptTokens: result.usage.systemPromptTokens,
-        toolDefTokens: result.usage.toolDefTokens,
-        conversationTokens: result.usage.conversationTokens,
-        estimatedTotal: result.usage.estimatedTotal,
-      });
-    } catch {
-      /* best-effort */
-    }
-  }
-  return result;
 }

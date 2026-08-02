@@ -71,12 +71,6 @@ export type LazyToolsBundle = {
   middleware: ReturnType<typeof createMiddleware>;
   catalogPromptSection: string;
   allToolsForAgent: StructuredToolInterface[];
-  /**
-   * Schemas currently bound on the model `tools` parameter:
-   * `get_tool_schema` + any tools loaded this run (including hydrated from history).
-   * Tool call args / results stay in conversation tokens.
-   */
-  toolsForEstimate: () => StructuredToolInterface[];
   loadedToolNames: () => string[];
 };
 
@@ -136,7 +130,6 @@ ${catalogLines.join("\n")}
     middleware,
     catalogPromptSection,
     allToolsForAgent: [getToolSchema, ...resolvedTools],
-    toolsForEstimate: () => [getToolSchema, ...resolvedTools.filter((t) => t.name && loaded.has(t.name))],
     loadedToolNames: () => [...loaded],
   };
 }

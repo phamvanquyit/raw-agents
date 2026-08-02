@@ -103,27 +103,6 @@ ${baseMessage}`;
         abortSignal: timeoutAbort.signal,
         conversationId: opts.conversationId,
       });
-      if (result.usage) {
-        try {
-          const { recordTokenUsage } = await import("../../../usage/usage.service.js");
-          recordTokenUsage({
-            agentId: opts.targetId,
-            conversationId: opts.conversationId ?? null,
-            ownerId: opts.ownerId,
-            providerId: result.usage.providerId,
-            model: result.usage.model,
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            totalTokens: result.usage.totalTokens,
-            systemPromptTokens: result.usage.systemPromptTokens,
-            toolDefTokens: result.usage.toolDefTokens,
-            conversationTokens: result.usage.conversationTokens,
-            estimatedTotal: result.usage.estimatedTotal,
-          });
-        } catch {
-          /* best-effort */
-        }
-      }
       return { success: true, agent_id: opts.targetId, response: result.text, error: null };
     } finally {
       clearTimeout(timer);

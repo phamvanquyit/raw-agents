@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { AgentMessage } from "src/common/types";
-import type { ContextUsagePayload } from "src/components/chat/common/sse";
 import type { ChatAgentMessage } from "src/components/chat/common/types";
 import { formatToolName, isCallAgentToolName } from "src/components/chat/common/utils";
 
@@ -14,7 +13,6 @@ export interface SSECallbacks {
   onThinking: (chunk: string) => void;
   onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
-  onContextUsage?: (usage: ContextUsagePayload) => void;
   onDone: () => Promise<void> | void;
   onError: (err?: string) => Promise<void> | void;
 }
@@ -249,7 +247,6 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
   const segmentBoundaryRef = useRef(false);
   const [activityStatus, setActivityStatus] = useState("Thinking...");
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [contextUsage, setContextUsage] = useState<ContextUsagePayload | null>(null);
 
   // Keep latest callbacks in refs so buildSSECallbacks stays stable across renders
   const onDoneRef = useRef(onConversationDone);
@@ -387,9 +384,6 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
         setMessages((prev) => patchOptimisticToolResult(prev, { toolCallId, toolName, result }));
         setActivityStatus("Waiting for model...");
       },
-      onContextUsage: (usage) => {
-        setContextUsage(usage);
-      },
       onDone: async () => {
         const live = takeLiveSnapshot();
         // Commit first (same id as overlay), then clear overlay — batched, no remount flicker
@@ -463,8 +457,6 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
     thinkingContent,
     activityStatus,
     streamError,
-    contextUsage,
-    setContextUsage,
     clearStreamingState,
     buildSSECallbacks,
     loadMessages,

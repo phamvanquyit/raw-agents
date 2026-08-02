@@ -19,14 +19,6 @@ import { eq } from "drizzle-orm";
 import { createAgent } from "langchain";
 import { getChatModel } from "../../../../common/ai/getChatModel.js";
 import { agents, getDb } from "../../../../common/db/client.js";
-import {
-  type ContextUsageEstimate,
-  type MessageLike,
-  type ProviderUsageMessage,
-  estimateContextUsage,
-  extractProviderUsage,
-  providerUsageDedupeKey,
-} from "../../../usage/estimate-context-usage.js";
 import { type AssignmentWithTool, listAssignments } from "../../agents.service.js";
 import { isCallAgentToolName, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { resolveSystemPrompt } from "./buildSystemPrompt.js";
@@ -47,21 +39,11 @@ function isParentModelStreamChunk(metadata: Record<string, unknown> | undefined)
 
 // ─── Event types for streaming ────────────────────────────────────────────────
 
-export type TokenUsageEvent = ContextUsageEstimate & {
-  inputTokens: number | null;
-  outputTokens: number | null;
-  totalTokens: number | null;
-  providerId: string | null;
-  model: string | null;
-};
-
 export type AgentStreamEvent =
   | { type: "text-delta"; text: string }
   | { type: "thinking-delta"; text: string }
   | { type: "tool-call"; toolCallId: string; toolName: string; toolLabel: string; input: unknown }
   | { type: "tool-result"; toolCallId: string; toolName: string; result: unknown }
-  | ({ type: "context-usage" } & ContextUsageEstimate)
-  | ({ type: "token-usage" } & TokenUsageEvent)
   | { type: "done"; text: string }
   | { type: "error"; error: string };
 
@@ -73,72 +55,6 @@ function tryParseToolArgs(argsStr: string): unknown {
   } catch {
     return {};
   }
-}
-
-function toolResultToString(result: unknown): string {
-  if (typeof result === "string") return result;
-  try {
-    return JSON.stringify(result);
-  } catch {
-    return String(result);
-  }
-}
-
-/** Convert LangChain messages into MessageLike rows for context estimation. */
-function baseMessagesToMessageLikes(msgs: BaseMessage[]): MessageLike[] {
-  const out: MessageLike[] = [];
-  for (const msg of msgs) {
-    const type = msg._getType();
-    if (type === "human") {
-      out.push({ role: "user", content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content) });
-      continue;
-    }
-    if (type === "ai") {
-      const ai = msg as AIMessage;
-      let content = "";
-      let thinking = "";
-      if (typeof ai.content === "string") {
-        content = ai.content;
-      } else if (Array.isArray(ai.content)) {
-        for (const block of ai.content as Record<string, unknown>[]) {
-          if (block?.type === "text" && typeof block.text === "string") content += block.text;
-          else if (block?.type === "output_text" && typeof block.text === "string") content += block.text;
-          else if (block?.type === "thinking" && typeof block.thinking === "string") thinking += block.thinking;
-          else if (block?.type === "reasoning") {
-            if (typeof block.reasoning === "string") thinking += block.reasoning;
-            else if (typeof block.text === "string") thinking += block.text;
-          }
-        }
-        if (!content && !thinking) content = JSON.stringify(ai.content ?? "");
-      } else {
-        content = JSON.stringify(ai.content ?? "");
-      }
-      const reasoningKw = (ai.additional_kwargs?.reasoning_content as string | undefined) ?? (ai.additional_kwargs?.reasoning as string | undefined);
-      if (typeof reasoningKw === "string" && reasoningKw) thinking += reasoningKw;
-
-      if (ai.tool_calls && ai.tool_calls.length > 0) {
-        out.push({
-          role: "assistant",
-          content,
-          thinking: thinking || undefined,
-          toolCalls: ai.tool_calls.map((tc) => ({ id: tc.id, name: tc.name, args: tc.args })),
-        });
-      } else {
-        out.push({ role: "assistant", content, thinking: thinking || undefined });
-      }
-      continue;
-    }
-    if (type === "tool") {
-      const toolMsg = msg as ToolMessage;
-      out.push({
-        role: "tool-result",
-        toolCallId: toolMsg.tool_call_id,
-        toolName: toolMsg.name ?? "unknown",
-        result: toolResultToString(toolMsg.content),
-      });
-    }
-  }
-  return out;
 }
 
 export type MessageParam =
@@ -156,7 +72,6 @@ export type AgentStepSummary = {
 export type AgentResult = {
   text: string;
   steps: AgentStepSummary[];
-  usage?: TokenUsageEvent;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -352,23 +267,7 @@ export async function generateAgent(
   // Skip the original input messages (system prompt is handled internally by createAgent)
   const originalCount = messages.length;
   const newMessages = result.messages.slice(originalCount);
-  const parsed = parseAgentResult(newMessages);
-  const providerUsage = extractProviderUsage(result.messages as Array<{ usage_metadata?: Record<string, unknown> | null }>);
-  const estimate = estimateContextUsage({
-    systemPrompt,
-    tools: lazy.toolsForEstimate(),
-    messages: baseMessagesToMessageLikes(result.messages as BaseMessage[]),
-  });
-
-  return {
-    ...parsed,
-    usage: {
-      ...estimate,
-      ...providerUsage,
-      providerId: agent.aiProvider,
-      model: agent.aiModel,
-    },
-  };
+  return parseAgentResult(newMessages);
 }
 
 // ─── streamAgent ──────────────────────────────────────────────────────────────
@@ -432,9 +331,6 @@ export async function* streamAgent(
     const lazy = buildLazyToolsBundle(tools, { messages });
     const systemPrompt = appendToolsCatalog(baseSystemPrompt, lazy.catalogPromptSection);
 
-    const initialEstimate = estimateContextUsage({ systemPrompt, tools: lazy.toolsForEstimate(), messages });
-    yield { type: "context-usage", ...initialEstimate };
-
     const reactAgent = createAgent({
       model,
       tools: lazy.allToolsForAgent,
@@ -459,89 +355,6 @@ export async function* streamAgent(
     // Accumulate tool_call_chunks args (streamed incrementally by LangChain)
     // Key: toolCallId, Value: { name, argsStr (accumulated) }
     const pendingToolCalls = new Map<string, { name: string; argsStr: string }>();
-    const usageMessages: ProviderUsageMessage[] = [];
-    const seenUsageKeys = new Set<string>();
-
-    const pushUsageMessage = (msg: ProviderUsageMessage) => {
-      const key = providerUsageDedupeKey(msg);
-      if (!key || seenUsageKeys.has(key)) return;
-      seenUsageKeys.add(key);
-      usageMessages.push(msg);
-    };
-
-    // Grow context estimate across the ReAct loop (tool args/results are most of the window).
-    const runtimeMessages: MessageLike[] = messages.map((m) => ({ ...m }));
-    let pendingAssistantText = "";
-    let pendingThinkingText = "";
-    const pendingAssistantToolCalls: Array<{ id: string; name: string; args: unknown }> = [];
-
-    const trackToolCall = (tcId: string, name: string, args: unknown) => {
-      const existing = pendingAssistantToolCalls.find((t) => t.id === tcId);
-      if (existing) {
-        existing.name = name;
-        existing.args = args;
-      } else {
-        pendingAssistantToolCalls.push({ id: tcId, name, args });
-      }
-    };
-
-    const appendThinking = (text: string) => {
-      if (!text) return;
-      pendingThinkingText += text;
-    };
-
-    const flushPendingAssistant = () => {
-      if (!pendingAssistantText && !pendingThinkingText && pendingAssistantToolCalls.length === 0) return;
-      if (pendingAssistantToolCalls.length > 0) {
-        runtimeMessages.push({
-          role: "assistant",
-          content: pendingAssistantText,
-          thinking: pendingThinkingText || undefined,
-          toolCalls: pendingAssistantToolCalls.map((t) => ({ ...t })),
-        });
-      } else {
-        runtimeMessages.push({
-          role: "assistant",
-          content: pendingAssistantText,
-          thinking: pendingThinkingText || undefined,
-        });
-      }
-      pendingAssistantText = "";
-      pendingThinkingText = "";
-      pendingAssistantToolCalls.length = 0;
-    };
-
-    const currentEstimate = () => {
-      const msgs = [...runtimeMessages];
-      if (pendingAssistantText || pendingThinkingText || pendingAssistantToolCalls.length > 0) {
-        if (pendingAssistantToolCalls.length > 0) {
-          msgs.push({
-            role: "assistant",
-            content: pendingAssistantText,
-            thinking: pendingThinkingText || undefined,
-            toolCalls: pendingAssistantToolCalls.map((t) => ({ ...t })),
-          });
-        } else {
-          msgs.push({
-            role: "assistant",
-            content: pendingAssistantText,
-            thinking: pendingThinkingText || undefined,
-          });
-        }
-      }
-      return estimateContextUsage({ systemPrompt, tools: lazy.toolsForEstimate(), messages: msgs });
-    };
-
-    const buildTokenUsageEvent = (): Extract<AgentStreamEvent, { type: "token-usage" }> => {
-      flushPendingAssistant();
-      return {
-        type: "token-usage",
-        ...currentEstimate(),
-        ...extractProviderUsage(usageMessages),
-        providerId: agent.aiProvider,
-        model: agent.aiModel,
-      };
-    };
 
     try {
       for await (const chunk of stream) {
@@ -554,46 +367,36 @@ export async function* streamAgent(
           const msgType = msgChunk?._getType?.() ?? msgChunk?.type;
 
           if (msgType === "ai" || msgType === "AIMessageChunk") {
-            if (msgChunk?.usage_metadata || msgChunk?.response_metadata?.usage) {
-              pushUsageMessage(msgChunk);
-            }
             const content = msgChunk?.content;
 
             // ── Extract text + thinking from content ──
             if (typeof content === "string" && content) {
               fullText += content;
-              pendingAssistantText += content;
               yield { type: "text-delta", text: content };
             } else if (Array.isArray(content)) {
               for (const block of content) {
                 // Claude: {type:"thinking", thinking:"..."}
                 if (block.type === "thinking" && block.thinking) {
-                  appendThinking(block.thinking);
                   yield { type: "thinking-delta", text: block.thinking };
                 }
                 // Reasoning: LangChain standard `{type:"reasoning", reasoning}` /
                 // OpenAI Responses `{summary:[...]}` / flat `{text}`
                 else if (block.type === "reasoning") {
                   if (typeof block.reasoning === "string" && block.reasoning) {
-                    appendThinking(block.reasoning);
                     yield { type: "thinking-delta", text: block.reasoning };
                   } else {
                     const summaries = block.summary ?? block.content ?? [];
                     if (Array.isArray(summaries)) {
                       for (const s of summaries) {
                         if (s.text) {
-                          appendThinking(s.text);
                           yield { type: "thinking-delta", text: s.text };
                         } else if (typeof s.reasoning === "string" && s.reasoning) {
-                          appendThinking(s.reasoning);
                           yield { type: "thinking-delta", text: s.reasoning };
                         }
                       }
                     } else if (typeof block.text === "string" && block.text) {
-                      appendThinking(block.text);
                       yield { type: "thinking-delta", text: block.text };
                     } else if (typeof summaries === "string" && summaries) {
-                      appendThinking(summaries);
                       yield { type: "thinking-delta", text: summaries };
                     }
                   }
@@ -601,13 +404,11 @@ export async function* streamAgent(
                 // Standard text block
                 else if (block.type === "text" && block.text) {
                   fullText += block.text;
-                  pendingAssistantText += block.text;
                   yield { type: "text-delta", text: block.text };
                 }
                 // Output text block (Responses API)
                 else if (block.type === "output_text" && block.text) {
                   fullText += block.text;
-                  pendingAssistantText += block.text;
                   yield { type: "text-delta", text: block.text };
                 }
               }
@@ -616,7 +417,6 @@ export async function* streamAgent(
             // Fallback: reasoning in additional_kwargs (older LangChain or non-Responses API)
             const reasoning = msgChunk?.additional_kwargs?.reasoning_content ?? msgChunk?.additional_kwargs?.reasoning;
             if (typeof reasoning === "string" && reasoning) {
-              appendThinking(reasoning);
               yield { type: "thinking-delta", text: reasoning };
             }
 
@@ -636,7 +436,6 @@ export async function* streamAgent(
                     if (!emittedToolCalls.has(tc.id)) {
                       emittedToolCalls.add(tc.id);
                       const earlyArgs = tryParseToolArgs(tc.args ?? "");
-                      trackToolCall(tc.id, tc.name, earlyArgs);
                       yield {
                         type: "tool-call",
                         toolCallId: tc.id,
@@ -665,7 +464,6 @@ export async function* streamAgent(
                   emittedToolCalls.add(tcId);
                   // Remove from pending since we have the complete version
                   pendingToolCalls.delete(tcId);
-                  trackToolCall(tcId, tc.name, tc.args);
                   // Always yield: first paint or arg-complete upsert (same toolCallId)
                   yield {
                     type: "tool-call",
@@ -693,19 +491,7 @@ export async function* streamAgent(
                         }
                       })()
                     : rawContent;
-                flushPendingAssistant();
-                runtimeMessages.push({
-                  role: "tool-result",
-                  toolCallId,
-                  toolName,
-                  result: toolResultToString(result),
-                });
                 yield { type: "tool-result", toolCallId, toolName, result };
-                yield { type: "context-usage", ...currentEstimate() };
-              }
-
-              if ((msgType === "ai" || msgType === "AIMessage" || msgType === "AIMessageChunk") && (msg?.usage_metadata || msg?.response_metadata?.usage)) {
-                pushUsageMessage(msg);
               }
             }
           }
@@ -725,7 +511,6 @@ export async function* streamAgent(
                 }
               })()
             : {};
-          trackToolCall(tcId, pending.name, parsedArgs);
           yield {
             type: "tool-call",
             toolCallId: tcId,
@@ -736,16 +521,10 @@ export async function* streamAgent(
         }
       }
 
-      yield buildTokenUsageEvent();
       yield { type: "done", text: fullText };
     } catch (streamErr) {
       const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
       const isAbort = msg.includes("AbortError") || msg === "AbortError" || (streamErr instanceof Error && streamErr.name === "AbortError");
-      try {
-        yield buildTokenUsageEvent();
-      } catch {
-        /* best-effort partial usage */
-      }
       if (isAbort) {
         yield { type: "error", error: "cancelled" };
         return;

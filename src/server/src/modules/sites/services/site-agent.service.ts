@@ -174,6 +174,5 @@ export async function streamSiteAgent(
     maxSteps: 30,
     stream,
     abortSignal,
-    contextEstimate: { systemPrompt, tools },
   });
 }

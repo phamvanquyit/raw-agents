@@ -16,17 +16,15 @@ import jobsRoute from "./modules/jobs/jobs.route.js";
 import kvstoreRoute from "./modules/kvstore/kvstore.route.js";
 import providersRoute from "./modules/llm-providers/llm-providers.route.js";
 import mcpServersRoute from "./modules/mcp-servers/mcp-servers.route.js";
+import publicRoute from "./modules/public/public.route.js";
 import secretsRoute from "./modules/secrets/secrets.route.js";
 import settingsRoute from "./modules/settings/settings.route.js";
+import sitesRoute from "./modules/sites/sites.route.js";
+import { getPublicSiteAsset, renderPublicSiteDocument } from "./modules/sites/sites.service.js";
 import statsRoute from "./modules/stats/stats.route.js";
 import teamsRoute from "./modules/teams/teams.route.js";
 import toolFoldersRoute from "./modules/tool-folders/tool-folders.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
-import usageRoute from "./modules/usage/usage.route.js";
-
-import publicRoute from "./modules/public/public.route.js";
-import sitesRoute from "./modules/sites/sites.route.js";
-import { getPublicSiteAsset, renderPublicSiteDocument } from "./modules/sites/sites.service.js";
 
 import authRoute from "./modules/auth/auth.route.js";
 import usersRoute from "./modules/users/users.route.js";
@@ -87,7 +85,6 @@ export function createApp(): Hono {
   app.route("/api/settings", settingsRoute);
   app.route("/api/teams", teamsRoute);
   app.route("/api/stats", statsRoute);
-  app.route("/api/usage", usageRoute);
 
   app.route("/api/users", usersRoute);
 
