@@ -12,7 +12,7 @@ export function getFingerprint(): string {
 }
 
 /** Internal tools that should not be shown to end users in public chat. */
-export const HIDDEN_TOOL_NAMES = new Set(["manage_memory"]);
+export const HIDDEN_TOOL_NAMES = new Set<string>();
 
 /** Convert a raw AgentMessage to the display format used by MessageBubble. */
 export function toDisplayMsg(m: any): ChatAgentMessage {

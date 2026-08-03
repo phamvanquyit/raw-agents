@@ -1,36 +1,29 @@
-import { CheckCircle, DangerCircle, Restart } from "@solar-icons/react";
+import { AltArrowDown, DangerCircle, Programming, Restart } from "@solar-icons/react";
 import { useState } from "react";
 import RenderIf from "src/components/RenderIf";
+import { cn } from "src/lib/utils";
 import { useAppSelector } from "src/store/store";
 import type { ChatAgentMessage } from "../common/types";
 import { formatToolName, prettyJson } from "../common/utils";
 import { resolveToolUI } from "./tool-uis";
 
-// ─── Status indicator ────────────────────────────────────────────────────────
-
-function StatusIcon({ hasError, hasOutput, isConvRunning, size = 14 }: { hasError: boolean; hasOutput: boolean; isConvRunning: boolean; size?: number }) {
-  if (hasError) {
-    return (
-      <div className="w-4 h-4 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
-        <DangerCircle size={size - 3} className="text-destructive" />
-      </div>
-    );
-  }
-  if (!hasOutput && isConvRunning) {
-    return (
-      <div className="w-4 h-4 rounded-full bg-primary/8 flex items-center justify-center shrink-0">
-        <Restart size={size - 5} className="animate-spin text-primary" />
-      </div>
-    );
-  }
+function ToolLeadingIcon({ hasError, open }: { hasError: boolean; open: boolean }) {
   return (
-    <div className="w-4 h-4 rounded-full bg-success/10 flex items-center justify-center shrink-0">
-      <CheckCircle weight="Bold" size={size - 3} className="text-success" />
-    </div>
+    <span className="relative size-4 shrink-0">
+      <span className={cn("absolute inset-0 flex items-center justify-center transition-opacity", open ? "opacity-0" : "opacity-100 group-hover:opacity-0")}>
+        {hasError ? <DangerCircle size={13} className="text-destructive" /> : <Programming size={13} className="text-muted-foreground" />}
+      </span>
+      <span
+        className={cn(
+          "absolute inset-0 flex items-center justify-center text-muted-foreground transition-opacity",
+          open ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}
+      >
+        <AltArrowDown size={12} className={cn("transition-transform duration-150", open && "rotate-180")} />
+      </span>
+    </span>
   );
 }
-
-// ─── Regular tool card ───────────────────────────────────────────────────────
 
 function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
   const hasOutput = msg.toolOutput != null;
@@ -38,18 +31,22 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
   const hasError = Boolean(msg.toolError);
   const isPending = !hasOutput && !hasError;
   const [open, setOpen] = useState(false);
-  // Check if the conversation is still running — if not, don't show spinner
   const activeConvId = useAppSelector((s) => s.chat.activeConversationId);
   const conversations = useAppSelector((s) => s.chat.conversations);
   const isConvRunning = conversations.find((c) => c.id === activeConvId)?.status === "running";
+  const running = isPending && !!isConvRunning;
 
   const label = msg.toolLabel ?? formatToolName(msg.toolName ?? "Tool");
 
   if (isPending) {
     return (
-      <div className="rounded-lg border border-border overflow-hidden mb-1.5">
-        <div className="w-full flex items-center gap-2 px-3 py-1.5 bg-card/40">
-          <StatusIcon hasError={false} hasOutput={false} isConvRunning={!!isConvRunning} size={13} />
+      <div className="rounded-lg border border-border-subtle overflow-hidden mb-1.5">
+        <div className="w-full flex items-center gap-2 px-3 py-1.5 bg-muted/30">
+          {running ? (
+            <Restart size={12} className="animate-spin text-muted-foreground shrink-0" />
+          ) : (
+            <Programming size={13} className="text-muted-foreground shrink-0" />
+          )}
           <span className="text-[12px] font-medium text-muted-foreground truncate flex-1 text-left">{label}</span>
         </div>
       </div>
@@ -57,36 +54,20 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
   }
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden mb-1.5">
-      {/* Header row */}
+    <div className="rounded-lg border border-border-subtle overflow-hidden mb-1.5">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none group transition-colors hover:bg-muted/40 bg-card/40"
+        className="group w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none transition-colors bg-muted/30 hover:bg-muted/45"
       >
-        {/* Status */}
-        <StatusIcon hasError={hasError} hasOutput={hasOutput} isConvRunning={!!isConvRunning} size={13} />
-
-        {/* Tool label */}
+        <ToolLeadingIcon hasError={hasError} open={open} />
         <span className="text-[12px] font-medium text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1 text-left">{label}</span>
-
-        {/* Expand chevron */}
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          fill="none"
-          className={`shrink-0 text-muted-foreground transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-        >
-          <path d="M2.5 3.5L5 6.5L7.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
       </button>
 
-      {/* Expandable detail — only after tool finishes */}
       <RenderIf condition={open}>
-        <div className="border-t border-border font-mono text-[11px]">
+        <div className="border-t border-border-subtle font-mono text-[11px]">
           <RenderIf condition={hasInput}>
-            <div className="px-3 py-2 border-b border-border/60">
+            <div className="px-3 py-2 border-b border-border-subtle/60">
               <span className="text-2xs text-muted-foreground uppercase tracking-widest font-sans font-semibold">input</span>
               <pre className="m-0 mt-1 whitespace-pre-wrap break-all text-muted-foreground leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
                 {prettyJson(msg.toolInput)}
@@ -104,8 +85,6 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
     </div>
   );
 }
-
-// ─── ToolCallGroup — timeline wrapper around consecutive tool calls ───────────
 
 export function ToolCallGroup({
   messages,
@@ -136,8 +115,6 @@ export function ToolCallGroup({
     </div>
   );
 }
-
-// ─── Single tool-call bubble (used by flat MessageList) ───────────────────────
 
 export function ToolCallBubble({
   msg,

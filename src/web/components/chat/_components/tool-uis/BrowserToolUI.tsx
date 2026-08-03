@@ -1,4 +1,4 @@
-import { Spin } from "antd";
+import { AltArrowDown, DangerCircle, Global, Restart } from "@solar-icons/react";
 import { useState } from "react";
 import RenderIf from "src/components/RenderIf";
 import { cn } from "src/lib/utils";
@@ -91,10 +91,6 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
   const running = !hasOutput && !hasError && !!isConvRunning;
   const url = firstUrl(actions, output);
   const callerColor = assistantColor ?? "var(--primary)";
-  const preview = actions
-    .slice(0, 5)
-    .map((a) => a.action)
-    .join(" → ");
 
   return (
     <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
@@ -110,62 +106,36 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
       </RenderIf>
 
       <div className="px-4 pb-1">
-        <div className="rounded-lg border border-border overflow-hidden bg-card/50">
+        <div className="rounded-lg border border-border-subtle overflow-hidden">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="w-full flex flex-col gap-1.5 px-2 py-1.5 cursor-pointer outline-none border-0 bg-muted/35 hover:bg-muted/50 transition-colors text-left"
+            className="group w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none border-0 bg-muted/30 hover:bg-muted/45 transition-colors text-left"
           >
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 shrink-0 pl-0.5">
-                <span className="size-2 rounded-full bg-[#ff5f57]" />
-                <span className="size-2 rounded-full bg-[#febc2e]" />
-                <span className="size-2 rounded-full bg-[#28c840]" />
-              </div>
-              <div className="flex items-center gap-0.5 text-muted-foreground/70">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                  <path d="M6 2L3 5l3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                  <path d="M4 2l3 3-3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0 flex items-center gap-1.5 rounded-full bg-background/90 border border-border px-2 py-[3px]">
-                <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0 text-muted-foreground" aria-hidden="true">
-                  <rect x="2" y="4.5" width="6" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M3.2 4.5V3.2a1.8 1.8 0 0 1 3.6 0V4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-                <span className="text-[11px] text-tertiary-foreground truncate font-mono">{url}</span>
-              </div>
-              <RenderIf condition={running}>
-                <Spin size="small" className="shrink-0" />
-              </RenderIf>
-              <RenderIf condition={!running && hasOutput && !failed}>
-                <span className="text-[10px] text-chart-2 shrink-0">Done</span>
-              </RenderIf>
-              <RenderIf condition={failed}>
-                <span className="text-[10px] text-destructive shrink-0">Failed</span>
-              </RenderIf>
-              <svg
-                width="9"
-                height="9"
-                viewBox="0 0 10 10"
-                fill="none"
-                className={cn("shrink-0 text-muted-foreground transition-transform duration-150", open && "rotate-180")}
-              >
-                <path d="M2.5 3.5L5 6.5L7.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div className="flex items-center gap-1.5 min-w-0 pl-0.5">
-              <span className="text-[10px] text-muted-foreground truncate">
-                {preview}
-                {actions.length > 5 ? ` → +${actions.length - 5}` : ""}
+            <span className="relative size-4 shrink-0">
+              <span className={cn("absolute inset-0 flex items-center justify-center transition-opacity", open ? "opacity-0" : "opacity-100 group-hover:opacity-0")}>
+                {failed ? (
+                  <DangerCircle size={13} className="text-destructive" />
+                ) : running ? (
+                  <Restart size={12} className="animate-spin text-muted-foreground" />
+                ) : (
+                  <Global size={13} className="text-muted-foreground" />
+                )}
               </span>
-            </div>
+              <span
+                className={cn(
+                  "absolute inset-0 flex items-center justify-center text-muted-foreground transition-opacity",
+                  open ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                )}
+              >
+                <AltArrowDown size={12} className={cn("transition-transform duration-150", open && "rotate-180")} />
+              </span>
+            </span>
+            <span className="text-[11px] text-tertiary-foreground truncate font-mono min-w-0 flex-1">{url}</span>
           </button>
 
           <RenderIf condition={open}>
-            <div className="border-t border-border px-2.5 py-2">
+            <div className="border-t border-border-subtle px-3 py-2">
               <div className="relative flex flex-col">
                 {actions.map((action, i) => {
                   const result = output?.results?.find((r) => r.index === i);
@@ -183,18 +153,18 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                         </RenderIf>
                         <span
                           className={cn(
-                            "relative z-10 mt-1 size-2 rounded-full ring-2 ring-card shrink-0",
-                            stepFailed && "bg-destructive",
-                            stepOk && "bg-chart-2",
-                            stepPending && "bg-primary animate-pulse",
-                            !stepFailed && !stepOk && !stepPending && "bg-muted-foreground/40",
+                            "relative z-10 mt-1 size-1.5 rounded-full ring-2 ring-card shrink-0",
+                            stepFailed && "bg-muted-foreground",
+                            stepOk && "bg-muted-foreground/70",
+                            stepPending && "bg-muted-foreground animate-pulse",
+                            !stepFailed && !stepOk && !stepPending && "bg-muted-foreground/30",
                           )}
                         />
                       </div>
                       <div className={cn("min-w-0 flex-1 pb-2.5", isLast && "pb-0")}>
                         <div className="flex items-baseline gap-1.5 min-w-0">
                           <span className="text-[10px] font-mono text-muted-foreground shrink-0 tabular-nums">{i + 1}</span>
-                          <span className="text-[11px] font-medium text-foreground shrink-0">{action.action}</span>
+                          <span className="text-[11px] text-foreground shrink-0">{action.action}</span>
                           <RenderIf condition={!!summary}>{() => <span className="text-[11px] text-tertiary-foreground truncate">{summary}</span>}</RenderIf>
                         </div>
                         <RenderIf condition={!!result?.error}>
