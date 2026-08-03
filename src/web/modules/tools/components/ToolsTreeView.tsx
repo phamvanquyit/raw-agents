@@ -90,7 +90,7 @@ function buildItems(tools: AgentTool[], folders: ToolFolderWithTools[]): Items {
   return items;
 }
 
-function buildFolderMetas(folders: ToolFolderWithTools[], items: Items): FolderMeta[] {
+function buildFolderMetas(folders: ToolFolderWithTools[], items: Items, keepUngrouped = false): FolderMeta[] {
   const metas: FolderMeta[] = sortFolders(folders).map((folder) => ({
     key: folder.id,
     title: folder.name,
@@ -99,7 +99,7 @@ function buildFolderMetas(folders: ToolFolderWithTools[], items: Items): FolderM
     editable: true,
   }));
 
-  if ((items[UNGROUPED_ID]?.length ?? 0) > 0 || metas.length === 0) {
+  if (keepUngrouped || (items[UNGROUPED_ID]?.length ?? 0) > 0 || metas.length === 0) {
     metas.push({
       key: UNGROUPED_ID,
       title: "Ungrouped",
@@ -118,6 +118,12 @@ function sameOrder(a: string[] = [], b: string[] = []) {
 
 function containerToFolderId(containerId: string): string | null {
   return containerId === UNGROUPED_ID ? null : containerId;
+}
+
+function findContainerIn(items: Items, id: UniqueIdentifier): string | undefined {
+  const sid = String(id);
+  if (sid in items) return sid;
+  return Object.keys(items).find((key) => items[key].includes(sid));
 }
 
 function FolderMenu({ title, onEdit, onDelete }: { title: string; onEdit?: () => void; onDelete?: () => void }) {
@@ -391,21 +397,12 @@ export function ToolsTreeView({ tools, folders, onToolClick, onToolCreated, onEd
     setItems(buildItems(tools, folders));
   }, [tools, folders]);
 
-  const folderMetas = useMemo(() => buildFolderMetas(folders, items), [folders, items]);
+  const folderMetas = useMemo(() => buildFolderMetas(folders, items, !!activeToolId), [folders, items, activeToolId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
     }),
-  );
-
-  const findContainer = useCallback(
-    (id: UniqueIdentifier): string | undefined => {
-      const sid = String(id);
-      if (sid in items) return sid;
-      return Object.keys(items).find((key) => items[key].includes(sid));
-    },
-    [items],
   );
 
   const collisionDetection: CollisionDetection = useCallback(
@@ -415,8 +412,13 @@ export function ToolsTreeView({ tools, folders, onToolClick, onToolCreated, onEd
       let overId = getFirstCollision(intersections, "id");
 
       if (overId != null) {
-        if (overId in items) {
-          const containerItems = items[overId];
+        if (overId === args.active.id) {
+          lastOverId.current = overId;
+          return [{ id: overId }];
+        }
+
+        if (String(overId) in items) {
+          const containerItems = items[String(overId)];
           if (containerItems.length > 0) {
             overId = closestCorners({
               ...args,
@@ -440,21 +442,22 @@ export function ToolsTreeView({ tools, folders, onToolClick, onToolCreated, onEd
   const handleDragStart = ({ active }: DragStartEvent) => {
     didDragRef.current = true;
     isDraggingRef.current = true;
+    recentlyMovedToNewContainer.current = false;
     clonedItemsRef.current = items;
     setActiveToolId(String(active.id));
   };
 
   const handleDragOver = ({ active, over }: DragOverEvent) => {
-    if (!over) return;
+    if (!over || recentlyMovedToNewContainer.current) return;
 
     const overId = String(over.id);
     const activeId = String(active.id);
-    const activeContainer = findContainer(activeId);
-    const overContainer = findContainer(overId);
-
-    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
 
     setItems((prev) => {
+      const activeContainer = findContainerIn(prev, activeId);
+      const overContainer = findContainerIn(prev, overId);
+      if (!activeContainer || !overContainer || activeContainer === overContainer) return prev;
+
       const activeItems = prev[activeContainer];
       const overItems = prev[overContainer];
       const activeIndex = activeItems.indexOf(activeId);
@@ -465,7 +468,8 @@ export function ToolsTreeView({ tools, folders, onToolClick, onToolCreated, onEd
         newIndex = overItems.length + 1;
       } else {
         const overIndex = overItems.indexOf(overId);
-        const isBelowOverItem = over && active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height;
+        const isBelowOverItem =
+          !!active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height / 2;
         const modifier = isBelowOverItem ? 1 : 0;
         newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
       }
@@ -484,8 +488,8 @@ export function ToolsTreeView({ tools, folders, onToolClick, onToolCreated, onEd
     recentlyMovedToNewContainer.current = false;
     const activeId = String(active.id);
     const cloned = clonedItemsRef.current;
-    const currentContainer = findContainer(activeId);
-    const overContainer = over ? (findContainer(String(over.id)) ?? currentContainer) : currentContainer;
+    const currentContainer = findContainerIn(items, activeId);
+    const overContainer = over ? (findContainerIn(items, over.id) ?? currentContainer) : currentContainer;
 
     if (!currentContainer || !overContainer || !over) {
       if (cloned) setItems(cloned);
