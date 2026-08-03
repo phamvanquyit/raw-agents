@@ -121,6 +121,8 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
   let hasSavedSegments = false;
   let trailingAssistantSaved = false;
   let terminalSent = false;
+  /** True while saving consecutive tool-calls that share one assistant (with tool_calls). */
+  let inToolGroup = false;
   const toolMsgIds = new Map<string, string>();
 
   const stillCurrent = () => runRegistry.isCurrent(conversationId, runId);
@@ -154,6 +156,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
 
       switch (event.type) {
         case "text-delta":
+          inToolGroup = false;
           if (thinkingText) {
             saveMessage({
               agentId: msgAgentId,
@@ -169,6 +172,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
           break;
 
         case "thinking-delta":
+          inToolGroup = false;
           if (!thinkingStart) {
             if (fullText.trim()) {
               saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
@@ -202,10 +206,17 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
             thinkingText = "";
             thinkingStart = 0;
           }
+          // OpenAI requires tool messages to follow an assistant with tool_calls.
+          // Always persist that assistant (text or empty) before the first tool in a group.
           if (fullText.trim()) {
             saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
             hasSavedSegments = true;
             fullText = "";
+            inToolGroup = true;
+          } else if (!inToolGroup) {
+            saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: "", metadata: null });
+            hasSavedSegments = true;
+            inToolGroup = true;
           }
           const toolMsg = saveMessage({
             agentId: msgAgentId,

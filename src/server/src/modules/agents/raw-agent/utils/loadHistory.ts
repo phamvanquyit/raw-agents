@@ -2,6 +2,112 @@ import { eq, sql } from "drizzle-orm";
 import { agentMessages, getDb } from "../../../../common/db/client.js";
 import type { MessageParam } from "./agentRunner.js";
 
+type HistoryRow = {
+  role: string;
+  content: string;
+  metadata: Record<string, unknown> | null;
+};
+
+function parseToolRow(row: HistoryRow): {
+  toolCall: { id: string; name: string; args: unknown };
+  toolResult: Extract<MessageParam, { role: "tool-result" }>;
+} | null {
+  const meta = row.metadata;
+  if (!meta?.toolCallId || !meta?.toolName) return null;
+  const toolCallId = meta.toolCallId as string;
+  const toolName = meta.toolName as string;
+  const output = (meta.toolOutput as string) ?? (meta.result != null ? JSON.stringify(meta.result) : row.content);
+  return {
+    toolCall: { id: toolCallId, name: toolName, args: meta.toolInput ?? {} },
+    toolResult: { role: "tool-result", toolCallId, toolName, result: output },
+  };
+}
+
+/**
+ * Collect consecutive tool rows starting at `start`, skipping thinking rows.
+ * Returns the first index after the tool group.
+ */
+function collectToolGroup(
+  rows: HistoryRow[],
+  start: number,
+): {
+  toolCalls: Array<{ id: string; name: string; args: unknown }>;
+  toolResults: Array<Extract<MessageParam, { role: "tool-result" }>>;
+  nextIndex: number;
+} {
+  const toolCalls: Array<{ id: string; name: string; args: unknown }> = [];
+  const toolResults: Array<Extract<MessageParam, { role: "tool-result" }>> = [];
+  let j = start;
+  while (j < rows.length) {
+    if (rows[j].role === "thinking") {
+      j++;
+      continue;
+    }
+    if (rows[j].role !== "tool") break;
+    const parsed = parseToolRow(rows[j]);
+    if (parsed) {
+      toolCalls.push(parsed.toolCall);
+      toolResults.push(parsed.toolResult);
+    }
+    j++;
+  }
+  return { toolCalls, toolResults, nextIndex: j };
+}
+
+/**
+ * Rebuild LangGraph-compatible message params from DB rows.
+ *
+ * OpenAI requires every `role: tool` message to follow an assistant message
+ * with matching `tool_calls`. When the model called tools with no text, older
+ * saves may only have orphan `tool` rows — synthesize an empty assistant.
+ */
+export function rebuildHistoryFromRows(rows: HistoryRow[]): MessageParam[] {
+  const result: MessageParam[] = [];
+  let i = 0;
+
+  while (i < rows.length) {
+    const row = rows[i];
+
+    if (row.role === "thinking") {
+      i++;
+      continue;
+    }
+
+    if (row.role === "user") {
+      result.push({ role: "user", content: row.content });
+      i++;
+      continue;
+    }
+
+    if (row.role === "assistant") {
+      const { toolCalls, toolResults, nextIndex } = collectToolGroup(rows, i + 1);
+      if (toolCalls.length > 0) {
+        result.push({ role: "assistant", content: row.content || "", toolCalls });
+        result.push(...toolResults);
+        i = nextIndex;
+      } else {
+        result.push({ role: "assistant", content: row.content });
+        i++;
+      }
+      continue;
+    }
+
+    if (row.role === "tool") {
+      const { toolCalls, toolResults, nextIndex } = collectToolGroup(rows, i);
+      if (toolCalls.length > 0) {
+        result.push({ role: "assistant", content: "", toolCalls });
+        result.push(...toolResults);
+      }
+      i = nextIndex;
+      continue;
+    }
+
+    i++;
+  }
+
+  return result;
+}
+
 /**
  * Load full conversation history including tool calls and tool results.
  *
@@ -10,64 +116,15 @@ import type { MessageParam } from "./agentRunner.js";
  *   - assistant (before tool calls) → AIMessage with tool_calls[]
  *   - tool result → ToolMessage with tool_call_id
  *   - assistant (final answer) → AIMessage (plain text)
- *
- * Returns the full transcript. Compaction/summarization can be added later
- * when context pressure needs it.
  */
 export function loadHistory(conversationId: string): MessageParam[] {
   const rows = getDb().select().from(agentMessages).where(eq(agentMessages.conversationId, conversationId)).orderBy(sql`rowid`).all();
 
-  const result: MessageParam[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-
-    if (row.role === "user") {
-      result.push({ role: "user", content: row.content });
-      continue;
-    }
-
-    // Thinking messages are informational only — not sent to the AI
-    if (row.role === "thinking") continue;
-
-    if (row.role === "assistant") {
-      // Look ahead to see if the next messages are tool calls
-      const toolCalls: Array<{ id: string; name: string; args: unknown }> = [];
-      let j = i + 1;
-      while (j < rows.length && rows[j].role === "tool") {
-        const meta = rows[j].metadata as Record<string, unknown> | null;
-        if (meta?.toolCallId && meta?.toolName) {
-          toolCalls.push({
-            id: meta.toolCallId as string,
-            name: meta.toolName as string,
-            args: meta.toolInput ?? {},
-          });
-        }
-        j++;
-      }
-
-      if (toolCalls.length > 0) {
-        result.push({ role: "assistant", content: row.content || "", toolCalls });
-      } else {
-        result.push({ role: "assistant", content: row.content });
-      }
-      continue;
-    }
-
-    if (row.role === "tool") {
-      const meta = row.metadata as Record<string, unknown> | null;
-      if (meta?.toolCallId && meta?.toolName) {
-        // Use toolOutput (stringified result) if available, fall back to result or content
-        const output = (meta.toolOutput as string) ?? (meta.result != null ? JSON.stringify(meta.result) : row.content);
-        result.push({
-          role: "tool-result",
-          toolCallId: meta.toolCallId as string,
-          toolName: meta.toolName as string,
-          result: output,
-        });
-      }
-    }
-  }
-
-  return result;
+  return rebuildHistoryFromRows(
+    rows.map((r) => ({
+      role: r.role,
+      content: r.content,
+      metadata: r.metadata as Record<string, unknown> | null,
+    })),
+  );
 }
