@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-08-03
+
+### Added
+- Dedicated chat UIs for `get_current_time` and `manage_memory` tools
+- Scrollbar thumb appears on hover (hidden by default)
+
+### Changed
+- Tool call bubbles and browser tool chrome simplified
+- Tool labels include folder name when set (`Folder → Tool`)
+- `manage_memory` is visible again in public chat
+
+### Fixed
+- Tool history stays OpenAI-compatible (assistant before tool groups; orphan tool rows rebuild on load)
+- Reasoning-only replies promote thinking into visible assistant content
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+
 ## [0.17.2] - 2026-08-03
 
 ### Fixed
@@ -302,6 +320,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.18.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.17.2...v0.18.0
 [0.17.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.17.1...v0.17.2
 [0.17.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.15.1...v0.16.0
