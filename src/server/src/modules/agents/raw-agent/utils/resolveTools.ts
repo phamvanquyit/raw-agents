@@ -13,7 +13,7 @@ import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { type McpCatalogTool, agentTools, agents, getDb, mcpServers } from "../../../../common/db/client.js";
+import { type McpCatalogTool, agentTools, agents, getDb, mcpServers, toolFolders } from "../../../../common/db/client.js";
 import { callMcpTool } from "../../../mcp-servers/mcp-client.js";
 import { buildMcpLangGraphName, parseMcpToolId } from "../../../mcp-servers/mcp-tool-id.js";
 import { runTool } from "../../../tools/tools.service.js";
@@ -69,8 +69,16 @@ export function getToolLabel(toolName: string): string {
         }
       }
     }
-    const row = db.select({ label: agentTools.label }).from(agentTools).where(eq(agentTools.name, toolName)).get();
-    if (row?.label && row.label !== toolName) return row.label;
+    const row = db
+      .select({ label: agentTools.label, folderName: toolFolders.name })
+      .from(agentTools)
+      .leftJoin(toolFolders, eq(agentTools.folderId, toolFolders.id))
+      .where(eq(agentTools.name, toolName))
+      .get();
+    if (row) {
+      const label = row.label && row.label !== toolName ? row.label : formatToolName(toolName);
+      return row.folderName ? `${row.folderName} → ${label}` : label;
+    }
   } catch {
     /* ignore */
   }
