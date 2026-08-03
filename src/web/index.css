@@ -236,15 +236,21 @@ body,
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
+  background: transparent;
   border-radius: 99px;
 }
-::-webkit-scrollbar-thumb:hover {
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+.scrollbar-visible::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
 
 * {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scrollbar-visible {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 

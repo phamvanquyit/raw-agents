@@ -2,12 +2,14 @@ import { ConfigProvider } from "antd";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
 import { antdModalConfig, antdTheme } from "src/common/antdTheme";
+import { initScrollbarHover } from "src/common/scrollbarHover";
 import { initTheme } from "src/common/theme";
 import "./index.css";
 import { store } from "src/store/store";
 import App from "./App";
 
 initTheme();
+initScrollbarHover();
 
 // Static Modal.confirm / message / notification render outside the React tree —
 // wrap their holders so they inherit the dark theme.
