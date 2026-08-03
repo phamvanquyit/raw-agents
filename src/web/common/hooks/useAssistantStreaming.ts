@@ -61,15 +61,13 @@ function finalizeStreamingMessages(prev: ChatAgentMessage[]) {
   return prev
     .map((m) => {
       if (m.role === "assistant" && m.streaming) {
+        // Reasoning-only reply: promote thinking → visible assistant content (not a Thinking-only row).
         if (!m.content.trim() && m.meta?.thinking) {
-          const thinking = String(m.meta.thinking);
-          const duration = (m.meta.thinkingDuration as number | undefined) ?? 0;
           return {
             ...m,
-            role: "thinking" as const,
-            content: thinking,
+            content: String(m.meta.thinking),
             streaming: false,
-            meta: { thinking, thinkingDuration: duration },
+            meta: undefined,
           };
         }
         return { ...m, streaming: false };
@@ -218,6 +216,7 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
             }),
           );
         } else if (thinkingSnapshot) {
+          // Reasoning-only segment before a tool-call — keep as thinking row (tools follow).
           setMessages((prev) =>
             prev.map((m) =>
               m.id === freezeId

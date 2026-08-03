@@ -174,7 +174,8 @@ type LiveSegmentSnapshot = {
  * Avoids refetching /messages — SSE already has the content.
  *
  * - `split` (tool-call): thinking → standalone row, then assistant text (before the tool bubble)
- * - `combined` (done/error): keep one assistant row with thinking in meta — same shape as the live overlay
+ * - `combined` (done/error): keep one assistant row with thinking in meta — same shape as the live overlay.
+ *   When the model only emits reasoning (empty content), promote thinking → content (mirrors server).
  */
 function commitLiveSegment(prev: AgentMessage[], convId: string, live: LiveSegmentSnapshot, mode: "split" | "combined" = "split"): AgentMessage[] {
   const text = live.text.trim();
@@ -187,6 +188,21 @@ function commitLiveSegment(prev: AgentMessage[], convId: string, live: LiveSegme
   const assistantId = live.assistantId ?? nextSegId("as");
 
   if (mode === "combined") {
+    // Some providers put the final reply only in the reasoning channel — promote so UI isn't Thinking-only.
+    if (!text && thinking) {
+      added.push({
+        id: assistantId,
+        agentId: "",
+        conversationId: convId,
+        chatAgentId: null,
+        role: "assistant",
+        content: thinking,
+        metadata: null,
+        createdAt: now,
+      });
+      return [...prev, ...added];
+    }
+
     added.push({
       id: assistantId,
       agentId: "",
