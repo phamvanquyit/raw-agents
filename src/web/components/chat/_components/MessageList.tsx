@@ -1,5 +1,5 @@
-import type { ReactNode, RefObject } from "react";
-import { useEffect, useState } from "react";
+import type { ReactNode, Ref, RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AppLogo } from "src/components/AppLogo"; // used in empty state
 import { MessageBubble } from "./MessageBubble";
 import { ToolCallBubble } from "./ToolCallBubble";
@@ -17,7 +17,9 @@ interface MessageListProps {
   assistantColor?: string | null;
   emptyStateContent?: ReactNode;
   messagesEndRef: RefObject<HTMLDivElement | null>;
-  scrollContainerRef?: ((node: HTMLDivElement | null) => void) | RefObject<HTMLDivElement | null>;
+  scrollContainerRef?: Ref<HTMLDivElement | null>;
+  /** When true, keep the scroller glued to bottom across message/stream updates. */
+  pinToBottom?: boolean;
   className?: string;
 }
 
@@ -106,6 +108,7 @@ export function MessageList({
   emptyStateContent,
   messagesEndRef,
   scrollContainerRef,
+  pinToBottom = false,
   className = "",
 }: MessageListProps) {
   const hasMessages = messages.length > 0;
@@ -114,6 +117,29 @@ export function MessageList({
   const lastIsAgent = lastMsg ? isAgentRole(lastMsg.role) : false;
   const hasActiveThinking = lastMsg?.role === "assistant" && Boolean(lastMsg.meta?.thinking) && lastMsg.meta?.thinkingDuration == null;
   const showFooter = generating && !hasActiveThinking;
+
+  const localScrollRef = useRef<HTMLDivElement | null>(null);
+  const setScrollRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      localScrollRef.current = node;
+      if (typeof scrollContainerRef === "function") {
+        scrollContainerRef(node);
+      } else if (scrollContainerRef && "current" in scrollContainerRef) {
+        scrollContainerRef.current = node;
+      }
+    },
+    [scrollContainerRef],
+  );
+
+  // Stream fingerprint — content of the live bubble changes without length changing.
+  const streamFingerprint = lastMsg ? `${lastMsg.id}:${lastMsg.content.length}:${String(lastMsg.meta?.thinking ?? "").length}` : "";
+
+  useLayoutEffect(() => {
+    if (!pinToBottom) return;
+    const el = localScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [pinToBottom, messages.length, streamFingerprint, showFooter, activityStatus]);
 
   // Elapsed seconds while generating so long "Thinking..."waits don't look frozen
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -133,8 +159,8 @@ export function MessageList({
   const statusLabel = elapsedSec >= 3 ? `${activityStatus} ${elapsedSec}s` : activityStatus;
 
   return (
-    <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-y-auto ${!hasMessages ? "flex flex-col" : ""}`}>
-      <div className={`max-w-[760px] mx-auto ${!hasMessages ? "flex-1 w-full flex flex-col" : ""} ${className}`}>
+    <div ref={setScrollRef} className={`flex-1 min-h-0 overflow-y-auto [overflow-anchor:none] ${!hasMessages ? "flex flex-col" : ""}`}>
+      <div className={`max-w-[760px] mx-auto [overflow-anchor:none] ${!hasMessages ? "flex-1 w-full flex flex-col" : ""} ${className}`}>
         <RenderIf condition={!hasMessages}>
           <div className="flex flex-1 flex-col items-stretch min-h-full w-full">
             {emptyStateContent ?? (
@@ -147,7 +173,7 @@ export function MessageList({
         </RenderIf>
 
         <RenderIf condition={hasMessages}>
-          <div className="pt-4 pb-4 flex flex-col">
+          <div data-chat-scroll-content className="pt-4 pb-4 flex flex-col">
             {items.map((item) =>
               item.msg.role === "tool-call" ? (
                 <ToolCallBubble key={item.msg.id} msg={item.msg} assistantLabel={assistantLabel} assistantColor={assistantColor} showAvatar={item.showAvatar} />

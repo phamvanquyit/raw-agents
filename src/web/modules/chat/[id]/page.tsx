@@ -1,5 +1,5 @@
 import { AltArrowDown, PenNewSquare, SidebarMinimalistic } from "@solar-icons/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { AgentMessage } from "src/common/types";
 import { wsClient } from "../../../common/api/wsClient";
@@ -178,14 +178,9 @@ export default function PublicChatPage() {
   markTerminalRef.current = markTerminal;
   handleConnectionLostRef.current = handleConnectionLost;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isScrolledUp) return;
     scrollToBottom();
-    const id = requestAnimationFrame(() => {
-      scrollToBottom();
-      messagesEndRef.current?.scrollIntoView({ block: "end" });
-    });
-    return () => cancelAnimationFrame(id);
   }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, isScrolledUp, scrollToBottom]);
 
   useEffect(() => {
@@ -509,6 +504,7 @@ export default function PublicChatPage() {
             emptyStateContent={<ChatEmptyState agent={agent} onStarter={(text) => void handleSend(text)} disabled={running} />}
             messagesEndRef={messagesEndRef}
             scrollContainerRef={scrollRef}
+            pinToBottom={!isScrolledUp}
           />
           {isScrolledUp && (
             <button

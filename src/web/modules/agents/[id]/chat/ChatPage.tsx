@@ -1,5 +1,5 @@
 import { AltArrowDown, PenNewSquare, SidebarMinimalistic } from "@solar-icons/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
 import { stopAgentChat, useAgentRunner } from "src/common/hooks/useAgent";
@@ -203,16 +203,10 @@ export function ChatPage() {
     void loadMessages(activeConversationId);
   }, [isServerRunning, activeConversationId, running, loadMessages]);
 
-  // Keep scroll pinned when content changes — backup for MutationObserver
-  // which can miss auto-scroll when textarea resize changes clientHeight
-  useEffect(() => {
+  // Stick before paint so stream growth never leaves a visible gap.
+  useLayoutEffect(() => {
     if (isScrolledUp) return;
     scrollToBottom();
-    const id = requestAnimationFrame(() => {
-      scrollToBottom();
-      messagesEndRef.current?.scrollIntoView({ block: "end" });
-    });
-    return () => cancelAnimationFrame(id);
   }, [liveMessages.length, streamingContent, thinkingContent, activityStatus, isScrolledUp, scrollToBottom]);
 
   // Load conversations when agent changes
@@ -314,6 +308,7 @@ export function ChatPage() {
         },
       ]);
       scrollToBottom({ force: true });
+      requestAnimationFrame(() => scrollToBottom({ force: true }));
 
       // If first message in a conversation still titled "New Chat", rename it
       const activeConv = conversations.find((c) => c.id === convId);
@@ -430,6 +425,7 @@ export function ChatPage() {
               emptyStateContent={<ChatEmptyState agent={agent} onStarter={(text) => void handleSend(text)} disabled={showGenerating} />}
               messagesEndRef={messagesEndRef}
               scrollContainerRef={scrollRef}
+              pinToBottom={!isScrolledUp}
             />
             {isScrolledUp && (
               <button
