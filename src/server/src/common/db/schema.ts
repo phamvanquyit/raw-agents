@@ -505,3 +505,57 @@ export const jobRuns = sqliteTable("job_runs", {
 
 export type JobRun = typeof jobRuns.$inferSelect;
 export type NewJobRun = typeof jobRuns.$inferInsert;
+
+// ─── Skills (shared catalog) ──────────────────────────────────────────────────
+// Progressive disclosure: name+description in system prompt; body/references via read_skill.
+
+export const skills = sqliteTable("skills", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  description: text("description").notNull(),
+  content: text("content").notNull().default(""),
+  /** AI draft — written by edit_skill_file. null = no pending draft. */
+  draftContent: text("draft_content"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type Skill = typeof skills.$inferSelect;
+export type NewSkill = typeof skills.$inferInsert;
+
+export const skillReferences = sqliteTable("skill_references", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  skillId: text("skill_id")
+    .notNull()
+    .references(() => skills.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // slug within skill
+  title: text("title").notNull(),
+  content: text("content").notNull().default(""),
+  /** AI draft — written by edit_skill_file. null = no pending draft. */
+  draftContent: text("draft_content"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type SkillReference = typeof skillReferences.$inferSelect;
+export type NewSkillReference = typeof skillReferences.$inferInsert;
+
+export const agentSkillAssignments = sqliteTable("agent_skill_assignments", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  agentId: text("agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  skillId: text("skill_id")
+    .notNull()
+    .references(() => skills.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export type AgentSkillAssignment = typeof agentSkillAssignments.$inferSelect;
+export type NewAgentSkillAssignment = typeof agentSkillAssignments.$inferInsert;
