@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-08-04
+
+### Added
+- Skills catalog: create/edit skills with markdown body, references, and AI draft review
+- Skill assistant agent (`edit_skill_file`) for drafting skill content in the editor
+- Assign skills to agents from the agent flow graph (progressive disclosure via `read_skill`)
+- Monaco markdown highlighting/theme tuned for skill editing
+
+### Changed
+- Agent flow edges use counted connectors; shared nodes restyled for tools/MCP/skills sections
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- SQLite migrations `0040_skills` / `0041_skills_draft_content` apply on startup
+
 ## [0.18.0] - 2026-08-03
 
 ### Added
@@ -320,6 +335,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.19.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.17.2...v0.18.0
 [0.17.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.17.1...v0.17.2
 [0.17.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.16.0...v0.17.0
