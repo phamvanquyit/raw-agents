@@ -1,13 +1,16 @@
 /**
  * buildSystemPrompt.ts (server-side)
  *
- * Build system prompt from agent data + DB (per-user facts, docs).
+ * Build system prompt from agent data + DB (per-user facts, docs, skills).
  * Runs entirely on server — no HTTP round-trips.
  *
  * Memory is per-user:
  *   - Facts: always injected (short items)
  *   - Documents: only titles injected, full content loaded on-demand via manage_memory tool
  *   - Guest users: only facts, no documents
+ *
+ * Skills (assigned):
+ *   - Only name + description injected; body/references via read_skill tool
  *
  * Callable agents:
  *   Populated only from explicit UI selection (callableAgentIds).
@@ -16,6 +19,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { agentNotes, agentUserFacts, agents, getDb } from "../../../../common/db/client.js";
+import { listAssignedSkillSummaries } from "../../../skills/skills.service.js";
 import { callAgentToolName } from "../llm-tools/call-agent.tool.js";
 
 export function buildSystemPrompt(
@@ -29,9 +33,10 @@ export function buildSystemPrompt(
   options: {
     isGuest?: boolean;
     agentsToDelegate?: { id: string; name: string; description: string | null; teamName?: string }[];
+    skills?: { name: string; description: string }[];
   } = {},
 ): string {
-  const { isGuest = false, agentsToDelegate } = options;
+  const { isGuest = false, agentsToDelegate, skills } = options;
   const parts: string[] = [];
 
   // ── Role & Behavior ──
@@ -86,6 +91,17 @@ Use \`manage_memory({ action: "read_doc", id: "..." })\` to read full content.
 
 ${list}
 </documents>`);
+  }
+
+  // ── Skills (name + description only) ──
+  if (skills && skills.length > 0) {
+    const list = skills.map((s) => `- ${s.name} — ${s.description}`).join("\n");
+    parts.push(`<skills>
+When a skill matches the task, call \`read_skill({ name })\` to load full instructions.
+Then follow any references named inside that content via \`read_skill({ name, reference })\`.
+
+${list}
+</skills>`);
   }
 
   // ── Callable Agents ──
@@ -161,5 +177,11 @@ export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]
     agentsToDelegate = all.filter((a) => effectiveCallableIds.includes(a.id));
   }
 
-  return buildSystemPrompt(agent, facts, docTitles, { isGuest, agentsToDelegate });
+  const skillSummaries = listAssignedSkillSummaries(agentId);
+
+  return buildSystemPrompt(agent, facts, docTitles, {
+    isGuest,
+    agentsToDelegate,
+    skills: skillSummaries,
+  });
 }

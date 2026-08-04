@@ -3,14 +3,18 @@ import { streamSSE } from "hono/streaming";
 import { BadRequestException, InternalServerErrorException } from "../../common/exceptions/http.exception.js";
 import {
   addAssignment,
+  addSkillAssignment,
   cloneAgent,
   createAgent,
   deleteAgent,
   getAgent,
   listAgentsEnriched,
   listAssignments,
+  listSkillAssignments,
   removeAssignment,
+  removeSkillAssignment,
   setAssignments,
+  setSkillAssignments,
   updateAgent,
 } from "./agents.service.js";
 import { type PromptStreamRequest, streamPromptAgent } from "./prompt-agent/prompt-agent.service.js";
@@ -90,6 +94,30 @@ app.post("/:id/tool-assignments", async (c) => {
 // DELETE /api/agents/:id/tool-assignments/:aid
 app.delete("/:id/tool-assignments/:aid", (c) => {
   removeAssignment(c.req.param("aid"));
+  return c.json({ ok: true });
+});
+
+// ─── Skill Assignments ───────────────────────────────────────────────────────
+
+app.get("/:id/skill-assignments", (c) => {
+  return c.json(listSkillAssignments(c.req.param("id")));
+});
+
+app.put("/:id/skill-assignments", async (c) => {
+  const body = await c.req.json<{ items: { skillId: string }[] }>();
+  return c.json(setSkillAssignments(c.req.param("id"), body.items ?? []));
+});
+
+app.post("/:id/skill-assignments", async (c) => {
+  const body = await c.req.json<{ skillId: string }>();
+  if (!body.skillId) throw new BadRequestException("skillId is required");
+  const result = addSkillAssignment(c.req.param("id"), body);
+  if (!result) throw new BadRequestException("Failed to add skill assignment");
+  return c.json(result, 201);
+});
+
+app.delete("/:id/skill-assignments/:aid", (c) => {
+  removeSkillAssignment(c.req.param("aid"));
   return c.json({ ok: true });
 });
 

@@ -1,6 +1,18 @@
 import { and, count, eq, inArray } from "drizzle-orm";
-import { type McpCatalogTool, type NewAgent, agentToolAssignments, agentTools, agents, getDb, mcpServers, users } from "../../common/db/client.js";
+import {
+  type McpCatalogTool,
+  type NewAgent,
+  agentSkillAssignments,
+  agentToolAssignments,
+  agentTools,
+  agents,
+  getDb,
+  mcpServers,
+  skills,
+  users,
+} from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 import { buildMcpLangGraphName, parseMcpToolId } from "../mcp-servers/mcp-tool-id.js";
 import { getBuiltinTool } from "../tools/tools.service.js";
@@ -190,6 +202,19 @@ export function cloneAgent(sourceId: string, createdBy?: string) {
       .run();
   }
 
+  // Copy skill assignments
+  const srcSkills = db.select().from(agentSkillAssignments).where(eq(agentSkillAssignments.agentId, sourceId)).all();
+  for (const a of srcSkills) {
+    db.insert(agentSkillAssignments)
+      .values({
+        id: crypto.randomUUID(),
+        agentId: newId,
+        skillId: a.skillId,
+        createdAt: now,
+      })
+      .run();
+  }
+
   const result = db.select().from(agents).where(eq(agents.id, newId)).get();
   wsHub.emit("agents:created", result);
   return result;
@@ -343,5 +368,114 @@ export function removeAssignment(assignmentId: string): void {
 
   if (row) {
     wsHub.emit("agents:tools-updated", { agentId: row.agentId });
+  }
+}
+
+// ─── Skill Assignments ────────────────────────────────────────────────────────
+
+export interface SkillAssignmentWithSkill {
+  id: string;
+  agentId: string;
+  skillId: string;
+  createdAt: Date;
+  skill: {
+    name: string;
+    description: string;
+  };
+}
+
+export interface NewSkillAssignmentInput {
+  skillId: string;
+}
+
+export function listSkillAssignments(agentId: string): SkillAssignmentWithSkill[] {
+  const db = getDb();
+  const rows = db
+    .select({
+      id: agentSkillAssignments.id,
+      agentId: agentSkillAssignments.agentId,
+      skillId: agentSkillAssignments.skillId,
+      createdAt: agentSkillAssignments.createdAt,
+      skillName: skills.name,
+      skillDescription: skills.description,
+    })
+    .from(agentSkillAssignments)
+    .leftJoin(skills, eq(agentSkillAssignments.skillId, skills.id))
+    .where(eq(agentSkillAssignments.agentId, agentId))
+    .all();
+
+  return rows.map((r) => ({
+    id: r.id,
+    agentId: r.agentId,
+    skillId: r.skillId,
+    createdAt: r.createdAt,
+    skill: {
+      name: r.skillName ?? "",
+      description: r.skillDescription ?? "",
+    },
+  }));
+}
+
+export function setSkillAssignments(agentId: string, items: NewSkillAssignmentInput[]): SkillAssignmentWithSkill[] {
+  const db = getDb();
+  db.delete(agentSkillAssignments).where(eq(agentSkillAssignments.agentId, agentId)).run();
+
+  for (const item of items) {
+    const skill = db.select({ id: skills.id }).from(skills).where(eq(skills.id, item.skillId)).get();
+    if (!skill) throw new BadRequestException(`Skill not found: ${item.skillId}`);
+    db.insert(agentSkillAssignments)
+      .values({
+        id: crypto.randomUUID(),
+        agentId,
+        skillId: item.skillId,
+        createdAt: new Date(),
+      })
+      .run();
+  }
+
+  const result = listSkillAssignments(agentId);
+  wsHub.emit("agents:skills-updated", { agentId, assignments: result });
+  return result;
+}
+
+export function addSkillAssignment(agentId: string, input: NewSkillAssignmentInput): SkillAssignmentWithSkill | null {
+  const db = getDb();
+  const skill = db.select({ id: skills.id }).from(skills).where(eq(skills.id, input.skillId)).get();
+  if (!skill) throw new BadRequestException(`Skill not found: ${input.skillId}`);
+
+  const existing = db
+    .select({ id: agentSkillAssignments.id })
+    .from(agentSkillAssignments)
+    .where(and(eq(agentSkillAssignments.agentId, agentId), eq(agentSkillAssignments.skillId, input.skillId)))
+    .get();
+
+  if (!existing) {
+    db.insert(agentSkillAssignments)
+      .values({
+        id: crypto.randomUUID(),
+        agentId,
+        skillId: input.skillId,
+        createdAt: new Date(),
+      })
+      .run();
+  }
+
+  const result = listSkillAssignments(agentId);
+  wsHub.emit("agents:skills-updated", { agentId, assignments: result });
+  return result.find((a) => a.skillId === input.skillId) ?? null;
+}
+
+export function removeSkillAssignment(assignmentId: string): void {
+  const db = getDb();
+  const row = db
+    .select({ agentId: agentSkillAssignments.agentId })
+    .from(agentSkillAssignments)
+    .where(eq(agentSkillAssignments.id, assignmentId))
+    .get();
+
+  db.delete(agentSkillAssignments).where(eq(agentSkillAssignments.id, assignmentId)).run();
+
+  if (row) {
+    wsHub.emit("agents:skills-updated", { agentId: row.agentId });
   }
 }

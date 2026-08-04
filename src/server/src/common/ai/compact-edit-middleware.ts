@@ -9,7 +9,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { createMiddleware } from "langchain";
 import { EDIT_PAYLOAD_OMITTED } from "./apply-exact-replace.js";
 
-export const CODING_EDIT_TOOL_NAMES = new Set(["edit_code", "edit_ui", "edit_styles", "edit_backend", "edit_deps"]);
+export const CODING_EDIT_TOOL_NAMES = new Set(["edit_code", "edit_ui", "edit_styles", "edit_backend", "edit_deps", "edit_skill_file"]);
 
 const HEAVY_ARG_KEYS = ["code", "content", "edits"] as const;
 

@@ -14,6 +14,7 @@ import { TOOL_DEF as DATATABLE_DEF } from "../agents/raw-agent/llm-tools/datatab
 import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
 import { TOOL_DEF as KV_STORE_DEF } from "../agents/raw-agent/llm-tools/kv-store.tool.js";
 import { TOOL_DEF as MANAGE_MEMORY_DEF } from "../agents/raw-agent/llm-tools/manage-memory.tool.js";
+import { TOOL_DEF as READ_SKILL_DEF } from "../agents/raw-agent/llm-tools/read-skill.tool.js";
 
 const ALL_TOOL_DEFS: ToolDefinition[] = [
   GET_TIME_DEF,
@@ -22,6 +23,7 @@ const ALL_TOOL_DEFS: ToolDefinition[] = [
   KV_STORE_DEF,
   DATATABLE_DEF,
   MANAGE_MEMORY_DEF,
+  READ_SKILL_DEF,
   {
     toolName: "edit_code",
     toolLabel: "Edit Code",
@@ -76,7 +78,7 @@ import { wsHub } from "../../common/ws/wsHub.js";
 import { executeTool } from "./common/python-runner.js";
 
 /** Core tools that are always-on and shouldn't appear in user-facing tool lists */
-const ALWAYS_ON_TOOL_NAMES = new Set(["manage_memory", "edit_code", "run_current_script", "update_prompt"]);
+const ALWAYS_ON_TOOL_NAMES = new Set(["manage_memory", "read_skill", "edit_code", "run_current_script", "update_prompt"]);
 
 /** Virtual AgentTool objects built from the tool registry */
 const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.toolName)).map((b) => ({

@@ -25,6 +25,7 @@ import { datatableTool } from "../llm-tools/datatable.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
 import { kvStoreTool } from "../llm-tools/kv-store.tool.js";
 import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
+import { makeReadSkillTool } from "../llm-tools/read-skill.tool.js";
 
 const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   get_current_time: getCurrentTimeTool,
@@ -55,6 +56,7 @@ export function getToolLabel(toolName: string): string {
     datatable: "Datatable",
     call_agent: "Call Agent",
     manage_memory: "Manage Memory",
+    read_skill: "Read Skill",
     get_tool_schema: "Get Tool Schema",
   };
   if (KNOWN_LABELS[toolName]) return KNOWN_LABELS[toolName];
@@ -282,6 +284,7 @@ export function resolveAgentTools(
   }
 
   tools.push(makeManageMemoryTool(agentId, ownerId, isGuest));
+  tools.push(makeReadSkillTool(agentId));
 
   return tools;
 }
