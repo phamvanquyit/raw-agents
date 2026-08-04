@@ -11,9 +11,9 @@ import { Background, BackgroundVariant, type Connection, type Edge, type Node, R
 import "@xyflow/react/dist/style.css";
 import { Modal } from "antd";
 import { useCallback, useMemo, useState } from "react";
-import type { Agent, AgentListItem, AgentTeam, AgentTool, AgentToolAssignment, McpServer, ToolFolder } from "src/common/types";
+import type { Agent, AgentListItem, AgentSkillAssignment, AgentTeam, AgentTool, AgentToolAssignment, McpServer, Skill, ToolFolder } from "src/common/types";
 import { PromptPage } from "../prompt/PromptPage";
-import { DeletableEdge } from "./edges/DeletableEdge";
+import { CountedEdge } from "./edges/CountedEdge";
 import { layoutFanoutSection, measureChildWidth } from "./layout";
 import { AgentConfigNode, type AgentConfigNodeType } from "./nodes/AgentConfigNode";
 import { type CallAgentTeamGroup, CallAgentsNode, type CallAgentsNodeType } from "./nodes/CallAgentsNode";
@@ -21,6 +21,7 @@ import { CallableAgentNode, type CallableAgentNodeType } from "./nodes/CallableA
 import { ConnectedToolNode, type ConnectedToolNodeType } from "./nodes/ConnectedToolNode";
 import { type McpServerGroup, McpServersNode, type McpServersNodeType } from "./nodes/McpServersNode";
 import { PublishNode, type PublishNodeType } from "./nodes/PublishNode";
+import { SkillsNode, type SkillsNodeType } from "./nodes/SkillsNode";
 import { type ToolFolderGroup, ToolsNode, type ToolsNodeType } from "./nodes/ToolsNode";
 
 // ─── Node & Edge Types ──────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ const nodeTypes = {
   tools: ToolsNode,
   connectedTool: ConnectedToolNode,
   mcpServers: McpServersNode,
+  skills: SkillsNode,
   callAgents: CallAgentsNode,
   callableAgent: CallableAgentNode,
   agentConfig: AgentConfigNode,
@@ -36,7 +38,7 @@ const nodeTypes = {
 };
 
 const edgeTypes = {
-  deletable: DeletableEdge,
+  counted: CountedEdge,
 };
 
 // ─── Layout Constants ────────────────────────────────────────────────────────
@@ -45,20 +47,21 @@ const CENTER_X = 500;
 const CENTER_Y = 400;
 
 const ITEMS_COL_X = CENTER_X + 420;
-const SIDE_CARD_H = 56;
+const SIDE_CARD_H = 72;
 const FANOUT_CHILD_GAP_X = 100; // gap between levels of fan-out
 const FANOUT_CHILD_GAP_Y = 56; // vertical spacing between sibling agent children
-const FANOUT_CHILD_H = 40; // agent leaf card height
-const TOOL_FANOUT_GAP_Y = 40; // vertical spacing for tool / mcp leaves
-const TOOL_FANOUT_H = 20; // compact tool leaf height (icon + label, no padding)
+const FANOUT_CHILD_H = 22; // agent leaf height (matches avatar)
+const TOOL_FANOUT_GAP_Y = 36; // vertical spacing for tool / mcp leaves
+const TOOL_FANOUT_H = 16; // compact tool leaf height (icon + label)
 const TOOL_CHILD_CHROME = 44; // group icon + tool icon + gaps for connected tool cards
-const AGENT_CHILD_CHROME = 64; // avatar + gaps + paddings for callable agent cards
+const AGENT_CHILD_CHROME = 30; // avatar + gap for callable agent leaves
 const SECTION_GAP = 28; // min vertical gap between packed sections
 
 // ─── Edge Colors ─────────────────────────────────────────────────────────────
 
 const TOOL_EDGE_COLOR = "var(--edge-tool)";
 const MCP_EDGE_COLOR = "var(--edge-mcp)";
+const SKILL_EDGE_COLOR = "var(--edge-skill)";
 const AGENT_EDGE_COLOR = "var(--edge-call-agent)";
 const PUBLISH_EDGE_COLOR = "var(--edge-call-agent)";
 
@@ -80,14 +83,16 @@ interface AgentFlowViewProps {
   teams: AgentTeam[];
   toolFolders: ToolFolder[];
   allTools: AgentTool[];
+  allSkills: Skill[];
   mcpServers: McpServer[];
   toolAssignments: AgentToolAssignment[];
+  skillAssignments: AgentSkillAssignment[];
   callableAgentIds: string[];
   onRemoveToolAssignment: (toolId: string) => void;
   onAddToolAssignment: (toolId: string) => void;
-  onToggleMcpTools: (toolIds: string[], enable: boolean) => void;
+  onRemoveSkillAssignment: (skillId: string) => void;
+  onAddSkillAssignment: (skillId: string) => void;
   onToggleCallableAgent: (agentId: string, enable: boolean) => void;
-  onToggleCallableAgents: (agentIds: string[], enable: boolean) => void;
   // Config node props
   selectedProviderId: string | null;
   aiModel: string;
@@ -114,14 +119,16 @@ function AgentFlowInner({
   teams,
   toolFolders,
   allTools,
+  allSkills,
   mcpServers,
   toolAssignments,
+  skillAssignments,
   callableAgentIds,
   onRemoveToolAssignment,
   onAddToolAssignment,
-  onToggleMcpTools,
+  onRemoveSkillAssignment,
+  onAddSkillAssignment,
   onToggleCallableAgent,
-  onToggleCallableAgents,
   selectedProviderId,
   aiModel,
   systemPrompt,
@@ -138,8 +145,8 @@ function AgentFlowInner({
   onSavePassword,
 }: AgentFlowViewProps) {
   const assignedToolIds = useMemo(() => new Set(toolAssignments.map((a) => a.toolId)), [toolAssignments]);
+  const assignedSkillIds = useMemo(() => new Set(skillAssignments.map((a) => a.skillId)), [skillAssignments]);
   const callableSet = useMemo(() => new Set(callableAgentIds), [callableAgentIds]);
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
 
   const handleToggleTool = useCallback(
@@ -148,6 +155,14 @@ function AgentFlowInner({
       else onRemoveToolAssignment(toolId);
     },
     [onAddToolAssignment, onRemoveToolAssignment],
+  );
+
+  const handleToggleSkill = useCallback(
+    (skillId: string, connected: boolean) => {
+      if (connected) onAddSkillAssignment(skillId);
+      else onRemoveSkillAssignment(skillId);
+    },
+    [onAddSkillAssignment, onRemoveSkillAssignment],
   );
 
   const toolGroups = useMemo((): ToolFolderGroup[] => {
@@ -252,10 +267,8 @@ function AgentFlowInner({
 
     // ── Measure widths ──────────────────────────────────────────────────────
 
-    const ITEM_FIXED_WIDTH = 88;
-    const SIDE_CARD_MIN_W = 200;
-    const parentMaxText = measureMaxTextWidth(["Tools", "MCP Servers", "Call Agents"]);
-    const groupInnerWidth = Math.max(SIDE_CARD_MIN_W, Math.ceil(parentMaxText + ITEM_FIXED_WIDTH));
+    const SIDE_CARD_W = 104;
+    const groupInnerWidth = SIDE_CARD_W;
 
     // ── Connected children (needed for auto layout) ─────────────────────────
 
@@ -291,6 +304,16 @@ function AgentFlowInner({
       })),
     );
 
+    const skillToggleItems = [...allSkills]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((s) => ({
+        id: s.id,
+        label: s.name,
+        connected: assignedSkillIds.has(s.id),
+      }));
+
+    const connectedSkills = skillToggleItems.filter((s) => s.connected);
+
     const connectedAgents = callAgentTeams
       .flatMap((t) => t.agents)
       .filter((a) => a.connected)
@@ -304,11 +327,15 @@ function AgentFlowInner({
     const mcpLayout0 = layoutFanoutSection(0, SIDE_CARD_H, connectedMcpTools.length, TOOL_FANOUT_GAP_Y, TOOL_FANOUT_H);
     const mcpSectionH = mcpGroups.length > 0 ? mcpLayout0.sectionBottom : 0;
 
+    const skillsLayout0 = layoutFanoutSection(0, SIDE_CARD_H, connectedSkills.length, TOOL_FANOUT_GAP_Y, TOOL_FANOUT_H);
+    const skillsSectionH = skillsLayout0.sectionBottom;
+
     const agentsLayout0 = layoutFanoutSection(0, SIDE_CARD_H, connectedAgents.length, FANOUT_CHILD_GAP_Y, FANOUT_CHILD_H);
     const agentsSectionH = agentsLayout0.sectionBottom;
 
     const sectionHeights: number[] = [toolsSectionH];
     if (mcpGroups.length > 0) sectionHeights.push(mcpSectionH);
+    sectionHeights.push(skillsSectionH);
     sectionHeights.push(agentsSectionH);
 
     const totalHeight = sectionHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, sectionHeights.length - 1) * SECTION_GAP;
@@ -322,6 +349,9 @@ function AgentFlowInner({
     if (mcpGroups.length > 0) {
       cursorY = mcpLayout.sectionBottom + SECTION_GAP;
     }
+
+    const skillsLayout = layoutFanoutSection(cursorY, SIDE_CARD_H, connectedSkills.length, TOOL_FANOUT_GAP_Y, TOOL_FANOUT_H);
+    cursorY = skillsLayout.sectionBottom + SECTION_GAP;
 
     const agentsLayout = layoutFanoutSection(cursorY, SIDE_CARD_H, connectedAgents.length, FANOUT_CHILD_GAP_Y, FANOUT_CHILD_H);
 
@@ -460,6 +490,50 @@ function AgentFlowInner({
       }
     }
 
+    // ── 2b. Skills — root → skill leaves ─────────────────────────────────────
+
+    {
+      const skillsNode: SkillsNodeType = {
+        id: "skills",
+        type: "skills",
+        position: { x: ITEMS_COL_X, y: skillsLayout.parentY },
+        draggable: false,
+        connectable: false,
+        data: {
+          skills: skillToggleItems,
+          width: groupInnerWidth,
+          onToggleSkill: handleToggleSkill,
+        },
+      };
+      result.push(skillsNode);
+
+      if (connectedSkills.length > 0) {
+        const childWidth = measureChildWidth(
+          connectedSkills.map((s) => s.label),
+          TOOL_CHILD_CHROME,
+          groupInnerWidth,
+          measureMaxTextWidth,
+        );
+
+        connectedSkills.forEach((skill, i) => {
+          const leaf: ConnectedToolNodeType = {
+            id: `skill-child-${skill.id}`,
+            type: "connectedTool",
+            position: { x: midX, y: skillsLayout.childTop + i * TOOL_FANOUT_GAP_Y },
+            draggable: false,
+            connectable: false,
+            selectable: false,
+            data: {
+              label: skill.label,
+              width: childWidth,
+              accent: "skill",
+            },
+          };
+          result.push(leaf);
+        });
+      }
+    }
+
     // ── 3. Call Agents — single card + fan-out children ────────────────────
 
     {
@@ -511,7 +585,10 @@ function AgentFlowInner({
     toolGroups,
     callAgentTeams,
     assignedToolIds,
+    assignedSkillIds,
+    allSkills,
     handleToggleTool,
+    handleToggleSkill,
     onToggleCallableAgent,
     selectedProviderId,
     aiModel,
@@ -560,58 +637,60 @@ function AgentFlowInner({
 
   const edges = useMemo(() => {
     const result: Edge[] = [];
+    const hasMcpNode = mcpServers.some((s) => s.isActive !== false && (s.tools?.length ?? 0) > 0);
+    const allMcpConnectedIds = [...mcpServerConnectedIds.values()].flat();
+    const assignedSkillIdList = skillAssignments.map((a) => a.skillId);
+    const toolsCount = localAssignedToolIds.length;
+    const mcpCount = allMcpConnectedIds.length;
+    const skillsCount = assignedSkillIdList.length;
+    const agentsCount = callableAgentIds.length;
 
-    // Tools: root → config, root → each connected tool leaf
-    if (localAssignedToolIds.length > 0) {
+    // Tools: always link card → config; fan-out only for connected leaves
+    result.push({
+      id: "edge-tools",
+      source: "tools",
+      sourceHandle: "to-config",
+      target: "config",
+      targetHandle: "tools",
+      type: "counted",
+      animated: false,
+      selectable: false,
+      deletable: false,
+      focusable: false,
+      data: { count: toolsCount, color: TOOL_EDGE_COLOR },
+      style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 2, opacity: toolsCount > 0 ? 0.5 : 0.22 },
+    });
+
+    for (const toolId of localAssignedToolIds) {
       result.push({
-        id: "edge-tools",
+        id: `edge-tool-child-${toolId}`,
         source: "tools",
-        sourceHandle: "to-config",
-        target: "config",
-        targetHandle: "tools",
-        type: "deletable",
+        sourceHandle: "to-tools",
+        target: `tool-child-${toolId}`,
+        type: "default",
         animated: false,
-        selected: selectedEdgeId === "edge-tools",
-        data: {
-          onDelete: () => {
-            for (const toolId of localAssignedToolIds) onRemoveToolAssignment(toolId);
-          },
-        },
-        style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
+        selectable: false,
+        deletable: false,
+        focusable: false,
+        style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 0.5, opacity: 0.45 },
       });
-
-      for (const toolId of localAssignedToolIds) {
-        result.push({
-          id: `edge-tool-child-${toolId}`,
-          source: "tools",
-          sourceHandle: "to-tools",
-          target: `tool-child-${toolId}`,
-          type: "default",
-          animated: false,
-          selectable: false,
-          deletable: false,
-          focusable: false,
-          style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 0.5, opacity: 0.45 },
-        });
-      }
     }
 
-    // MCP: root → config, root → each connected tool leaf
-    const allMcpConnectedIds = [...mcpServerConnectedIds.values()].flat();
-    if (allMcpConnectedIds.length > 0) {
+    // MCP: always link card → config when MCP node exists
+    if (hasMcpNode) {
       result.push({
         id: "edge-mcp-servers",
         source: "mcp-servers",
         sourceHandle: "to-config",
         target: "config",
         targetHandle: "tools",
-        type: "deletable",
-        animated: true,
-        selected: selectedEdgeId === "edge-mcp-servers",
-        data: {
-          onDelete: () => onToggleMcpTools(allMcpConnectedIds, false),
-        },
-        style: { stroke: MCP_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
+        type: "counted",
+        animated: mcpCount > 0,
+        selectable: false,
+        deletable: false,
+        focusable: false,
+        data: { count: mcpCount, color: MCP_EDGE_COLOR },
+        style: { stroke: MCP_EDGE_COLOR, strokeWidth: 2, opacity: mcpCount > 0 ? 0.5 : 0.22 },
       });
 
       for (const toolId of allMcpConnectedIds) {
@@ -630,38 +709,66 @@ function AgentFlowInner({
       }
     }
 
-    // One edge from Call Agents card → config when ≥1 agent is connected
-    if (callableAgentIds.length > 0) {
-      result.push({
-        id: "edge-call-agents",
-        source: "call-agents",
-        sourceHandle: "to-config",
-        target: "config",
-        targetHandle: "agents",
-        type: "deletable",
-        animated: true,
-        selected: selectedEdgeId === "edge-call-agents",
-        data: {
-          onDelete: () => onToggleCallableAgents([...callableAgentIds], false),
-        },
-        style: { stroke: AGENT_EDGE_COLOR, strokeWidth: 2, opacity: 0.5 },
-      });
+    // Skills: always link card → config
+    result.push({
+      id: "edge-skills",
+      source: "skills",
+      sourceHandle: "to-config",
+      target: "config",
+      targetHandle: "skills",
+      type: "counted",
+      animated: false,
+      selectable: false,
+      deletable: false,
+      focusable: false,
+      data: { count: skillsCount, color: SKILL_EDGE_COLOR },
+      style: { stroke: SKILL_EDGE_COLOR, strokeWidth: 2, opacity: skillsCount > 0 ? 0.5 : 0.22 },
+    });
 
-      // Fan-out branches: Call Agents → each connected child agent (display only)
-      for (const agentId of callableAgentIds) {
-        result.push({
-          id: `edge-call-child-${agentId}`,
-          source: "call-agents",
-          sourceHandle: "to-agents",
-          target: `agent-${agentId}`,
-          type: "default",
-          animated: true,
-          selectable: false,
-          deletable: false,
-          focusable: false,
-          style: { stroke: AGENT_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
-        });
-      }
+    for (const skillId of assignedSkillIdList) {
+      result.push({
+        id: `edge-skill-child-${skillId}`,
+        source: "skills",
+        sourceHandle: "to-skills",
+        target: `skill-child-${skillId}`,
+        type: "default",
+        animated: false,
+        selectable: false,
+        deletable: false,
+        focusable: false,
+        style: { stroke: SKILL_EDGE_COLOR, strokeWidth: 0.5, opacity: 0.45 },
+      });
+    }
+
+    // Call Agents: always link card → config
+    result.push({
+      id: "edge-call-agents",
+      source: "call-agents",
+      sourceHandle: "to-config",
+      target: "config",
+      targetHandle: "agents",
+      type: "counted",
+      animated: agentsCount > 0,
+      selectable: false,
+      deletable: false,
+      focusable: false,
+      data: { count: agentsCount, color: AGENT_EDGE_COLOR },
+      style: { stroke: AGENT_EDGE_COLOR, strokeWidth: 2, opacity: agentsCount > 0 ? 0.5 : 0.22 },
+    });
+
+    for (const agentId of callableAgentIds) {
+      result.push({
+        id: `edge-call-child-${agentId}`,
+        source: "call-agents",
+        sourceHandle: "to-agents",
+        target: `agent-${agentId}`,
+        type: "default",
+        animated: true,
+        selectable: false,
+        deletable: false,
+        focusable: false,
+        style: { stroke: AGENT_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.45 },
+      });
     }
 
     // Edge from Publish node → config node (publish handle)
@@ -675,52 +782,18 @@ function AgentFlowInner({
         animated: true,
         selectable: false,
         deletable: false,
+        focusable: false,
         style: { stroke: PUBLISH_EDGE_COLOR, strokeWidth: 1.5, opacity: 0.35 },
       });
     }
 
     return result;
-  }, [
-    localAssignedToolIds,
-    callableAgentIds,
-    selectedEdgeId,
-    onRemoveToolAssignment,
-    onToggleMcpTools,
-    onToggleCallableAgents,
-    isPublic,
-    mcpServerConnectedIds,
-  ]);
-
-  // ─── Edge Delete Handler ───────────────────────────────────────────────────
-
-  const onEdgesDelete = useCallback(
-    (deletedEdges: Edge[]) => {
-      for (const edge of deletedEdges) {
-        if (edge.id === "edge-tools") {
-          for (const toolId of localAssignedToolIds) onRemoveToolAssignment(toolId);
-        } else if (edge.id === "edge-mcp-servers") {
-          const toolIds = [...mcpServerConnectedIds.values()].flat();
-          onToggleMcpTools(toolIds, false);
-        } else if (edge.id === "edge-call-agents") {
-          onToggleCallableAgents([...callableAgentIds], false);
-        }
-      }
-    },
-    [localAssignedToolIds, onRemoveToolAssignment, onToggleMcpTools, onToggleCallableAgents, mcpServerConnectedIds, callableAgentIds],
-  );
+  }, [localAssignedToolIds, skillAssignments, callableAgentIds, isPublic, mcpServerConnectedIds, mcpServers]);
 
   // ─── Connection / validation (mostly unused for modal cards) ──────────────
 
   const onConnect = useCallback((_connection: Connection) => {}, []);
   const isValidConnection = useCallback((_connection: Connection | Edge) => false, []);
-
-  const onEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
-    setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id));
-  }, []);
-
-  const onPaneClick = useCallback(() => {
-    setSelectedEdgeId(null);
-  }, []);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -732,8 +805,7 @@ function AgentFlowInner({
         .agent-detail-flow .react-flow__background pattern circle { fill: rgba(255,255,255,0.06) !important }
         .agent-detail-flow .react-flow__edge-path { stroke-width: 2 }
         .agent-detail-flow .react-flow__edge.animated .react-flow__edge-path { stroke-dasharray: 6 4; animation: agentFlowDash 1.2s linear infinite }
-        .agent-detail-flow .react-flow__edge { cursor: pointer }
-        .agent-detail-flow .react-flow__edge:hover .react-flow__edge-path { stroke-width: 3; opacity: 1 !important }
+        .agent-detail-flow .react-flow__edge { pointer-events: none }
         .agent-detail-flow .react-flow__selection { background: color-mix(in srgb, var(--primary) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent) }
         @keyframes agentFlowDash { to { stroke-dashoffset: -20 } }
       `}</style>
@@ -775,21 +847,19 @@ function AgentFlowInner({
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onEdgesDelete={onEdgesDelete}
         onConnect={onConnect}
-        onEdgeClick={onEdgeClick}
-        onPaneClick={onPaneClick}
         isValidConnection={isValidConnection}
         fitView
         fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
         minZoom={0.3}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{ type: "deletable", animated: true }}
+        defaultEdgeOptions={{ type: "counted", animated: true }}
         nodesDraggable={true}
         nodesConnectable={true}
         elementsSelectable={true}
-        deleteKeyCode="Backspace"
+        edgesFocusable={false}
+        deleteKeyCode={null}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
       </ReactFlow>

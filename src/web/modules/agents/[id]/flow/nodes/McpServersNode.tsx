@@ -1,11 +1,12 @@
 // ─── MCP Servers Node ─────────────────────────────────────────────────────────
 // Single card node (like Tools). Click opens a popover listing MCP tools
-// grouped by server, each with a Switch. Connected tools fan out as children.
+// grouped by server (tree lines), each with a Switch. Connected tools fan out as children.
 
-import { CloseCircle, PlugCircle } from "@solar-icons/react";
+import { CloseCircle, Planet2 } from "@solar-icons/react";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";
+import { cn } from "src/common/lib/cn";
 
 export type McpToolToggleItem = {
   id: string;
@@ -28,16 +29,37 @@ export type McpServersNodeData = {
 export type McpServersNodeType = Node<McpServersNodeData, "mcpServers">;
 
 const MCP_COLOR = "var(--edge-mcp)";
+const TREE_STROKE = "text-muted-foreground/40";
+const TREE_LINE_FILL = "bg-muted-foreground/40";
+
+function TreeGuide({ isLast }: { isLast: boolean }) {
+  return (
+    <div className={cn("pointer-events-none relative w-5 shrink-0 self-stretch", TREE_STROKE)} aria-hidden>
+      {isLast ? (
+        <>
+          <div className={cn("absolute left-1/2 top-0 w-px -translate-x-1/2", TREE_LINE_FILL, "h-[calc(50%-6px)]")} />
+          <svg className="absolute left-[calc(50%-0.5px)] top-[calc(50%-6px)] overflow-visible" width="12" height="7" viewBox="0 0 12 7" fill="none">
+            <path d="M0.5 0 V1 Q0.5 6.5 6 6.5 H12" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+          </svg>
+        </>
+      ) : (
+        <>
+          <div className={cn("absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2", TREE_LINE_FILL)} />
+          <div className={cn("absolute left-1/2 top-1/2 h-px w-2.5 -translate-y-1/2", TREE_LINE_FILL)} />
+        </>
+      )}
+    </div>
+  );
+}
 
 export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
   const [open, setOpen] = useState(false);
 
-  const { connectedCount, totalCount, serverCount } = useMemo(() => {
+  const { connectedCount, totalCount } = useMemo(() => {
     const all = data.groups.flatMap((g) => g.tools);
     return {
       connectedCount: all.filter((t) => t.connected).length,
       totalCount: all.length,
-      serverCount: data.groups.length,
     };
   }, [data.groups]);
 
@@ -45,25 +67,30 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
 
   return (
     <div className="relative" style={data.width ? { width: data.width } : undefined}>
-      {hasConnection && (
-        <Handle id="to-config" type="source" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !left-0" />
-      )}
+      <Handle id="to-config" type="source" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !left-0" />
 
-      {/* Fan-out to connected tool leaves */}
       {hasConnection && (
-        <Handle id="to-servers" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />
+        <Handle
+          id="to-servers"
+          type="source"
+          position={Position.Right}
+          className="!border-0 !bg-transparent"
+          style={{ top: "50%", right: 0, width: 1, height: 1, opacity: 0, transform: "translate(50%, -50%)" }}
+        />
       )}
 
       <Popover
         open={open}
         onOpenChange={setOpen}
         trigger="click"
-        placement={hasConnection ? "bottom" : "right"}
+        placement="right"
         arrow={{ pointAtCenter: true }}
         styles={{
-          root: { width: 340 },
+          root: { width: "max-content", minWidth: 280, maxWidth: 560 },
           container: {
-            width: 340,
+            width: "max-content",
+            minWidth: 280,
+            maxWidth: 560,
             padding: 0,
             overflow: "hidden",
             borderRadius: 12,
@@ -73,7 +100,7 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
           },
         }}
         content={
-          <div className="nodrag nowheel nopan w-[340px]">
+          <div className="nodrag nowheel nopan min-w-[280px] w-max max-w-[560px]">
             <div
               className="flex items-center gap-2.5 px-3.5 py-3 border-b"
               style={{
@@ -87,7 +114,7 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
                 className="w-7 h-7 rounded-[7px] flex items-center justify-center shrink-0 ring-1 ring-edge-mcp/25"
                 style={{ background: "color-mix(in srgb, var(--edge-mcp) 22%, transparent)", color: MCP_COLOR }}
               >
-                <PlugCircle weight="BoldDuotone" width={15} height={15} />
+                <Planet2 weight="BoldDuotone" width={15} height={15} />
               </div>
               <div className="min-w-0 flex-1 text-[14px] font-semibold text-foreground truncate">MCP Servers</div>
               <button
@@ -105,22 +132,32 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
                 <div className="px-3.5 py-6 text-[12px] text-muted-foreground text-center">No MCP tools available</div>
               ) : (
                 data.groups.map((group) => (
-                  <div key={group.id} className="pb-1">
-                    <div className="px-3.5 pt-2.5 pb-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{group.name}</span>
+                  <div key={group.id} className="w-full pb-1.5">
+                    <div className="px-3.5 pt-2.5 pb-2 pl-5.5">
+                      <span className="whitespace-nowrap text-[10px] font-bold uppercase text-muted-foreground">{group.name}</span>
                     </div>
 
-                    {group.tools.map((tool) => (
-                      <div key={tool.id} className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-muted/40 transition-colors">
-                        <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>
-                        <Switch
-                          size="small"
-                          checked={tool.connected}
-                          onChange={(checked) => data.onToggleTool(tool.id, checked)}
-                          aria-label={`Toggle ${group.name} → ${tool.label}`}
-                        />
-                      </div>
-                    ))}
+                    <div className="w-full px-3.5">
+                      {group.tools.map((tool, index) => {
+                        const isLast = index === group.tools.length - 1;
+                        return (
+                          <button
+                            key={tool.id}
+                            type="button"
+                            className="nodrag nopan flex w-full cursor-pointer items-stretch border-0 bg-transparent p-0 text-left font-[inherit] hover:bg-muted/80 transition-colors"
+                            onClick={() => data.onToggleTool(tool.id, !tool.connected)}
+                            aria-pressed={tool.connected}
+                            aria-label={`Toggle ${group.name} → ${tool.label}`}
+                          >
+                            <TreeGuide isLast={isLast} />
+                            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 py-2 pl-2.5 pr-0.5">
+                              <div className="whitespace-nowrap text-[13px] font-medium text-foreground">{tool.label}</div>
+                              <Switch size="small" className="shrink-0 pointer-events-none" checked={tool.connected} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))
               )}
@@ -130,26 +167,12 @@ export function McpServersNode({ data }: NodeProps<McpServersNodeType>) {
       >
         <button
           type="button"
-          className={`nodrag nopan relative flex items-center gap-2 w-full pl-3.5 pr-2.5 py-2 rounded-md border cursor-pointer transition-all duration-150 text-left font-[inherit] ${
-            hasConnection
-              ? "border-edge-mcp/25 bg-edge-mcp/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-edge-mcp/40 hover:bg-edge-mcp/18"
-              : "border-border/50 bg-muted/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-border hover:bg-muted/55"
+          className={`nodrag nopan relative flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border bg-card px-2 py-3 text-center font-[inherit] transition-colors duration-150 hover:bg-muted/30 ${
+            hasConnection ? "border-edge-mcp/40" : "border-border"
           }`}
         >
-          <div
-            className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
-            style={{ background: "color-mix(in srgb, var(--edge-mcp) 12%, transparent)", color: MCP_COLOR }}
-          >
-            <PlugCircle weight="BoldDuotone" width={14} height={14} />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-foreground leading-[1.3] truncate">MCP Servers</div>
-            <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-              {serverCount} servers · {totalCount} tools
-              {connectedCount > 0 ? ` · ${connectedCount} on` : ""}
-            </div>
-          </div>
+          <Planet2 weight="BoldDuotone" width={20} height={20} style={{ color: MCP_COLOR }} />
+          <div className="w-full text-[11px] font-semibold leading-tight text-foreground">MCP Servers</div>
         </button>
       </Popover>
     </div>

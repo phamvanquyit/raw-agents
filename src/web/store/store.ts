@@ -14,6 +14,7 @@ import { sitesReducer } from "src/modules/sites/common/sitesSlice";
 import { teamsReducer } from "src/modules/teams/common/teamsSlice";
 import { toolFoldersReducer } from "src/modules/tools/common/toolFoldersSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
+import { skillsReducer } from "src/modules/skills/common/skillsSlice";
 
 export const store = configureStore({
   reducer: {
@@ -22,6 +23,7 @@ export const store = configureStore({
     agents: agentsReducer,
     tools: toolsReducer,
     toolFolders: toolFoldersReducer,
+    skills: skillsReducer,
     teams: teamsReducer,
     chat: chatReducer,
     mcpServers: mcpServersReducer,

@@ -2,7 +2,7 @@
 // Single card node (like Tools / MCP Servers). Click opens a popover listing other
 // agents grouped by team, each with a Switch to enable/disable call_agent.
 
-import { CloseCircle, UsersGroupTwoRounded } from "@solar-icons/react";
+import { CloseCircle, FaceScanSquare } from "@solar-icons/react";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";
@@ -48,27 +48,23 @@ export function CallAgentsNode({ data }: NodeProps<CallAgentsNodeType>) {
 
   return (
     <div className="relative" style={data.width ? { width: data.width } : undefined}>
-      {/* Edge into the central config node */}
+      <Handle id="to-config" type="source" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !left-0" />
+
       {hasConnection && (
         <Handle
-          id="to-config"
+          id="to-agents"
           type="source"
-          position={Position.Left}
-          className="!w-2 !h-2 !bg-muted !border-2 transition-all duration-150 !left-1.5"
-          style={{ borderColor: "color-mix(in srgb, var(--edge-call-agent) 60%, transparent)" }}
+          position={Position.Right}
+          className="!border-0 !bg-transparent"
+          style={{ top: "50%", right: 0, width: 1, height: 1, opacity: 0, transform: "translate(50%, -50%)" }}
         />
-      )}
-
-      {/* Fan-out edges to connected child agent nodes on the right (hidden marker) */}
-      {hasConnection && (
-        <Handle id="to-agents" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />
       )}
 
       <Popover
         open={open}
         onOpenChange={setOpen}
         trigger="click"
-        placement={hasConnection ? "bottom" : "right"}
+        placement="right"
         arrow={{ pointAtCenter: true }}
         styles={{
           root: { width: 340 },
@@ -97,7 +93,7 @@ export function CallAgentsNode({ data }: NodeProps<CallAgentsNodeType>) {
                 className="w-7 h-7 rounded-[7px] flex items-center justify-center shrink-0 ring-1 ring-edge-call-agent/25"
                 style={{ background: "color-mix(in srgb, var(--edge-call-agent) 22%, transparent)", color: CALL_AGENT_COLOR }}
               >
-                <UsersGroupTwoRounded weight="BoldDuotone" width={15} height={15} />
+                <FaceScanSquare weight="BoldDuotone" width={15} height={15} />
               </div>
               <div className="min-w-0 flex-1 text-[14px] font-semibold text-foreground truncate">Call Agents</div>
               <button
@@ -141,26 +137,12 @@ export function CallAgentsNode({ data }: NodeProps<CallAgentsNodeType>) {
       >
         <button
           type="button"
-          className={`nodrag nopan relative flex items-center gap-2 w-full pl-3.5 pr-2.5 py-2 rounded-md border bg-card cursor-pointer transition-all duration-150 text-left font-[inherit] ${
-            hasConnection
-              ? "border-edge-call-agent/35 hover:border-edge-call-agent/55 hover:bg-edge-call-agent/6"
-              : "border-border hover:border-edge-call-agent/25 hover:bg-muted/40"
+          className={`nodrag nopan relative flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border bg-card px-2 py-3 text-center font-[inherit] transition-colors duration-150 hover:bg-muted/30 ${
+            hasConnection ? "border-edge-call-agent/40" : "border-border"
           }`}
         >
-          <div
-            className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
-            style={{ background: "color-mix(in srgb, var(--edge-call-agent) 12%, transparent)", color: CALL_AGENT_COLOR }}
-          >
-            <UsersGroupTwoRounded weight="BoldDuotone" width={14} height={14} />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-foreground leading-[1.3] truncate">Call Agents</div>
-            <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-              {totalCount} agents
-              {connectedCount > 0 ? ` · ${connectedCount} on` : ""}
-            </div>
-          </div>
+          <FaceScanSquare weight="BoldDuotone" width={20} height={20} className="block" style={{ color: CALL_AGENT_COLOR }} />
+          <div className="w-full text-[11px] font-semibold leading-none text-foreground">Call Agents</div>
         </button>
       </Popover>
     </div>

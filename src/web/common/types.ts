@@ -132,6 +132,42 @@ export interface AgentTool {
 
 export type NewAgentTool = Omit<AgentTool, "id" | "createdAt">;
 
+// ─── Skills ───────────────────────────────────────────────────────────────────
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  draftContent?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type NewSkill = Partial<Skill> & { name: string; description: string };
+
+export interface SkillReference {
+  id: string;
+  skillId: string;
+  name: string;
+  title: string;
+  content: string;
+  draftContent?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AgentSkillAssignment {
+  id: string;
+  agentId: string;
+  skillId: string;
+  createdAt: Date;
+  skill: {
+    name: string;
+    description: string;
+  };
+}
+
 // ─── Agent Tool Assignments ─────────────────────────────────────────────────
 
 export interface AgentToolAssignment {

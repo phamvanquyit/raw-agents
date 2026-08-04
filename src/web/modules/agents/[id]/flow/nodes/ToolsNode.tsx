@@ -68,12 +68,16 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
 
   return (
     <div className="relative" style={data.width ? { width: data.width } : undefined}>
-      {hasConnection && (
-        <Handle id="to-config" type="source" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !left-0" />
-      )}
+      <Handle id="to-config" type="source" position={Position.Left} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !left-0" />
 
       {hasConnection && (
-        <Handle id="to-tools" type="source" position={Position.Right} className="!w-1.5 !h-1.5 !bg-transparent !border-0 !opacity-0 !right-0" />
+        <Handle
+          id="to-tools"
+          type="source"
+          position={Position.Right}
+          className="!border-0 !bg-transparent"
+          style={{ top: "50%", right: 0, width: 1, height: 1, opacity: 0, transform: "translate(50%, -50%)" }}
+        />
       )}
 
       <Popover
@@ -83,9 +87,11 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
         placement={"right"}
         arrow={{ pointAtCenter: true }}
         styles={{
-          root: { width: 340 },
+          root: { width: "max-content", minWidth: 280, maxWidth: 560 },
           container: {
-            width: 340,
+            width: "max-content",
+            minWidth: 280,
+            maxWidth: 560,
             padding: 0,
             overflow: "hidden",
             borderRadius: 12,
@@ -95,7 +101,7 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
           },
         }}
         content={
-          <div className="nodrag nowheel nopan w-[340px]">
+          <div className="nodrag nowheel nopan min-w-[280px] w-max max-w-[560px]">
             <div
               className="flex items-center gap-2.5 px-3.5 py-3 border-b"
               style={{
@@ -127,27 +133,29 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
                 <div className="px-3.5 py-6 text-[12px] text-muted-foreground text-center">No tools available</div>
               ) : (
                 data.groups.map((group) => (
-                  <div key={group.id ?? group.name} className="pb-1.5">
+                  <div key={group.id ?? group.name} className="w-full pb-1.5">
                     <div className="px-3.5 pt-2.5 pb-2 pl-5.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{group.name}</span>
+                      <span className="whitespace-nowrap text-[10px] font-bold uppercase text-muted-foreground">{group.name}</span>
                     </div>
 
-                    <div className="px-3.5">
+                    <div className="w-full px-3.5">
                       {group.tools.map((tool, index) => {
                         const isLast = index === group.tools.length - 1;
                         return (
-                          <div key={tool.id} className="flex items-stretch hover:bg-muted/40 transition-colors">
+                          <button
+                            key={tool.id}
+                            type="button"
+                            className="nodrag nopan flex w-full cursor-pointer items-stretch border-0 bg-transparent p-0 text-left font-[inherit] hover:bg-muted/80 transition-colors"
+                            onClick={() => data.onToggleTool(tool.id, !tool.connected)}
+                            aria-pressed={tool.connected}
+                            aria-label={`Toggle ${tool.label}`}
+                          >
                             <TreeGuide isLast={isLast} />
-                            <div className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5">
-                              <div className="min-w-0 flex-1 text-[13px] font-medium text-foreground truncate">{tool.label}</div>
-                              <Switch
-                                size="small"
-                                checked={tool.connected}
-                                onChange={(checked) => data.onToggleTool(tool.id, checked)}
-                                aria-label={`Toggle ${tool.label}`}
-                              />
+                            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 py-2 pl-2.5 pr-0.5">
+                              <div className="whitespace-nowrap text-[13px] font-medium text-foreground">{tool.label}</div>
+                              <Switch size="small" className="shrink-0 pointer-events-none" checked={tool.connected} />
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -160,26 +168,12 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
       >
         <button
           type="button"
-          className={`nodrag nopan relative flex items-center gap-2 w-full pl-3.5 pr-2.5 py-2 rounded-md border cursor-pointer transition-all duration-150 text-left font-[inherit] ${
-            hasConnection
-              ? "border-edge-tool/25 bg-edge-tool/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-edge-tool/40 hover:bg-edge-tool/18"
-              : "border-border/50 bg-muted/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-border hover:bg-muted/55"
+          className={`nodrag nopan relative flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border bg-card px-2 py-3 text-center font-[inherit] transition-colors duration-150 hover:bg-muted/30 ${
+            hasConnection ? "border-edge-tool/40" : "border-border"
           }`}
         >
-          <div
-            className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
-            style={{ background: "color-mix(in srgb, var(--edge-tool) 12%, transparent)", color: TOOL_COLOR }}
-          >
-            <Programming weight="BoldDuotone" width={14} height={14} />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-foreground leading-[1.3] truncate">Tools</div>
-            <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-              {totalCount} tools
-              {connectedCount > 0 ? ` · ${connectedCount} on` : ""}
-            </div>
-          </div>
+          <Programming weight="BoldDuotone" width={20} height={20} style={{ color: TOOL_COLOR }} />
+          <div className="w-full text-[11px] font-semibold leading-tight text-foreground">Tools</div>
         </button>
       </Popover>
     </div>

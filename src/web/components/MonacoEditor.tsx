@@ -4,6 +4,8 @@ import type { EditorProps, Monaco, DiffEditorProps as MonacoDiffEditorProps } fr
 import MonacoReactEditor, { DiffEditor as MonacoReactDiffEditor, loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import type { editor as editorNS } from "monaco-editor";
+// @ts-expect-error deep monaco language path has no types
+import { conf as markdownConf, language as markdownLanguage } from "monaco-editor/esm/vs/basic-languages/markdown/markdown.js";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import TsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
@@ -21,7 +23,49 @@ loader.config({ monaco });
 export type EditorInstance = editorNS.IStandaloneCodeEditor;
 export type { Monaco };
 
+const RAW_DARK_THEME = "raw-dark";
+let rawDarkThemeRegistered = false;
 let scriptDtsRegistered = false;
+let markdownTokensRegistered = false;
+
+function ensureMarkdownLanguage(monacoInstance: Monaco) {
+  if (markdownTokensRegistered) return;
+  markdownTokensRegistered = true;
+  monacoInstance.languages.setMonarchTokensProvider("markdown", markdownLanguage);
+  monacoInstance.languages.setLanguageConfiguration("markdown", markdownConf);
+}
+
+function ensureRawDarkTheme(monacoInstance: Monaco) {
+  monacoInstance.editor.defineTheme(RAW_DARK_THEME, {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "keyword.md", foreground: "599ce7", fontStyle: "bold" },
+      { token: "strong.md", foreground: "ebebeb", fontStyle: "bold" },
+      { token: "emphasis.md", foreground: "8c8c8c", fontStyle: "italic" },
+      { token: "comment.md", foreground: "636363", fontStyle: "italic" },
+      { token: "string.md", foreground: "0ac864" },
+      { token: "variable.md", foreground: "f1b467" },
+      { token: "string.link.md", foreground: "599ce7" },
+      { token: "variable.source.md", foreground: "8c8c8c" },
+      { token: "meta.separator.md", foreground: "636363" },
+      { token: "tag.md", foreground: "dd7627" },
+      { token: "keyword.table.header.md", foreground: "599ce7", fontStyle: "bold" },
+    ],
+    colors: {
+      "editor.lineHighlightBackground": "#ffffff0a",
+      "editor.lineHighlightBorder": "#00000000",
+    },
+  });
+  if (!rawDarkThemeRegistered) {
+    rawDarkThemeRegistered = true;
+  }
+}
+
+function prepareMonaco(monacoInstance: Monaco) {
+  ensureRawDarkTheme(monacoInstance);
+  ensureMarkdownLanguage(monacoInstance);
+}
 
 function ensureScriptDts(monacoInstance: Monaco) {
   if (scriptDtsRegistered) return;
@@ -67,6 +111,12 @@ const DEFAULT_OPTIONS: editorNS.IStandaloneEditorConstructionOptions = {
     horizontal: "visible",
   },
   stickyScroll: { enabled: false },
+  renderLineHighlight: "line",
+  unicodeHighlight: {
+    ambiguousCharacters: false,
+    invisibleCharacters: false,
+    nonBasicASCII: false,
+  },
 };
 
 export interface MonacoEditorProps extends Omit<EditorProps, "loading" | "theme"> {
@@ -76,22 +126,31 @@ export interface MonacoEditorProps extends Omit<EditorProps, "loading" | "theme"
   onSave?: () => void;
 }
 
-export function MonacoEditor({ theme = "vs-dark", options, height = "100%", onSave, onMount, ...props }: MonacoEditorProps) {
+export function MonacoEditor({ theme = RAW_DARK_THEME, options, height = "100%", onSave, onMount, ...props }: MonacoEditorProps) {
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
   const handleMount: EditorProps["onMount"] = useCallback(
     (editor: EditorInstance, monacoInstance: Monaco) => {
+      prepareMonaco(monacoInstance);
       ensureScriptDts(monacoInstance);
+      monacoInstance.editor.setTheme(theme);
+      editor.updateOptions({
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+          invisibleCharacters: false,
+          nonBasicASCII: false,
+        },
+      });
       editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
         onSaveRef.current?.();
       });
       onMount?.(editor, monacoInstance);
     },
-    [onMount],
+    [onMount, theme],
   );
 
-  return <MonacoReactEditor height={height} theme={theme} options={{ ...DEFAULT_OPTIONS, ...options }} onMount={handleMount} {...props} />;
+  return <MonacoReactEditor height={height} theme={theme} options={{ ...DEFAULT_OPTIONS, ...options }} onMount={handleMount} beforeMount={prepareMonaco} {...props} />;
 }
 
 const DEFAULT_DIFF_OPTIONS: editorNS.IDiffEditorConstructionOptions = {
@@ -109,6 +168,11 @@ const DEFAULT_DIFF_OPTIONS: editorNS.IDiffEditorConstructionOptions = {
   stickyScroll: { enabled: false },
   readOnly: true,
   renderSideBySide: false,
+  unicodeHighlight: {
+    ambiguousCharacters: false,
+    invisibleCharacters: false,
+    nonBasicASCII: false,
+  },
 };
 
 export interface DiffEditorComponentProps extends Omit<MonacoDiffEditorProps, "loading" | "theme"> {
@@ -117,14 +181,15 @@ export interface DiffEditorComponentProps extends Omit<MonacoDiffEditorProps, "l
   options?: editorNS.IDiffEditorConstructionOptions;
 }
 
-export function MonacoDiffEditor({ theme = "vs-dark", options, height = "100%", onMount, ...props }: DiffEditorComponentProps) {
+export function MonacoDiffEditor({ theme = RAW_DARK_THEME, options, height = "100%", onMount, ...props }: DiffEditorComponentProps) {
   const handleMount: NonNullable<MonacoDiffEditorProps["onMount"]> = useCallback(
     (editor, monacoInstance) => {
+      prepareMonaco(monacoInstance);
       ensureScriptDts(monacoInstance);
       onMount?.(editor, monacoInstance);
     },
     [onMount],
   );
 
-  return <MonacoReactDiffEditor height={height} theme={theme} options={{ ...DEFAULT_DIFF_OPTIONS, ...options }} onMount={handleMount} {...props} />;
+  return <MonacoReactDiffEditor height={height} theme={theme} options={{ ...DEFAULT_DIFF_OPTIONS, ...options }} onMount={handleMount} beforeMount={prepareMonaco} {...props} />;
 }

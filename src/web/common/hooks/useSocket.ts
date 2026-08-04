@@ -7,12 +7,13 @@
 
 import { useEffect } from "react";
 import { getAuthToken } from "src/common/api";
-import type { Agent, AgentConversation, AgentTool, KvStoreEntry, McpServer, SecretEntry } from "src/common/types";
+import type { Agent, AgentConversation, AgentTool, KvStoreEntry, McpServer, SecretEntry, Skill } from "src/common/types";
 import { removeAgentLocal, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
 import { removeConversationLocal, upsertConversationLocal } from "src/modules/chat/common/chatSlice";
 import { removeKvEntryLocal, upsertKvEntryLocal } from "src/modules/kvstore/common/kvStoreSlice";
 import { removeMcpServerLocal, upsertMcpServerLocal } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { removeSecretLocal, upsertSecretLocal } from "src/modules/secrets/common/secretsSlice";
+import { removeSkillLocal, upsertSkillLocal } from "src/modules/skills/common/skillsSlice";
 import { removeTeamLocal, upsertTeamLocal } from "src/modules/teams/common/teamsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { removeToolFolderLocal, reorderToolFoldersLocal, upsertToolFolderLocal } from "src/modules/tools/common/toolFoldersSlice";
@@ -79,6 +80,16 @@ function handleEvent(event: WsEvent) {
     case "tools:reordered": {
       const { folderId, toolIds } = payload as { folderId: string | null; toolIds: string[] };
       store.dispatch(reorderToolsLocal({ folderId, toolIds }));
+      break;
+    }
+
+    case "skills:created":
+    case "skills:updated": {
+      store.dispatch(upsertSkillLocal(payload as Skill));
+      break;
+    }
+    case "skills:deleted": {
+      store.dispatch(removeSkillLocal((payload as { id: string }).id));
       break;
     }
 

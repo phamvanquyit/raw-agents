@@ -8,10 +8,11 @@ import {
   LockPassword,
   Logout2,
   MenuDots,
-  PlugCircle,
   Programming,
   Settings,
-  Stopwatch,
+  AlarmPlay,
+  Planet2,
+  Stars,
   User as UserIcon,
 } from "@solar-icons/react";
 import { Dropdown } from "antd";
@@ -41,12 +42,13 @@ const WORKSPACE_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: <HomeAngle {...ICON} /> },
   { to: "/agents", label: "Agents", icon: <FaceScanSquare {...ICON} /> },
   { to: "/tools", label: "Tools", icon: <Programming {...ICON} /> },
-  { to: "/mcp-servers", label: "MCP", icon: <PlugCircle {...ICON} /> },
+  { to: "/skills", label: "Skills", icon: <Stars {...ICON} /> },
+  { to: "/mcp-servers", label: "MCP", icon: <Planet2 {...ICON} /> },
 ];
 
 const CAPABILITIES_NAV: NavItem[] = [
   { to: "/sites", label: "Sites", icon: <Global {...ICON} /> },
-  { to: "/jobs", label: "Jobs", icon: <Stopwatch {...ICON} />, adminOnly: true },
+  { to: "/jobs", label: "Jobs", icon: <AlarmPlay {...ICON} />, adminOnly: true },
 ];
 
 const RESOURCES_NAV: NavItem[] = [

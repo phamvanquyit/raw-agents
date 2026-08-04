@@ -3,8 +3,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { Agent, AgentListItem, AgentTool, AgentToolAssignment, McpServer } from "src/common/types";
+import type { Agent, AgentListItem, AgentSkillAssignment, AgentTool, AgentToolAssignment, McpServer, Skill } from "src/common/types";
 import { fetchMcpServers } from "src/modules/mcp-servers/common/mcpServersSlice";
+import { fetchSkills } from "src/modules/skills/common/skillsSlice";
 import { fetchTeams } from "src/modules/teams/common/teamsSlice";
 import { fetchToolFolders } from "src/modules/tools/common/toolFoldersSlice";
 import { fetchTools } from "src/modules/tools/common/toolsSlice";
@@ -24,6 +25,11 @@ async function fetchAssignments(agentId: string): Promise<AgentToolAssignment[]>
   return res.json();
 }
 
+async function fetchSkillAssignments(agentId: string): Promise<AgentSkillAssignment[]> {
+  const res = await fetch(`${API_BASE}/agents/${agentId}/skill-assignments`);
+  return res.json();
+}
+
 async function apiRemoveAssignment(agentId: string, assignmentId: string): Promise<void> {
   await fetch(`${API_BASE}/agents/${agentId}/tool-assignments/${assignmentId}`, { method: "DELETE" });
 }
@@ -37,11 +43,15 @@ async function apiAddAssignment(agentId: string, toolId: string): Promise<AgentT
   return res.json();
 }
 
-async function apiSetAssignments(agentId: string, toolIds: string[]): Promise<AgentToolAssignment[]> {
-  const res = await fetch(`${API_BASE}/agents/${agentId}/tool-assignments`, {
-    method: "PUT",
+async function apiRemoveSkillAssignment(agentId: string, assignmentId: string): Promise<void> {
+  await fetch(`${API_BASE}/agents/${agentId}/skill-assignments/${assignmentId}`, { method: "DELETE" });
+}
+
+async function apiAddSkillAssignment(agentId: string, skillId: string): Promise<AgentSkillAssignment> {
+  const res = await fetch(`${API_BASE}/agents/${agentId}/skill-assignments`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items: toolIds.map((toolId) => ({ toolId })) }),
+    body: JSON.stringify({ skillId }),
   });
   return res.json();
 }
@@ -64,6 +74,7 @@ export default function AgentDetailPage() {
   const isEditor = /\/editor\/?$/.test(location.pathname);
   const agents = useAppSelector((s) => s.agents.items) as AgentListItem[];
   const allTools = useAppSelector((s) => s.tools.items) as AgentTool[];
+  const allSkills = useAppSelector((s) => s.skills.items) as Skill[];
   const mcpServers = useAppSelector((s) => s.mcpServers.items) as McpServer[];
   const teams = useAppSelector((s) => s.teams.teams);
   const toolFolders = useAppSelector((s) => s.toolFolders.folders);
@@ -78,6 +89,9 @@ export default function AgentDetailPage() {
   const [toolAssignments, setToolAssignments] = useState<AgentToolAssignment[]>([]);
   const toolAssignmentsRef = useRef(toolAssignments);
   toolAssignmentsRef.current = toolAssignments;
+  const [skillAssignments, setSkillAssignments] = useState<AgentSkillAssignment[]>([]);
+  const skillAssignmentsRef = useRef(skillAssignments);
+  skillAssignmentsRef.current = skillAssignments;
   const [callableAgentIds, setCallableAgentIds] = useState<string[]>([]);
   const callableAgentIdsRef = useRef(callableAgentIds);
   callableAgentIdsRef.current = callableAgentIds;
@@ -114,7 +128,9 @@ export default function AgentDetailPage() {
     if (!id || !isEditor) return;
     dispatch(fetchAgents());
     fetchAssignments(id).then(setToolAssignments);
+    fetchSkillAssignments(id).then(setSkillAssignments);
     dispatch(fetchTools());
+    dispatch(fetchSkills());
     dispatch(fetchToolFolders());
     dispatch(fetchMcpServers());
     dispatch(fetchTeams());
@@ -165,31 +181,25 @@ export default function AgentDetailPage() {
     [id],
   );
 
-  const handleToggleMcpTools = useCallback(
-    (toolIds: string[], enable: boolean) => {
-      if (!id || toolIds.length === 0) return;
-      const target = new Set(toolIds);
-      const prev = toolAssignmentsRef.current;
-      const nextIds = enable ? [...new Set([...prev.map((a) => a.toolId), ...toolIds])] : prev.filter((a) => !target.has(a.toolId)).map((a) => a.toolId);
-
-      const optimistic: AgentToolAssignment[] = nextIds.map((toolId) => {
-        const existing = prev.find((a) => a.toolId === toolId);
-        if (existing) return existing;
-        return {
-          id: `temp-${toolId}`,
-          agentId: id,
-          toolId,
-          createdAt: new Date(),
-          tool: { name: toolId, label: toolId, description: "" },
-        };
+  const handleRemoveSkillAssignment = useCallback(
+    (skillId: string) => {
+      if (!id) return;
+      const assignment = skillAssignmentsRef.current.find((a) => a.skillId === skillId);
+      if (!assignment) return;
+      setSkillAssignments((prev) => prev.filter((a) => a.skillId !== skillId));
+      apiRemoveSkillAssignment(id, assignment.id).catch(() => {
+        fetchSkillAssignments(id).then(setSkillAssignments);
       });
-      setToolAssignments(optimistic);
+    },
+    [id],
+  );
 
-      apiSetAssignments(id, nextIds)
-        .then(setToolAssignments)
-        .catch(() => {
-          fetchAssignments(id).then(setToolAssignments);
-        });
+  const handleAddSkillAssignment = useCallback(
+    (skillId: string) => {
+      if (!id) return;
+      apiAddSkillAssignment(id, skillId).then((newAssignment) => {
+        setSkillAssignments((prev) => [...prev, newAssignment]);
+      });
     },
     [id],
   );
@@ -199,21 +209,6 @@ export default function AgentDetailPage() {
       if (!id) return;
       const prev = callableAgentIdsRef.current;
       const next = enable ? (prev.includes(agentId) ? prev : [...prev, agentId]) : prev.filter((cid) => cid !== agentId);
-      if (next.length === prev.length && next.every((v, i) => v === prev[i])) return;
-      setCallableAgentIds(next);
-      apiUpdateCallableAgents(id, next).catch(() => {
-        if (callableAgentIdsRef.current === next) setCallableAgentIds(prev);
-      });
-    },
-    [id],
-  );
-
-  const handleToggleCallableAgents = useCallback(
-    (agentIds: string[], enable: boolean) => {
-      if (!id || agentIds.length === 0) return;
-      const prev = callableAgentIdsRef.current;
-      const target = new Set(agentIds);
-      const next = enable ? [...new Set([...prev, ...agentIds])] : prev.filter((cid) => !target.has(cid));
       if (next.length === prev.length && next.every((v, i) => v === prev[i])) return;
       setCallableAgentIds(next);
       apiUpdateCallableAgents(id, next).catch(() => {
@@ -338,14 +333,16 @@ export default function AgentDetailPage() {
                   teams={teams}
                   toolFolders={toolFolders}
                   allTools={allTools}
+                  allSkills={allSkills}
                   mcpServers={mcpServers}
                   toolAssignments={toolAssignments}
+                  skillAssignments={skillAssignments}
                   callableAgentIds={callableAgentIds}
                   onRemoveToolAssignment={handleRemoveToolAssignment}
                   onAddToolAssignment={handleAddToolAssignment}
-                  onToggleMcpTools={handleToggleMcpTools}
+                  onRemoveSkillAssignment={handleRemoveSkillAssignment}
+                  onAddSkillAssignment={handleAddSkillAssignment}
                   onToggleCallableAgent={handleToggleCallableAgent}
-                  onToggleCallableAgents={handleToggleCallableAgents}
                   selectedProviderId={selectedProviderId}
                   aiModel={aiModel}
                   systemPrompt={systemPrompt}

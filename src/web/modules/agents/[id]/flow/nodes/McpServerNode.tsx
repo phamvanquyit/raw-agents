@@ -1,4 +1,4 @@
-import { CloseCircle, PlugCircle } from "@solar-icons/react";
+import { CloseCircle, Planet2 } from "@solar-icons/react";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useState } from "react";
@@ -76,7 +76,7 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
                 className="w-7 h-7 rounded-[7px] flex items-center justify-center shrink-0 ring-1 ring-edge-mcp/25"
                 style={{ background: "color-mix(in srgb, var(--edge-mcp) 22%, transparent)", color: MCP_ORANGE }}
               >
-                <PlugCircle weight="BoldDuotone" width={15} height={15} />
+                <Planet2 weight="BoldDuotone" width={15} height={15} />
               </div>
               <div className="min-w-0 flex-1 text-[14px] font-semibold text-foreground truncate">{data.name}</div>
               <button
@@ -115,7 +115,7 @@ export function McpServerNode({ data }: NodeProps<McpServerNodeType>) {
             className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
             style={{ background: "color-mix(in srgb, var(--edge-mcp) 12%, transparent)", color: MCP_ORANGE }}
           >
-            <PlugCircle weight="BoldDuotone" width={14} height={14} />
+            <Planet2 weight="BoldDuotone" width={14} height={14} />
           </div>
 
           <div className="min-w-0 flex-1">

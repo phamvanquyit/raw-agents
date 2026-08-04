@@ -120,20 +120,31 @@ export function AgentConfigNode({ data }: NodeProps<AgentConfigNodeType>) {
         id="tools"
         position={Position.Right}
         style={{ top: 40 }}
-        className="!w-2 !h-2 !bg-primary/30 !border-2 !border-primary/50 transition-all duration-150 hover:!bg-primary hover:!border-primary hover:!w-3 hover:!h-3"
+        className="!w-2 !h-2 !bg-edge-tool/30 !border-2 !border-edge-tool/50 transition-all duration-150 hover:!bg-edge-tool hover:!border-edge-tool hover:!w-3 hover:!h-3"
       />
       <div style={{ position: "absolute", top: 40, right: 14, transform: "translateY(-50%)", pointerEvents: "none" }} className="flex items-center gap-1 z-10">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-primary bg-primary/5 px-1.5 py-0.5 rounded-full">Tools</span>
+        <span className="text-2xs font-semibold uppercase tracking-wider text-edge-tool bg-edge-tool/5 px-1.5 py-0.5 rounded-full">Tools</span>
+      </div>
+
+      <Handle
+        type="target"
+        id="skills"
+        position={Position.Right}
+        style={{ top: 76 }}
+        className="!w-2 !h-2 !bg-edge-skill/30 !border-2 !border-edge-skill/50 transition-all duration-150 hover:!bg-edge-skill hover:!border-edge-skill hover:!w-3 hover:!h-3"
+      />
+      <div style={{ position: "absolute", top: 76, right: 14, transform: "translateY(-50%)", pointerEvents: "none" }} className="flex items-center gap-1 z-10">
+        <span className="text-2xs font-semibold uppercase tracking-wider text-edge-skill bg-edge-skill/5 px-1.5 py-0.5 rounded-full">Skills</span>
       </div>
 
       <Handle
         type="target"
         id="agents"
         position={Position.Right}
-        style={{ top: 76 }}
+        style={{ top: 112 }}
         className="!w-2 !h-2 !bg-edge-call-agent/30 !border-2 !border-edge-call-agent/50 transition-all duration-150 hover:!bg-edge-call-agent hover:!border-edge-call-agent hover:!w-3 hover:!h-3"
       />
-      <div style={{ position: "absolute", top: 76, right: 14, transform: "translateY(-50%)", pointerEvents: "none" }} className="flex items-center gap-1 z-10">
+      <div style={{ position: "absolute", top: 112, right: 14, transform: "translateY(-50%)", pointerEvents: "none" }} className="flex items-center gap-1 z-10">
         <span className="text-2xs font-semibold uppercase tracking-wider text-chart-2 bg-chart-2/5 px-1.5 py-0.5 rounded-full">Agents</span>
       </div>
 

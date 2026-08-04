@@ -9,12 +9,14 @@ import { useAppDispatch, useAppSelector } from "./store/store";
 import "./index.css";
 
 const ToolsPage = lazy(() => import("./modules/tools/ToolsPage"));
+const SkillsPage = lazy(() => import("./modules/skills/SkillsPage"));
 const SettingsPage = lazy(() => import("./modules/settings/SettingsPage"));
 const AgentsPage = lazy(() => import("./modules/agents/AgentsPage"));
 const PublicChatPage = lazy(() => import("./modules/chat/[id]/page"));
 const LoginPage = lazy(() => import("./modules/auth/LoginPage"));
 const SetupPage = lazy(() => import("./modules/auth/SetupPage"));
 const EditToolPage = lazy(() => import("./modules/tools/[id]/EditToolPage"));
+const EditSkillPage = lazy(() => import("./modules/skills/[id]/EditSkillPage"));
 const AgentDetailPage = lazy(() => import("./modules/agents/[id]/page"));
 const DashboardPage = lazy(() => import("./modules/dashboard/DashboardPage"));
 const ProfilePage = lazy(() => import("./modules/profile/ProfilePage"));
@@ -116,6 +118,7 @@ function AppContent() {
         <Route element={<AuthGuard />}>
           {/* Full-page routes (no sidebar) */}
           <Route path="/tools/:id" element={<EditToolPage />} />
+          <Route path="/skills/:id" element={<EditSkillPage />} />
           <Route path="/sites/:id" element={<SiteEditorPage />} />
           <Route path="/agents/:id/*" element={<AgentDetailPage />} />
           <Route
@@ -132,6 +135,7 @@ function AppContent() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
+            <Route path="/skills" element={<SkillsPage />} />
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/mcp-servers" element={<McpServersPage />} />
             <Route path="/teams" element={<Navigate to="/agents" replace />} />

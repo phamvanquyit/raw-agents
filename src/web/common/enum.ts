@@ -32,6 +32,10 @@ export enum SettingKey {
   PromptAssistantProvider = "prompt_assistant_provider",
   PromptAssistantModel = "prompt_assistant_model",
 
+  // Skill Assistant
+  SkillAssistantProvider = "skillAssistantProvider",
+  SkillAssistantModel = "skillAssistantModel",
+
   // Object Creator
   ObjectCreatorProviderId = "objectCreatorProviderId",
   ObjectCreatorModel = "objectCreatorModel",

@@ -49,6 +49,7 @@
   --edge-call-agent: var(--chart-2);
   --edge-mcp: var(--chart-1);
   --edge-tool: var(--chart-3);
+  --edge-skill: var(--chart-4);
   --scrollbar-size: 6px;
   --scrollbar-thumb: color-mix(in oklab, #f0f0f0 14%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #f0f0f0 22%, transparent);
@@ -102,6 +103,7 @@
   --color-edge-call-agent: var(--edge-call-agent);
   --color-edge-mcp: var(--edge-mcp);
   --color-edge-tool: var(--edge-tool);
+  --color-edge-skill: var(--edge-skill);
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-brand-text: var(--brand-text);
@@ -270,6 +272,11 @@ body,
 
 .dt-select-dropdown .ant-dropdown-menu-item {
   border-radius: 6px;
+}
+
+/* Monaco: left inset that scrolls away with content (not a fixed gutter) */
+.monaco-scroll-pad-x .monaco-editor .lines-content {
+  padding-left: 16px;
 }
 
 @utility no-scrollbar {
