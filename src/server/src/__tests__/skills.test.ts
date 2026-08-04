@@ -264,7 +264,7 @@ Published instructions. See \`api-notes\`.
     cleanup = t.cleanup;
     const admin = await setupAdmin(app);
     token = admin.token;
-    ownerId = admin.user.id;
+    ownerId = admin.user.id as string;
 
     const agentRes = await authRequest(app, token, "POST", "/api/agents", {
       name: "Runtime Skill Agent",
