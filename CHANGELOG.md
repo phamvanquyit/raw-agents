@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1] - 2026-08-05
+
+### Fixed
+- Chat model picker no longer reverts to the previous model after switching (provider + model saved in one update)
+
 ## [0.19.0] - 2026-08-04
 
 ### Added
@@ -335,6 +340,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.19.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.17.2...v0.18.0
 [0.17.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.17.1...v0.17.2
