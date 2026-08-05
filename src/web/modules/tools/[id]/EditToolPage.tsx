@@ -455,16 +455,11 @@ export default function EditToolPage() {
           model={model}
           streamUrl={`/api/tools/${id}/coding/stream`}
           onToolAction={handleToolAction}
-          onChangeAiProvider={(pid) => {
+          onModelChange={(pid, m) => {
             setProviderId(pid);
-            setModel("");
-            void apiClient.patch("/api/settings", {
-              [SettingKey.ToolAssistantProvider]: pid,
-            });
-          }}
-          onChangeModel={(m) => {
             setModel(m);
             void apiClient.patch("/api/settings", {
+              [SettingKey.ToolAssistantProvider]: pid,
               [SettingKey.ToolAssistantModel]: m,
             });
           }}

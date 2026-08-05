@@ -430,16 +430,11 @@ export default function JobEditPage() {
           model={model}
           streamUrl={`/api/jobs/${id}/coding/stream`}
           onToolAction={handleToolAction}
-          onChangeAiProvider={(pid) => {
+          onModelChange={(pid, m) => {
             setProviderId(pid);
-            setModel("");
-            void apiClient.patch("/api/settings", {
-              [SettingKey.JobAssistantProvider]: pid,
-            });
-          }}
-          onChangeModel={(m) => {
             setModel(m);
             void apiClient.patch("/api/settings", {
+              [SettingKey.JobAssistantProvider]: pid,
               [SettingKey.JobAssistantModel]: m,
             });
           }}

@@ -28,8 +28,7 @@ interface CodingAgentPanelProps {
   model: string;
   streamUrl: string;
   onToolAction: (event: ToolActionEvent) => void;
-  onChangeAiProvider: (pid: string) => void;
-  onChangeModel: (m: string) => void;
+  onModelChange: (providerId: string, model: string) => void;
   subtitle?: string;
   suggestions?: string[];
 }
@@ -39,8 +38,7 @@ export function CodingAgentPanel({
   model,
   streamUrl,
   onToolAction,
-  onChangeAiProvider,
-  onChangeModel,
+  onModelChange,
   subtitle = "Edit, test, and fix this tool",
   suggestions = SUGGESTIONS,
 }: CodingAgentPanelProps) {
@@ -143,8 +141,7 @@ export function CodingAgentPanel({
           onCancel={cancel}
           providerId={providerId}
           model={model}
-          onProviderChange={onChangeAiProvider}
-          onModelChange={onChangeModel}
+          onModelChange={onModelChange}
           enableTypeToFocus={false}
         />
       </div>

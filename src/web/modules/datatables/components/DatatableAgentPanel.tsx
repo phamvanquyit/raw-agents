@@ -43,11 +43,10 @@ interface DatatableAgentPanelProps {
   model: string;
   streamUrl: string;
   onSchemaChanged: () => void;
-  onChangeAiProvider: (pid: string) => void;
-  onChangeModel: (m: string) => void;
+  onModelChange: (providerId: string, model: string) => void;
 }
 
-export function DatatableAgentPanel({ providerId, model, streamUrl, onSchemaChanged, onChangeAiProvider, onChangeModel }: DatatableAgentPanelProps) {
+export function DatatableAgentPanel({ providerId, model, streamUrl, onSchemaChanged, onModelChange }: DatatableAgentPanelProps) {
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ active: false, startX: 0, startW: 0 });
@@ -162,8 +161,7 @@ export function DatatableAgentPanel({ providerId, model, streamUrl, onSchemaChan
           onCancel={cancel}
           providerId={providerId}
           model={model}
-          onProviderChange={onChangeAiProvider}
-          onModelChange={onChangeModel}
+          onModelChange={onModelChange}
           enableTypeToFocus={false}
         />
       </div>

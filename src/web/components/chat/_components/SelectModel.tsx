@@ -6,19 +6,15 @@ import { ProviderIcon } from "src/modules/llm-providers/components/ProviderIcon"
 interface SelectModelProps {
   providerId?: string | null;
   model?: string;
-  onProviderChange?: (id: string) => void;
-  onModelChange?: (model: string) => void;
+  onChange?: (providerId: string, model: string) => void;
 }
 
-export function SelectModel({ providerId, model, onProviderChange, onModelChange }: SelectModelProps) {
+export function SelectModel({ providerId, model, onChange }: SelectModelProps) {
   return (
     <ModelPicker
       selectedProviderId={providerId ?? null}
       selectedModel={model ?? ""}
-      onChange={(pid, m) => {
-        onProviderChange?.(pid);
-        onModelChange?.(m);
-      }}
+      onChange={(pid, m) => onChange?.(pid, m)}
       className="w-fit"
       matchTriggerWidth={false}
       popoverSide="top"

@@ -298,16 +298,11 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
             providerId={providerId}
             model={model}
             streamUrl={`/api/agents/${id}/assistant/prompt/stream`}
-            onChangeAiProvider={(pid) => {
+            onModelChange={(pid, m) => {
               setProviderId(pid);
-              setModel("");
-              void apiClient.patch("/api/settings", {
-                [SettingKey.PromptAssistantProvider]: pid,
-              });
-            }}
-            onChangeModel={(m) => {
               setModel(m);
               void apiClient.patch("/api/settings", {
+                [SettingKey.PromptAssistantProvider]: pid,
                 [SettingKey.PromptAssistantModel]: m,
               });
             }}

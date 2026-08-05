@@ -192,16 +192,11 @@ export default function DatatableSchemaEditorPage() {
         model={model}
         streamUrl={`/api/datatables/projects/${projectId}/agent/stream`}
         onSchemaChanged={() => void refreshSchema()}
-        onChangeAiProvider={(pid) => {
+        onModelChange={(pid, m) => {
           setProviderId(pid);
-          setModel("");
-          void apiClient.patch("/api/settings", {
-            [SettingKey.DatatableAssistantProvider]: pid,
-          });
-        }}
-        onChangeModel={(m) => {
           setModel(m);
           void apiClient.patch("/api/settings", {
+            [SettingKey.DatatableAssistantProvider]: pid,
             [SettingKey.DatatableAssistantModel]: m,
           });
         }}

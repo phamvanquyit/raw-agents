@@ -10,11 +10,10 @@ interface PromptAgentPanelProps {
   providerId: string | undefined;
   model: string;
   streamUrl: string;
-  onChangeAiProvider: (pid: string) => void;
-  onChangeModel: (m: string) => void;
+  onModelChange: (providerId: string, model: string) => void;
 }
 
-export function PromptAgentPanel({ providerId, model, streamUrl, onChangeAiProvider, onChangeModel }: PromptAgentPanelProps) {
+export function PromptAgentPanel({ providerId, model, streamUrl, onModelChange }: PromptAgentPanelProps) {
   const { messages, generating, send, cancel } = useAssistantStreaming({ streamUrl });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -54,8 +53,7 @@ export function PromptAgentPanel({ providerId, model, streamUrl, onChangeAiProvi
         onCancel={cancel}
         providerId={providerId}
         model={model}
-        onProviderChange={onChangeAiProvider}
-        onModelChange={onChangeModel}
+        onModelChange={onModelChange}
         enableTypeToFocus={false}
       />
     </div>

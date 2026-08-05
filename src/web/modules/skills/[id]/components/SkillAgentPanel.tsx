@@ -23,8 +23,7 @@ interface SkillAgentPanelProps {
   model: string;
   streamUrl: string;
   onToolAction: (event: ToolActionEvent) => void;
-  onChangeAiProvider: (pid: string) => void;
-  onChangeModel: (m: string) => void;
+  onModelChange: (providerId: string, model: string) => void;
 }
 
 export function SkillAgentPanel({
@@ -32,8 +31,7 @@ export function SkillAgentPanel({
   model,
   streamUrl,
   onToolAction,
-  onChangeAiProvider,
-  onChangeModel,
+  onModelChange,
 }: SkillAgentPanelProps) {
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
@@ -139,8 +137,7 @@ export function SkillAgentPanel({
           onCancel={cancel}
           providerId={providerId}
           model={model}
-          onProviderChange={onChangeAiProvider}
-          onModelChange={onChangeModel}
+          onModelChange={onModelChange}
           enableTypeToFocus={false}
         />
       </div>

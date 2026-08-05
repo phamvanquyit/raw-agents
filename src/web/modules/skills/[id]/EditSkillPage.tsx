@@ -530,13 +530,13 @@ export default function EditSkillPage() {
           model={model}
           streamUrl={`/api/skills/${id}/assistant/stream`}
           onToolAction={handleToolAction}
-          onChangeAiProvider={(pid) => {
+          onModelChange={(pid, m) => {
             setProviderId(pid);
-            void saveSettingValues({ [SettingKey.SkillAssistantProvider]: pid });
-          }}
-          onChangeModel={(m) => {
             setModel(m);
-            void saveSettingValues({ [SettingKey.SkillAssistantModel]: m });
+            void saveSettingValues({
+              [SettingKey.SkillAssistantProvider]: pid,
+              [SettingKey.SkillAssistantModel]: m,
+            });
           }}
         />
       </div>

@@ -514,16 +514,11 @@ export default function SiteEditorPage() {
           model={model}
           streamUrl={`/api/sites/${site.id}/agent/stream`}
           onToolAction={onToolAction}
-          onChangeAiProvider={(pid) => {
+          onModelChange={(pid, m) => {
             setProviderId(pid);
-            setModel("");
-            void apiClient.patch("/api/settings", {
-              [SettingKey.SiteAssistantProvider]: pid,
-            });
-          }}
-          onChangeModel={(m) => {
             setModel(m);
             void apiClient.patch("/api/settings", {
+              [SettingKey.SiteAssistantProvider]: pid,
               [SettingKey.SiteAssistantModel]: m,
             });
           }}

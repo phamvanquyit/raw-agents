@@ -70,7 +70,7 @@ function toDisplayMsg(m: {
 // ─── Chat Content (embeddable — no dialog wrapper) ────────────────────────────
 
 export function ChatPage() {
-  const { agent } = useAgentDetailContext();
+  const { agent, onProviderChange, setAiModel, selectedProviderId, aiModel } = useAgentDetailContext();
   const dispatch = useAppDispatch();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeConversationId = useAppSelector((s) => s.chat.activeConversationId);
@@ -448,10 +448,13 @@ export function ChatPage() {
               placeholder={`Message ${agent.name}...`}
               onSend={(text) => void handleSend(text)}
               onCancel={handleCancel}
-              providerId={agent.aiProvider ?? undefined}
-              model={agent.aiModel ?? undefined}
-              onProviderChange={(pid) => void dispatch(updateAgent({ id: agent.id, aiProvider: pid }))}
-              onModelChange={(m) => void dispatch(updateAgent({ id: agent.id, aiModel: m }))}
+              providerId={selectedProviderId ?? agent.aiProvider ?? undefined}
+              model={aiModel || agent.aiModel || undefined}
+              onModelChange={(pid, m) => {
+                onProviderChange(pid);
+                setAiModel(m);
+                void dispatch(updateAgent({ id: agent.id, aiProvider: pid, aiModel: m }));
+              }}
               focusSignal={activeConversationId}
             />
           </div>

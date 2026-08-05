@@ -23,8 +23,7 @@ interface InputAreaProps {
   onCancel: () => void;
   providerId?: string | null;
   model?: string;
-  onProviderChange?: (id: string) => void;
-  onModelChange?: (model: string) => void;
+  onModelChange?: (providerId: string, model: string) => void;
   hideConfig?: boolean;
   /** When this changes (e.g. conversation id), focus the input */
   focusSignal?: string | null;
@@ -52,7 +51,6 @@ export function InputArea({
   onCancel,
   providerId,
   model,
-  onProviderChange,
   onModelChange,
   hideConfig,
   focusSignal,
@@ -157,7 +155,7 @@ export function InputArea({
 
       <div className="flex items-center gap-1.5 pb-2 px-2">
         <RenderIf condition={!hideConfig}>
-          <SelectModel providerId={providerId} model={model} onProviderChange={onProviderChange} onModelChange={onModelChange} />
+          <SelectModel providerId={providerId} model={model} onChange={onModelChange} />
         </RenderIf>
 
         <div className="flex-1" />
