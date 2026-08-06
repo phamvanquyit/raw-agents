@@ -34,10 +34,14 @@ export const agents = sqliteTable("agents", {
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
 
-// ─── Per-User Facts ───────────────────────────────────────────────────────────
-// Short facts (key-value style) per agent+user. Always injected into system prompt.
+// ─── User Memory Graph ────────────────────────────────────────────────────────
+// Per-user knowledge graph for an agent. Loaded on demand via the `memory`
+// tool (search / neighbors / list). Nodes are untyped facts; edge
+// relations are free-form short labels (normalized snake_case).
 
-export const agentUserFacts = sqliteTable("agent_user_facts", {
+export const MEMORY_RELATION_MAX = 40;
+
+export const memoryNodes = sqliteTable("memory_nodes", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -46,17 +50,15 @@ export const agentUserFacts = sqliteTable("agent_user_facts", {
     .references(() => agents.id, { onDelete: "cascade" }),
   ownerId: text("owner_id").notNull().default("user"),
   content: text("content").notNull(),
+  sourceConversationId: text("source_conversation_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
-export type AgentUserFact = typeof agentUserFacts.$inferSelect;
-export type NewAgentUserFact = typeof agentUserFacts.$inferInsert;
+export type MemoryNode = typeof memoryNodes.$inferSelect;
+export type NewMemoryNode = typeof memoryNodes.$inferInsert;
 
-// ─── Agent Notes (Documents) ─────────────────────────────────────────────────
-// Long documents (markdown). Only titles injected into system prompt.
-// Agent uses manage_memory(read_doc, id) to load full content on-demand.
-
-export const agentNotes = sqliteTable("agent_notes", {
+export const memoryEdges = sqliteTable("memory_edges", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -64,14 +66,18 @@ export const agentNotes = sqliteTable("agent_notes", {
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
   ownerId: text("owner_id").notNull().default("user"),
-  title: text("title").notNull(),
-  content: text("content").notNull().default(""),
+  fromId: text("from_id")
+    .notNull()
+    .references(() => memoryNodes.id, { onDelete: "cascade" }),
+  toId: text("to_id")
+    .notNull()
+    .references(() => memoryNodes.id, { onDelete: "cascade" }),
+  relation: text("relation").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
-export type AgentNote = typeof agentNotes.$inferSelect;
-export type NewAgentNote = typeof agentNotes.$inferInsert;
+export type MemoryEdge = typeof memoryEdges.$inferSelect;
+export type NewMemoryEdge = typeof memoryEdges.$inferInsert;
 
 // ─── Agent Teams ──────────────────────────────────────────────────────────────
 
@@ -106,6 +112,8 @@ export const agentConversations = sqliteTable("agent_conversations", {
     .notNull()
     .default("running"),
   errorMessage: text("error_message"),
+  summary: text("summary"),
+  summaryUpdatedAt: integer("summary_updated_at", { mode: "timestamp" }),
   startedAt: integer("started_at", { mode: "timestamp" }),
   finishedAt: integer("finished_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),

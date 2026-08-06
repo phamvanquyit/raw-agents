@@ -41,22 +41,25 @@ function createTestDb() {
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
-    CREATE TABLE IF NOT EXISTS agent_user_facts (
+    CREATE TABLE IF NOT EXISTS memory_nodes (
       id TEXT PRIMARY KEY,
       agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
       owner_id TEXT NOT NULL DEFAULT 'user',
       content TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      source_conversation_id TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
-    CREATE TABLE IF NOT EXISTS agent_notes (
+    CREATE TABLE IF NOT EXISTS memory_edges (
       id TEXT PRIMARY KEY,
       agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
       owner_id TEXT NOT NULL DEFAULT 'user',
-      title TEXT NOT NULL,
-      content TEXT NOT NULL DEFAULT '',
+      from_id TEXT NOT NULL REFERENCES memory_nodes(id) ON DELETE CASCADE,
+      to_id TEXT NOT NULL REFERENCES memory_nodes(id) ON DELETE CASCADE,
+      relation TEXT NOT NULL,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      UNIQUE (from_id, to_id, relation)
     );
 
     CREATE TABLE IF NOT EXISTS agent_teams (
@@ -75,6 +78,8 @@ function createTestDb() {
       trigger TEXT NOT NULL DEFAULT 'manual',
       status TEXT NOT NULL DEFAULT 'running',
       error_message TEXT,
+      summary TEXT,
+      summary_updated_at INTEGER,
       started_at INTEGER,
       finished_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
