@@ -11,10 +11,10 @@ import { llmProvidersReducer } from "src/modules/llm-providers/common/llmProvide
 import { mcpServersReducer } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { secretsReducer } from "src/modules/secrets/common/secretsSlice";
 import { sitesReducer } from "src/modules/sites/common/sitesSlice";
+import { skillsReducer } from "src/modules/skills/common/skillsSlice";
 import { teamsReducer } from "src/modules/teams/common/teamsSlice";
 import { toolFoldersReducer } from "src/modules/tools/common/toolFoldersSlice";
 import { toolsReducer } from "src/modules/tools/common/toolsSlice";
-import { skillsReducer } from "src/modules/skills/common/skillsSlice";
 
 export const store = configureStore({
   reducer: {

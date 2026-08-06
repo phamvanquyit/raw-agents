@@ -231,10 +231,7 @@ export default function EditSkillPage() {
       for (const r of references) map[r.id] = r.content;
       setRefDrafts(map);
       setSavedRefs({ ...map });
-      syncAiDraftsFromServer(
-        (await skillsApi.get(id)) as Skill,
-        references,
-      );
+      syncAiDraftsFromServer((await skillsApi.get(id)) as Skill, references);
       message.success("Saved");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -363,9 +360,7 @@ export default function EditSkillPage() {
         await skillsApi.updateReference(id, selected.refId, { content: draft });
         setRefDrafts((prev) => ({ ...prev, [selected.refId]: draft }));
         setSavedRefs((prev) => ({ ...prev, [selected.refId]: draft }));
-        setRefs((prev) =>
-          prev.map((r) => (r.id === selected.refId ? { ...r, content: draft, draftContent: draft } : r)),
-        );
+        setRefs((prev) => prev.map((r) => (r.id === selected.refId ? { ...r, content: draft, draftContent: draft } : r)));
         setAiDrafts((prev) => {
           const next = { ...prev };
           delete next[selected.path];
@@ -387,9 +382,7 @@ export default function EditSkillPage() {
         setSkill((prev) => (prev ? { ...prev, draftContent: published } : prev));
       } else {
         await skillsApi.updateReference(id, selected.refId, { draftContent: published });
-        setRefs((prev) =>
-          prev.map((r) => (r.id === selected.refId ? { ...r, draftContent: published } : r)),
-        );
+        setRefs((prev) => prev.map((r) => (r.id === selected.refId ? { ...r, draftContent: published } : r)));
       }
       setAiDrafts((prev) => {
         const next = { ...prev };
@@ -435,16 +428,10 @@ export default function EditSkillPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <EditSkillHeader
-        title={headerTitle}
-        isDirty={isDirty}
-        saving={saving}
-        onSave={() => void handleSave()}
-        onDelete={handleDelete}
-      />
+      <EditSkillHeader title={headerTitle} isDirty={isDirty} saving={saving} onSave={() => void handleSave()} onDelete={handleDelete} />
 
       <RenderIf condition={!!error}>
-        <Alert type="error" description={error} showIcon closable onClose={() => setError("")} className="m-3" />
+        <Alert type="error" description={error} showIcon closable={{ onClose: () => setError("") }} className="m-3" />
       </RenderIf>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -462,9 +449,7 @@ export default function EditSkillPage() {
           <div className="flex h-10 shrink-0 items-center border-b border-border bg-card/80 px-3">
             <span className="truncate font-mono text-xs text-muted-foreground">{selected.path}</span>
             {showDiff && (
-              <span className="ml-2 rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-soft">
-                AI draft
-              </span>
+              <span className="ml-2 rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-soft">AI draft</span>
             )}
           </div>
           <div className="monaco-scroll-pad-x relative min-h-0 flex-1 overflow-hidden">

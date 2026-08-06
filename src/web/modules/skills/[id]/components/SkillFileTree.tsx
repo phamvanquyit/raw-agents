@@ -1,12 +1,10 @@
 import { AddCircle, BookBookmark, DocumentText, FileText, Folder, TrashBinTrash } from "@solar-icons/react";
 import { Form, Input, Modal, message } from "antd";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { SkillReference } from "src/common/types";
 
-export type SkillEditorFile =
-  | { kind: "skill"; path: "SKILL.md" }
-  | { kind: "reference"; path: string; refId: string; name: string };
+export type SkillEditorFile = { kind: "skill"; path: "SKILL.md" } | { kind: "reference"; path: string; refId: string; name: string };
 
 interface SkillFileTreeProps {
   references: SkillReference[];
@@ -32,15 +30,7 @@ function slugify(value: string) {
     .replace(/-{2,}/g, "-");
 }
 
-export function SkillFileTree({
-  references,
-  selected,
-  dirtyPaths,
-  draftPaths,
-  onSelect,
-  onCreateReference,
-  onDeleteReference,
-}: SkillFileTreeProps) {
+export function SkillFileTree({ references, selected, dirtyPaths, draftPaths, onSelect, onCreateReference, onDeleteReference }: SkillFileTreeProps) {
   const sortedRefs = useMemo(() => [...references].sort((a, b) => a.name.localeCompare(b.name)), [references]);
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
@@ -196,10 +186,7 @@ export function SkillFileTree({
 
       <div
         onMouseDown={startDrag}
-        className={cn(
-          "z-10 h-full w-px shrink-0 cursor-col-resize transition-colors duration-150",
-          isDragging ? "bg-brand/60" : "bg-border hover:bg-brand/40",
-        )}
+        className={cn("z-10 h-full w-px shrink-0 cursor-col-resize transition-colors duration-150", isDragging ? "bg-brand/60" : "bg-border hover:bg-brand/40")}
       />
 
       <Modal
@@ -271,18 +258,12 @@ function TreeRow({
       className={cn(
         "group flex w-full items-center gap-1.5 py-1.5 pr-1.5 text-left transition-colors",
         indent ? "pl-7" : "pl-2",
-        active
-          ? "bg-accent text-brand-soft"
-          : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+        active ? "bg-accent text-brand-soft" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
       )}
     >
       {icon}
       <span className="min-w-0 flex-1 truncate tracking-tight">{children}</span>
-      {aiDraft && (
-        <span className="shrink-0 rounded px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-soft bg-accent">
-          AI
-        </span>
-      )}
+      {aiDraft && <span className="shrink-0 rounded px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-soft bg-accent">AI</span>}
       {dirty && !aiDraft && <span className="size-1.5 shrink-0 rounded-full bg-brand-soft" />}
       {action}
     </button>

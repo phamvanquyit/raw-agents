@@ -19,11 +19,8 @@ export const skillsApi = {
   createReference: (skillId: string, body: { name: string; title: string; content?: string }) =>
     apiClient.post<SkillReference>(`/api/skills/${skillId}/references`, body),
 
-  updateReference: (
-    skillId: string,
-    refId: string,
-    body: Partial<{ name: string; title: string; content: string; draftContent: string | null }>,
-  ) => apiClient.put<SkillReference>(`/api/skills/${skillId}/references/${refId}`, body),
+  updateReference: (skillId: string, refId: string, body: Partial<{ name: string; title: string; content: string; draftContent: string | null }>) =>
+    apiClient.put<SkillReference>(`/api/skills/${skillId}/references/${refId}`, body),
 
   deleteReference: (skillId: string, refId: string) => apiClient.delete<{ ok: boolean }>(`/api/skills/${skillId}/references/${refId}`),
 };

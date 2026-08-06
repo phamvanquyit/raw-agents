@@ -196,9 +196,7 @@ Accepted draft body.
   });
 
   test("writeSkillDraftPath — AI draft for new reference keeps content empty", async () => {
-    const { writeSkillDraftPath, getReferenceByName, getSkill } = await import(
-      "../modules/skills/skills.service.js"
-    );
+    const { writeSkillDraftPath, getReferenceByName, getSkill } = await import("../modules/skills/skills.service.js");
     const written = writeSkillDraftPath(skillId, "references/ai-notes.md", "# AI notes\n\nDraft only.\n");
     expect(written.path).toBe("references/ai-notes.md");
     expect(written.content).toContain("Draft only");
@@ -380,7 +378,7 @@ DRAFT ONLY — agents must not see this.
 
   test("resolveSystemPrompt — injects assigned skill name + description", async () => {
     const { resolveSystemPrompt } = await import("../modules/agents/raw-agent/utils/buildSystemPrompt.js");
-    const prompt = resolveSystemPrompt(agentId, undefined, ownerId);
+    const prompt = resolveSystemPrompt(agentId, undefined);
     expect(prompt).toContain("<skills>");
     expect(prompt).toContain("runtime-skill");
     expect(prompt).toContain("Runtime coverage skill");
@@ -466,6 +464,41 @@ Full rewrite via assistant draft.
     expect(emptyReplace.error).toContain("empty");
   });
 
+  test("makeReadSkillFileTool — reads SKILL.md and references working content", async () => {
+    const { makeReadSkillFileTool, makeEditSkillFileTool } = await import("../modules/skills/common/agent-tools/edit-skill-file.tool.js");
+    const readTool = makeReadSkillFileTool(skillId);
+
+    const skillRaw = await readTool.invoke({ path: "SKILL.md" });
+    const skillData = JSON.parse(String(skillRaw)) as { ok: boolean; path: string; content: string };
+    expect(skillData.ok).toBe(true);
+    expect(skillData.path).toBe("SKILL.md");
+    expect(skillData.content).toContain("name: runtime-skill");
+
+    const refRaw = await readTool.invoke({ path: "references/api-notes.md" });
+    const refData = JSON.parse(String(refRaw)) as { ok: boolean; content: string };
+    expect(refData.ok).toBe(true);
+    expect(refData.content).toContain("reference body");
+
+    const editTool = makeEditSkillFileTool(skillId);
+    await editTool.invoke({
+      path: "references/api-notes.md",
+      mode: "full",
+      content: "Draft reference body.",
+    });
+    const draftRaw = await readTool.invoke({ path: "references/api-notes.md" });
+    const draftData = JSON.parse(String(draftRaw)) as { ok: boolean; content: string };
+    expect(draftData.ok).toBe(true);
+    expect(draftData.content).toBe("Draft reference body.");
+
+    const missing = JSON.parse(String(await readTool.invoke({ path: "references/missing.md" }))) as {
+      ok: boolean;
+      available: string[];
+    };
+    expect(missing.ok).toBe(false);
+    expect(missing.available).toContain("SKILL.md");
+    expect(missing.available).toContain("references/api-notes.md");
+  });
+
   test("buildSkillAgentSystemPrompt — includes working SKILL.md and refs", async () => {
     const { buildSkillAgentSystemPrompt } = await import("../modules/skills/common/agent-tools/edit-skill-file.tool.js");
     const prompt = buildSkillAgentSystemPrompt(skillId);
@@ -474,6 +507,10 @@ Full rewrite via assistant draft.
     expect(prompt).toContain("<current_skill_md>");
     expect(prompt).toContain("references/api-notes.md");
     expect(prompt).toContain("edit_skill_file");
+    expect(prompt).toContain("read_skill_file");
+    expect(prompt).toContain("<workflow>");
+    expect(prompt).toContain("<quality>");
+    expect(prompt.toLowerCase()).not.toContain("cursor");
   });
 
   test("POST /api/skills/:id/assistant/stream — unknown skill → SSE error", async () => {

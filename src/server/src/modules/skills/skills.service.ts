@@ -1,12 +1,5 @@
 import { and, eq, ne } from "drizzle-orm";
-import {
-  type NewSkill,
-  type NewSkillReference,
-  agentSkillAssignments,
-  getDb,
-  skillReferences,
-  skills,
-} from "../../common/db/client.js";
+import { type NewSkill, type NewSkillReference, agentSkillAssignments, getDb, skillReferences, skills } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException, NotFoundException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
@@ -81,14 +74,13 @@ export function createSkill(body: {
   if (!description) throw new BadRequestException("description is required");
   assertNameAvailable(name);
 
-  const content =
-    body.content?.trim()
-      ? ensureSkillMarkdown(body.content, name, description)
-      : composeSkillMarkdown(
-          name,
-          description,
-          `# ${name}\n\n## Instructions\n\nDescribe how the agent should perform this skill.\n\n## Additional resources\n\n- Put detailed docs under \`references/\` and mention them here.\n`,
-        );
+  const content = body.content?.trim()
+    ? ensureSkillMarkdown(body.content, name, description)
+    : composeSkillMarkdown(
+        name,
+        description,
+        `# ${name}\n\n## Instructions\n\nDescribe how the agent should perform this skill.\n\n## Additional resources\n\n- Put detailed docs under \`references/\` and mention them here.\n`,
+      );
 
   const now = new Date();
   const skill: NewSkill = {
@@ -105,10 +97,7 @@ export function createSkill(body: {
 }
 
 /** Update skill; when `content` is set, sync name/description from SKILL.md frontmatter. */
-export function updateSkill(
-  id: string,
-  body: Partial<{ name: string; description: string; content: string; draftContent: string | null }>,
-) {
+export function updateSkill(id: string, body: Partial<{ name: string; description: string; content: string; draftContent: string | null }>) {
   getSkillOrThrow(id);
   const patch: Partial<NewSkill> = { updatedAt: new Date() };
 
@@ -158,11 +147,7 @@ export function updateSkill(
 export function deleteSkill(id: string) {
   getSkillOrThrow(id);
   const db = getDb();
-  const affected = db
-    .select({ agentId: agentSkillAssignments.agentId })
-    .from(agentSkillAssignments)
-    .where(eq(agentSkillAssignments.skillId, id))
-    .all();
+  const affected = db.select({ agentId: agentSkillAssignments.agentId }).from(agentSkillAssignments).where(eq(agentSkillAssignments.skillId, id)).all();
   db.delete(skills).where(eq(skills.id, id)).run();
   wsHub.emit("skills:deleted", { id });
   for (const { agentId } of affected) {
@@ -195,10 +180,7 @@ export function getReferenceByName(skillId: string, name: string) {
   );
 }
 
-export function createReference(
-  skillId: string,
-  body: { name: string; title: string; content?: string; draftContent?: string | null },
-) {
+export function createReference(skillId: string, body: { name: string; title: string; content?: string; draftContent?: string | null }) {
   getSkillOrThrow(skillId);
   const name = (body.name ?? "").trim();
   const title = (body.title ?? "").trim() || name;
@@ -228,11 +210,7 @@ export function createReference(
   return getReference(skillId, row.id!)!;
 }
 
-export function updateReference(
-  skillId: string,
-  refId: string,
-  body: Partial<{ name: string; title: string; content: string; draftContent: string | null }>,
-) {
+export function updateReference(skillId: string, refId: string, body: Partial<{ name: string; title: string; content: string; draftContent: string | null }>) {
   const existing = getReference(skillId, refId);
   if (!existing) throw new NotFoundException("Reference not found");
 
@@ -300,20 +278,12 @@ export function getWorkingContent(skillId: string, path: string): string | null 
 }
 
 /** Write AI draft only — does not publish to content. */
-export function writeSkillDraftPath(
-  skillId: string,
-  path: string,
-  draft: string,
-): { path: string; content: string } {
+export function writeSkillDraftPath(skillId: string, path: string, draft: string): { path: string; content: string } {
   const normalized = path.replace(/^\/+/, "").trim();
   if (normalized === "SKILL.md") {
     getSkillOrThrow(skillId);
     const next = normalizeToLf(draft);
-    getDb()
-      .update(skills)
-      .set({ draftContent: next, updatedAt: new Date() })
-      .where(eq(skills.id, skillId))
-      .run();
+    getDb().update(skills).set({ draftContent: next, updatedAt: new Date() }).where(eq(skills.id, skillId)).run();
     const updated = getSkill(skillId)!;
     wsHub.emit("skills:updated", updated);
     return { path: "SKILL.md", content: next };
@@ -327,11 +297,7 @@ export function writeSkillDraftPath(
   const next = normalizeToLf(draft);
   const existing = getReferenceByName(skillId, refName);
   if (existing) {
-    getDb()
-      .update(skillReferences)
-      .set({ draftContent: next, updatedAt: new Date() })
-      .where(eq(skillReferences.id, existing.id))
-      .run();
+    getDb().update(skillReferences).set({ draftContent: next, updatedAt: new Date() }).where(eq(skillReferences.id, existing.id)).run();
     wsHub.emit("skills:updated", getSkill(skillId));
     return { path: `references/${refName}.md`, content: next };
   }

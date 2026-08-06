@@ -6,10 +6,10 @@ import type { Skill } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
+import { fetchSkills } from "./common/skillsSlice";
 import { NewSkillDialog } from "./components/NewSkillDialog";
 import { SkillsEmptyState } from "./components/SkillsEmptyState";
 import { SkillsTable } from "./components/SkillsTable";
-import { fetchSkills } from "./common/skillsSlice";
 
 export default function SkillsPage() {
   const dispatch = useAppDispatch();

@@ -12,11 +12,7 @@ const PANEL_DEFAULT = 380;
 const PANEL_MIN = 280;
 const PANEL_MAX = 560;
 
-const SUGGESTIONS = [
-  "Tighten the SKILL.md instructions",
-  "Add a references doc for edge cases",
-  "Improve the description frontmatter for discovery",
-];
+const SUGGESTIONS = ["Tighten the SKILL.md instructions", "Add a references doc for edge cases", "Improve the description frontmatter for discovery"];
 
 interface SkillAgentPanelProps {
   providerId: string | undefined;
@@ -26,13 +22,7 @@ interface SkillAgentPanelProps {
   onModelChange: (providerId: string, model: string) => void;
 }
 
-export function SkillAgentPanel({
-  providerId,
-  model,
-  streamUrl,
-  onToolAction,
-  onModelChange,
-}: SkillAgentPanelProps) {
+export function SkillAgentPanel({ providerId, model, streamUrl, onToolAction, onModelChange }: SkillAgentPanelProps) {
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ active: false, startX: 0, startW: 0 });
@@ -41,9 +31,13 @@ export function SkillAgentPanel({
     streamUrl,
     onToolAction,
     summarizeToolCall: (m) => {
+      if (m.toolName === "read_skill_file") {
+        const input = m.toolInput as { path?: string } | undefined;
+        return `read ${input?.path ?? "file"}`;
+      }
       if (m.toolName === "edit_skill_file") {
         const input = m.toolInput as { path?: string; mode?: string } | undefined;
-        return `edit ${input?.path ?? "file"} (${input?.mode ?? "…" })`;
+        return `edit ${input?.path ?? "file"} (${input?.mode ?? "…"})`;
       }
       return null;
     },
@@ -85,9 +79,10 @@ export function SkillAgentPanel({
     <div className="flex h-full min-h-0 shrink-0">
       <div
         onMouseDown={startDrag}
-        className={["z-10 h-full w-px shrink-0 cursor-col-resize transition-colors duration-150", isDragging ? "bg-brand/60" : "bg-border hover:bg-brand/40"].join(
-          " ",
-        )}
+        className={[
+          "z-10 h-full w-px shrink-0 cursor-col-resize transition-colors duration-150",
+          isDragging ? "bg-brand/60" : "bg-border hover:bg-brand/40",
+        ].join(" ")}
       />
 
       <div className="flex h-full min-h-0 flex-col overflow-hidden border-l border-border bg-card" style={{ width }}>

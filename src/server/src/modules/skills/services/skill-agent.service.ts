@@ -8,7 +8,7 @@ import { fetchUrlTool } from "../../../common/ai/agent-tools/fetch-url.tool.js";
 import { createCompactEditMiddleware, redactEditHistoryPayloads } from "../../../common/ai/compact-edit-middleware.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
-import { buildSkillAgentSystemPrompt, makeEditSkillFileTool } from "../common/agent-tools/edit-skill-file.tool.js";
+import { buildSkillAgentSystemPrompt, makeEditSkillFileTool, makeReadSkillFileTool } from "../common/agent-tools/edit-skill-file.tool.js";
 import { getSkill } from "../skills.service.js";
 
 interface ToolCallMessage {
@@ -100,12 +100,7 @@ function buildLangChainMessages(messages: SkillStreamRequest["messages"]): BaseM
   return result;
 }
 
-export async function streamSkillAgent(
-  skillId: string,
-  body: SkillStreamRequest,
-  stream: SSEStreamingApi,
-  abortSignal?: AbortSignal,
-): Promise<void> {
+export async function streamSkillAgent(skillId: string, body: SkillStreamRequest, stream: SSEStreamingApi, abortSignal?: AbortSignal): Promise<void> {
   try {
     if (!getSkill(skillId)) {
       throw new Error("Skill not found");
@@ -114,7 +109,7 @@ export async function streamSkillAgent(
     const { providerId, modelId, messages } = body;
     const model = await getChatModel(providerId, modelId);
 
-    const tools: StructuredToolInterface[] = [makeEditSkillFileTool(skillId), browserTool, fetchUrlTool];
+    const tools: StructuredToolInterface[] = [makeReadSkillFileTool(skillId), makeEditSkillFileTool(skillId), browserTool, fetchUrlTool];
 
     const agent = createAgent({
       model,

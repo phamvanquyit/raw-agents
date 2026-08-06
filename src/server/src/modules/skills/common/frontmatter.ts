@@ -32,10 +32,7 @@ export function parseSkillFrontmatter(content: string): {
     if (colon <= 0) continue;
     const key = line.slice(0, colon).trim();
     let value = line.slice(colon + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
     }
     if (key === "name") frontmatter.name = value;

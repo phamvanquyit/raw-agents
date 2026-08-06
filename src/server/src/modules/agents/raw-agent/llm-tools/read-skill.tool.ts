@@ -67,10 +67,7 @@ export function makeReadSkillTool(agentId: string): StructuredToolInterface {
         "Load an assigned skill's instructions. Call with `name` to get the main body (and available reference names). Then call again with `reference` to load a named reference mentioned in that body.",
       schema: z.object({
         name: z.string().describe("Skill name"),
-        reference: z
-          .string()
-          .optional()
-          .describe("Optional reference slug within the skill (e.g. api-details)"),
+        reference: z.string().optional().describe("Optional reference slug within the skill (e.g. api-details)"),
       }),
     },
   );
@@ -79,8 +76,7 @@ export function makeReadSkillTool(agentId: string): StructuredToolInterface {
 export const TOOL_DEF = {
   toolName: "read_skill",
   toolLabel: "Read Skill",
-  description:
-    "Load an assigned skill body or a skill reference. Use when a skill in <skills> matches the task.",
+  description: "Load an assigned skill body or a skill reference. Use when a skill in <skills> matches the task.",
   parameters: {
     type: "object",
     properties: {

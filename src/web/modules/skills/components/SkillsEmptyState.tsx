@@ -9,9 +9,7 @@ export function SkillsEmptyState() {
         <BookBookmark width={28} height={28} weight="BoldDuotone" />
       </div>
       <p className="mb-1 text-base font-semibold text-foreground">No skills yet</p>
-      <p className="m-0 mb-5 max-w-sm text-center text-sm text-muted-foreground">
-        Create a shared instruction pack agents can load when the task matches.
-      </p>
+      <p className="m-0 mb-5 max-w-sm text-center text-sm text-muted-foreground">Create a shared instruction pack agents can load when the task matches.</p>
       <NewSkillDialog>
         <Button type="primary" icon={<AddCircle width={16} height={16} weight="BoldDuotone" />}>
           New skill
