@@ -5,7 +5,7 @@
  *   - Builtin tools (directly imported)
  *   - Custom tools (from DB agent_tools table, Python sandbox)
  *   - MCP tools (from mcp_servers.tools catalog via virtual assignment ids)
- *   - Always-on: manage_memory
+ *   - Always-on: memory
  *   - call_agent__* tools (one per callableAgentIds target, top-level only)
  */
 
@@ -24,7 +24,7 @@ import { type CallAgentTarget, isCallAgentToolName, makeCallAgentTools, parseCal
 import { datatableTool } from "../llm-tools/datatable.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
 import { kvStoreTool } from "../llm-tools/kv-store.tool.js";
-import { makeManageMemoryTool } from "../llm-tools/manage-memory.tool.js";
+import { makeMemoryTool } from "../llm-tools/memory.tool.js";
 import { makeReadSkillTool } from "../llm-tools/read-skill.tool.js";
 
 const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
@@ -55,7 +55,9 @@ export function getToolLabel(toolName: string): string {
     kv_store: "KV Store",
     datatable: "Datatable",
     call_agent: "Call Agent",
-    manage_memory: "Manage Memory",
+    memory: "Memory",
+    user_memory: "Memory",
+    manage_memory: "Memory",
     read_skill: "Read Skill",
     get_tool_schema: "Get Tool Schema",
   };
@@ -283,7 +285,7 @@ export function resolveAgentTools(
     );
   }
 
-  tools.push(makeManageMemoryTool(agentId, ownerId, isGuest));
+  tools.push(makeMemoryTool(agentId, ownerId, isGuest, { conversationId: options.conversationId ?? null }));
   tools.push(makeReadSkillTool(agentId));
 
   return tools;

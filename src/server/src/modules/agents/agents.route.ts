@@ -17,6 +17,7 @@ import {
   setSkillAssignments,
   updateAgent,
 } from "./agents.service.js";
+import { createEdge, createNode, deleteEdge, deleteNode, getMemory, updateNode } from "./memory.service.js";
 import { type PromptStreamRequest, streamPromptAgent } from "./prompt-agent/prompt-agent.service.js";
 import { generateResponse, stopStream } from "./raw-agent/raw-agent.service.js";
 
@@ -63,6 +64,43 @@ app.post("/:id/clone", (c) => {
 app.delete("/:id", (c) => {
   deleteAgent(c.req.param("id"));
   return c.json({ ok: true });
+});
+
+// ─── Memory (user knowledge graph) ───────────────────────────────────────────
+
+app.get("/:id/memory", (c) => {
+  return c.json(getMemory(c.req.param("id")));
+});
+
+app.post("/:id/memory/nodes", async (c) => {
+  const user = (c as any).get("user") as { id: string };
+  const body = await c.req.json<{
+    content: string;
+    sourceConversationId?: string | null;
+    ownerId?: string;
+  }>();
+  const ownerId = body.ownerId?.trim() || user.id;
+  return c.json(createNode(c.req.param("id"), ownerId, body), 201);
+});
+
+app.put("/:id/memory/nodes/:nodeId", async (c) => {
+  const body = await c.req.json<{ content?: string }>();
+  return c.json(updateNode(c.req.param("id"), c.req.param("nodeId"), body));
+});
+
+app.delete("/:id/memory/nodes/:nodeId", (c) => {
+  return c.json(deleteNode(c.req.param("id"), c.req.param("nodeId")));
+});
+
+app.post("/:id/memory/edges", async (c) => {
+  const user = (c as any).get("user") as { id: string };
+  const body = await c.req.json<{ fromId: string; toId: string; relation: string; ownerId?: string }>();
+  const ownerId = body.ownerId?.trim() || user.id;
+  return c.json(createEdge(c.req.param("id"), ownerId, body), 201);
+});
+
+app.delete("/:id/memory/edges/:edgeId", (c) => {
+  return c.json(deleteEdge(c.req.param("id"), c.req.param("edgeId")));
 });
 
 // ─── Tool Assignments ────────────────────────────────────────────────────────

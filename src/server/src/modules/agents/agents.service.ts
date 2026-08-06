@@ -467,11 +467,7 @@ export function addSkillAssignment(agentId: string, input: NewSkillAssignmentInp
 
 export function removeSkillAssignment(assignmentId: string): void {
   const db = getDb();
-  const row = db
-    .select({ agentId: agentSkillAssignments.agentId })
-    .from(agentSkillAssignments)
-    .where(eq(agentSkillAssignments.id, assignmentId))
-    .get();
+  const row = db.select({ agentId: agentSkillAssignments.agentId }).from(agentSkillAssignments).where(eq(agentSkillAssignments.id, assignmentId)).get();
 
   db.delete(agentSkillAssignments).where(eq(agentSkillAssignments.id, assignmentId)).run();
 

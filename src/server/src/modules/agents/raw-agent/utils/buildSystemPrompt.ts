@@ -1,13 +1,11 @@
 /**
  * buildSystemPrompt.ts (server-side)
  *
- * Build system prompt from agent data + DB (per-user facts, docs, skills).
+ * Build system prompt from agent data + DB (memory tool hint, skills).
  * Runs entirely on server — no HTTP round-trips.
  *
- * Memory is per-user:
- *   - Facts: always injected (short items)
- *   - Documents: only titles injected, full content loaded on-demand via manage_memory tool
- *   - Guest users: only facts, no documents
+ * Memory:
+ *   - Instructions only — agent loads graph via `memory` tool when needed
  *
  * Skills (assigned):
  *   - Only name + description injected; body/references via read_skill tool
@@ -17,104 +15,73 @@
  *   If no agents are explicitly selected → no delegation context.
  */
 
-import { and, eq } from "drizzle-orm";
-import { agentNotes, agentUserFacts, agents, getDb } from "../../../../common/db/client.js";
+import { eq } from "drizzle-orm";
+import { agents, getDb } from "../../../../common/db/client.js";
 import { listAssignedSkillSummaries } from "../../../skills/skills.service.js";
 import { callAgentToolName } from "../llm-tools/call-agent.tool.js";
 
-export function buildSystemPrompt(
-  agent: {
-    id: string;
-    name: string;
-    systemPrompt: string | null | undefined;
-  },
-  facts: { id: string; content: string }[],
-  docTitles: { id: string; title: string }[],
-  options: {
-    isGuest?: boolean;
-    agentsToDelegate?: { id: string; name: string; description: string | null; teamName?: string }[];
-    skills?: { name: string; description: string }[];
-  } = {},
-): string {
-  const { isGuest = false, agentsToDelegate, skills } = options;
-  const parts: string[] = [];
+type AgentLike = {
+  id: string;
+  name: string;
+  systemPrompt: string | null | undefined;
+};
 
-  // ── Role & Behavior ──
-  if (agent.systemPrompt) {
-    parts.push(`<role>
-${agent.systemPrompt}
-</role>`);
-  }
+type DelegateAgent = {
+  id: string;
+  name: string;
+  description: string | null;
+  teamName?: string;
+};
 
-  // ── Memory instructions ──
-  if (isGuest) {
-    parts.push(`<memory_instructions>
-You have a long-term memory tool: \`manage_memory\`.
+type SkillSummary = { name: string; description: string };
 
-- Use \`manage_memory({ action: "add_facts", facts: [...] })\` to remember important information.
-- Use \`manage_memory({ action: "remove_facts", fact_ids: [...] })\` to forget outdated facts.
-- Use \`manage_memory({ action: "list" })\` to see all saved facts.
+type BuildSystemPromptOptions = {
+  agentsToDelegate?: DelegateAgent[];
+  skills?: SkillSummary[];
+};
 
-Your current facts are listed in the \`<memory>\` section below.
-</memory_instructions>`);
-  } else {
-    parts.push(`<memory_instructions>
-You have a long-term memory tool: \`manage_memory\`.
+function buildRoleSection(systemPrompt: string): string {
+  return `<role>
+${systemPrompt}
+</role>`;
+}
 
-**Facts** (short items — always visible in \`<memory>\`):
-- \`manage_memory({ action: "add_facts", facts: ["fact1", "fact2"] })\` — remember new facts.
-- \`manage_memory({ action: "remove_facts", fact_ids: ["id1"] })\` — forget outdated facts.
+function buildMemoryInstructions(): string {
+  return `<memory_instructions>
+You have a long-term memory tool: \`memory\`. It stores a small knowledge graph about this user — not a scratchpad.
+Nothing is auto-injected. Call \`memory\` (search / neighbors / list) when you need to recall.
 
-**Documents** (long content — titles listed in \`<documents>\`):
-- \`manage_memory({ action: "save_doc", title: "...", content: "..." })\` — create a document.
-- \`manage_memory({ action: "save_doc", id: "...", content: "..." })\` — update existing document.
-- \`manage_memory({ action: "read_doc", id: "..." })\` — read full document content.
-- \`manage_memory({ action: "delete_doc", id: "..." })\` — delete a document.
+**When to save (rare):** stable preferences, people, projects, constraints, or explicit "remember this".
+**Do NOT save:** task progress, research dumps, intermediate answers, playbooks (use Skills), or one-off details.
+Prefer 0–2 nodes per turn. Prefer \`link\` / \`update_node\` over duplicate nodes.
+Each node is one short \`content\` string (no type). Links use a short free-form \`relation\` (snake_case).
 
-Use \`manage_memory({ action: "list" })\` to see all facts and document titles.
-</memory_instructions>`);
-  }
+Actions: upsert_node, update_node, forget_node, link, unlink, search, neighbors, list.
+</memory_instructions>`;
+}
 
-  // ── Facts (always injected) ──
-  if (facts.length > 0) {
-    const list = facts.map((f) => `- [${f.id}] ${f.content}`).join("\n");
-    parts.push(`<memory>
-${list}
-</memory>`);
-  }
-
-  // ── Documents (titles only — authenticated users only) ──
-  if (!isGuest && docTitles.length > 0) {
-    const list = docTitles.map((d) => `- [id:${d.id}] ${d.title}`).join("\n");
-    parts.push(`<documents>
-Use \`manage_memory({ action: "read_doc", id: "..." })\` to read full content.
-
-${list}
-</documents>`);
-  }
-
-  // ── Skills (name + description only) ──
-  if (skills && skills.length > 0) {
-    const list = skills.map((s) => `- ${s.name} — ${s.description}`).join("\n");
-    parts.push(`<skills>
+function buildSkillsSection(skills: SkillSummary[]): string | null {
+  if (skills.length === 0) return null;
+  const list = skills.map((s) => `- ${s.name} — ${s.description}`).join("\n");
+  return `<skills>
 When a skill matches the task, call \`read_skill({ name })\` to load full instructions.
 Then follow any references named inside that content via \`read_skill({ name, reference })\`.
 
 ${list}
-</skills>`);
-  }
+</skills>`;
+}
 
-  // ── Callable Agents ──
-  if (agentsToDelegate && agentsToDelegate.length > 0) {
-    const memberList = agentsToDelegate
-      .map((a) => {
-        const desc = a.description ? ` — ${a.description}` : "";
-        const toolName = callAgentToolName(a.id);
-        return `- **${a.name}** → tool \`${toolName}\`${desc}`;
-      })
-      .join("\n");
+function buildCallableAgentsSection(agentsToDelegate: DelegateAgent[]): string | null {
+  if (agentsToDelegate.length === 0) return null;
+  const memberList = agentsToDelegate
+    .map((a) => {
+      const desc = a.description ? ` — ${a.description}` : "";
+      const toolName = callAgentToolName(a.id);
+      return `- **${a.name}** → tool \`${toolName}\`${desc}`;
+    })
+    .join("\n");
 
-    parts.push(`<callable_agents>
+  return `<callable_agents>
 You can delegate tasks using these specialist tools (one tool per agent):
 
 ${memberList}
@@ -124,50 +91,43 @@ ${memberList}
 - When you need **multiple independent tasks**, call those tools in the SAME step (parallel).
 - Only call specialists **sequentially** when one result is needed as input for the next.
 - If an agent call fails, report the error clearly to the user.
-</callable_agents>`);
-  }
+</callable_agents>`;
+}
 
-  // ── Response format ──
-  parts.push(`<response_format>
+function buildResponseFormat(): string {
+  return `<response_format>
 Always respond using **Markdown** formatting.
 - Use headings, lists, bold, italic, code blocks, tables, etc. for clarity.
 - When you need to visualize a graph, flowchart, or diagram, use a mermaid code block.
-</response_format>`);
+</response_format>`;
+}
 
+export function buildSystemPrompt(agent: AgentLike, options: BuildSystemPromptOptions = {}): string {
+  const { agentsToDelegate, skills } = options;
+  const parts: string[] = [];
+
+  if (agent.systemPrompt) parts.push(buildRoleSection(agent.systemPrompt));
+  parts.push(buildMemoryInstructions());
+
+  const skillsSection = skills ? buildSkillsSection(skills) : null;
+  if (skillsSection) parts.push(skillsSection);
+
+  const callableSection = agentsToDelegate ? buildCallableAgentsSection(agentsToDelegate) : null;
+  if (callableSection) parts.push(callableSection);
+
+  parts.push(buildResponseFormat());
   return parts.join("\n\n");
 }
 
 /**
  * Resolve full system prompt for an agent directly from DB.
- *
- * @param agentId          — the agent
- * @param callableAgentIds — Agent IDs this agent can delegate to
- * @param ownerId          — user ID or fingerprint for per-user memory
- * @param isGuest          — if true, skip documents
  */
-export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[], ownerId = "user", isGuest = false): string {
+export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]): string {
   const db = getDb();
 
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
-  // Per-user facts
-  const facts = db
-    .select({ id: agentUserFacts.id, content: agentUserFacts.content })
-    .from(agentUserFacts)
-    .where(and(eq(agentUserFacts.agentId, agentId), eq(agentUserFacts.ownerId, ownerId)))
-    .all();
-
-  // Per-user document titles (skip for guests)
-  const docTitles = isGuest
-    ? []
-    : db
-        .select({ id: agentNotes.id, title: agentNotes.title })
-        .from(agentNotes)
-        .where(and(eq(agentNotes.agentId, agentId), eq(agentNotes.ownerId, ownerId)))
-        .all();
-
-  // Callable agents: use param if provided, otherwise read from agent record
   const effectiveCallableIds = callableAgentIds ?? (agent.callableAgentIds as string[] | null) ?? [];
 
   let agentsToDelegate: { id: string; name: string; description: string | null }[] | undefined;
@@ -179,8 +139,7 @@ export function resolveSystemPrompt(agentId: string, callableAgentIds?: string[]
 
   const skillSummaries = listAssignedSkillSummaries(agentId);
 
-  return buildSystemPrompt(agent, facts, docTitles, {
-    isGuest,
+  return buildSystemPrompt(agent, {
     agentsToDelegate,
     skills: skillSummaries,
   });

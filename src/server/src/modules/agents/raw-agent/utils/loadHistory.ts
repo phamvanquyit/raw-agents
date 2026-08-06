@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { agentMessages, getDb } from "../../../../common/db/client.js";
 import type { MessageParam } from "./agentRunner.js";
+import { applyHistoryCompaction } from "./historyCompact.js";
 
 type HistoryRow = {
   role: string;
@@ -23,20 +24,16 @@ function parseToolRow(row: HistoryRow): {
   };
 }
 
-/**
- * Collect consecutive tool rows starting at `start`, skipping thinking rows.
- * Returns the first index after the tool group.
- */
 function collectToolGroup(
   rows: HistoryRow[],
   start: number,
 ): {
   toolCalls: Array<{ id: string; name: string; args: unknown }>;
-  toolResults: Array<Extract<MessageParam, { role: "tool-result" }>>;
+  toolResults: Extract<MessageParam, { role: "tool-result" }>[];
   nextIndex: number;
 } {
   const toolCalls: Array<{ id: string; name: string; args: unknown }> = [];
-  const toolResults: Array<Extract<MessageParam, { role: "tool-result" }>> = [];
+  const toolResults: Extract<MessageParam, { role: "tool-result" }>[] = [];
   let j = start;
   while (j < rows.length) {
     if (rows[j].role === "thinking") {
@@ -54,13 +51,6 @@ function collectToolGroup(
   return { toolCalls, toolResults, nextIndex: j };
 }
 
-/**
- * Rebuild LangGraph-compatible message params from DB rows.
- *
- * OpenAI requires every `role: tool` message to follow an assistant message
- * with matching `tool_calls`. When the model called tools with no text, older
- * saves may only have orphan `tool` rows — synthesize an empty assistant.
- */
 export function rebuildHistoryFromRows(rows: HistoryRow[]): MessageParam[] {
   const result: MessageParam[] = [];
   let i = 0;
@@ -109,22 +99,19 @@ export function rebuildHistoryFromRows(rows: HistoryRow[]): MessageParam[] {
 }
 
 /**
- * Load full conversation history including tool calls and tool results.
- *
- * Reconstructs the message sequence that LangGraph expects:
- *   - user → HumanMessage
- *   - assistant (before tool calls) → AIMessage with tool_calls[]
- *   - tool result → ToolMessage with tool_call_id
- *   - assistant (final answer) → AIMessage (plain text)
+ * Load conversation history for the agent.
+ * Long histories are compacted: older turns → extractive summary + recent window.
  */
 export function loadHistory(conversationId: string): MessageParam[] {
   const rows = getDb().select().from(agentMessages).where(eq(agentMessages.conversationId, conversationId)).orderBy(sql`rowid`).all();
 
-  return rebuildHistoryFromRows(
+  const full = rebuildHistoryFromRows(
     rows.map((r) => ({
       role: r.role,
       content: r.content,
       metadata: r.metadata as Record<string, unknown> | null,
     })),
   );
+
+  return applyHistoryCompaction(conversationId, full);
 }

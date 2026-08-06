@@ -10,7 +10,7 @@
  * Tool resolution:
  *   1. agent_tool_assignments (builtin:*, mcp:*, or custom tool UUID)
  *   2. agent.callableAgentIds → system prompt + one call_agent__* tool each
- *   3. Always-on: manage_memory
+ *   3. Always-on: memory
  */
 
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
@@ -231,7 +231,7 @@ export async function generateAgent(
 
   const [model, baseSystemPrompt, tools] = await Promise.all([
     getChatModel(agent.aiProvider, agent.aiModel),
-    Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
+    Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined)),
     Promise.resolve(
       resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest, {
         callableAgents,
@@ -317,7 +317,7 @@ export async function* streamAgent(
 
     const [model, baseSystemPrompt, tools] = await Promise.all([
       getChatModel(agent.aiProvider, agent.aiModel),
-      Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined, ownerId, isGuest)),
+      Promise.resolve(resolveSystemPrompt(agentId, callableAgents.length > 0 ? callableAgentIds : undefined)),
       Promise.resolve(
         resolveAgentTools(agentId, enabledToolIds, ownerId, isGuest, {
           callableAgents,
