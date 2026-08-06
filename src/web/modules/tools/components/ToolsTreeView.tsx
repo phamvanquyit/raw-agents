@@ -468,8 +468,7 @@ export function ToolsTreeView({ tools, folders, onToolClick, onToolCreated, onEd
         newIndex = overItems.length + 1;
       } else {
         const overIndex = overItems.indexOf(overId);
-        const isBelowOverItem =
-          !!active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height / 2;
+        const isBelowOverItem = !!active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height / 2;
         const modifier = isBelowOverItem ? 1 : 0;
         newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
       }

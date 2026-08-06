@@ -120,8 +120,7 @@ export function useAutoScroll(opts?: {
 
       const observeContentChild = (observer: ResizeObserver) => {
         const content =
-          el.querySelector<HTMLElement>("[data-chat-scroll-content]") ??
-          (el.firstElementChild instanceof HTMLElement ? el.firstElementChild : null);
+          el.querySelector<HTMLElement>("[data-chat-scroll-content]") ?? (el.firstElementChild instanceof HTMLElement ? el.firstElementChild : null);
         if (!content) return;
         if (observedChildRef.current === content) return;
         if (observedChildRef.current) {

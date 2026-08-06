@@ -113,7 +113,9 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
             className="group w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none border-0 bg-muted/30 hover:bg-muted/45 transition-colors text-left"
           >
             <span className="relative size-4 shrink-0">
-              <span className={cn("absolute inset-0 flex items-center justify-center transition-opacity", open ? "opacity-0" : "opacity-100 group-hover:opacity-0")}>
+              <span
+                className={cn("absolute inset-0 flex items-center justify-center transition-opacity", open ? "opacity-0" : "opacity-100 group-hover:opacity-0")}
+              >
                 {failed ? (
                   <DangerCircle size={13} className="text-destructive" />
                 ) : running ? (

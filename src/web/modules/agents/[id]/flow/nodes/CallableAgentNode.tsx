@@ -13,10 +13,7 @@ const NODE_H = 22;
 
 export function CallableAgentNode({ data }: NodeProps<CallableAgentNodeType>) {
   return (
-    <div
-      className="relative flex items-center gap-2 overflow-visible whitespace-nowrap"
-      style={{ height: NODE_H, minWidth: data.width }}
-    >
+    <div className="relative flex items-center gap-2 overflow-visible whitespace-nowrap" style={{ height: NODE_H, minWidth: data.width }}>
       <Handle
         type="target"
         position={Position.Left}

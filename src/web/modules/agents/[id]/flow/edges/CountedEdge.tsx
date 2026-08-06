@@ -1,4 +1,4 @@
-import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps, getBezierPath } from "@xyflow/react";
+import { BaseEdge, type Edge, EdgeLabelRenderer, type EdgeProps, getBezierPath } from "@xyflow/react";
 
 export type CountedEdgeData = {
   count?: number;
@@ -7,18 +7,7 @@ export type CountedEdgeData = {
 
 export type CountedEdgeType = Edge<CountedEdgeData>;
 
-export function CountedEdge({
-  id,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  style,
-  markerEnd,
-  data,
-}: EdgeProps<CountedEdgeType>) {
+export function CountedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, data }: EdgeProps<CountedEdgeType>) {
   const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
   const count = data?.count ?? 0;
   const color = data?.color ?? (typeof style?.stroke === "string" ? style.stroke : undefined);

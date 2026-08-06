@@ -1,4 +1,5 @@
 import {
+  AlarmPlay,
   AltArrowLeft,
   Database,
   FaceScanSquare,
@@ -8,10 +9,9 @@ import {
   LockPassword,
   Logout2,
   MenuDots,
+  Planet2,
   Programming,
   Settings,
-  AlarmPlay,
-  Planet2,
   Stars,
   User as UserIcon,
 } from "@solar-icons/react";

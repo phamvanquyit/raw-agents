@@ -20,10 +20,7 @@ export function ConnectedToolNode({ data }: NodeProps<ConnectedToolNodeType>) {
   const LeafIcon = accent === "skill" ? Stars : Programming;
 
   return (
-    <div
-      className="relative flex items-center gap-1.5 overflow-visible whitespace-nowrap"
-      style={{ height: NODE_H, minWidth: data.width }}
-    >
+    <div className="relative flex items-center gap-1.5 overflow-visible whitespace-nowrap" style={{ height: NODE_H, minWidth: data.width }}>
       <Handle
         type="target"
         position={Position.Left}

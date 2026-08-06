@@ -150,7 +150,16 @@ export function MonacoEditor({ theme = RAW_DARK_THEME, options, height = "100%",
     [onMount, theme],
   );
 
-  return <MonacoReactEditor height={height} theme={theme} options={{ ...DEFAULT_OPTIONS, ...options }} onMount={handleMount} beforeMount={prepareMonaco} {...props} />;
+  return (
+    <MonacoReactEditor
+      height={height}
+      theme={theme}
+      options={{ ...DEFAULT_OPTIONS, ...options }}
+      onMount={handleMount}
+      beforeMount={prepareMonaco}
+      {...props}
+    />
+  );
 }
 
 const DEFAULT_DIFF_OPTIONS: editorNS.IDiffEditorConstructionOptions = {
@@ -191,5 +200,14 @@ export function MonacoDiffEditor({ theme = RAW_DARK_THEME, options, height = "10
     [onMount],
   );
 
-  return <MonacoReactDiffEditor height={height} theme={theme} options={{ ...DEFAULT_DIFF_OPTIONS, ...options }} onMount={handleMount} beforeMount={prepareMonaco} {...props} />;
+  return (
+    <MonacoReactDiffEditor
+      height={height}
+      theme={theme}
+      options={{ ...DEFAULT_DIFF_OPTIONS, ...options }}
+      onMount={handleMount}
+      beforeMount={prepareMonaco}
+      {...props}
+    />
+  );
 }

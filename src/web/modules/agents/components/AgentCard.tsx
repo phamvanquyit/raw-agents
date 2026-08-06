@@ -43,7 +43,24 @@ export function AgentCard({ agent, onOpen }: AgentCardProps) {
         },
       }));
 
-    return [
+    const items: NonNullable<MenuProps["items"]> = [];
+
+    if (agent.isPublic) {
+      items.push({
+        key: "open-public",
+        label: (
+          <div className="flex items-center gap-2">
+            <Global width={14} height={14} />
+            Open public chat
+          </div>
+        ),
+        onClick: () => {
+          window.open(`/chat/${agent.id}`, "_blank", "noopener,noreferrer");
+        },
+      });
+    }
+
+    items.push(
       {
         key: "clone",
         label: (
@@ -73,8 +90,10 @@ export function AgentCard({ agent, onOpen }: AgentCardProps) {
         ),
         children: teamChildren,
       },
-    ];
-  }, [agent.id, agent.name, agent.teamId, dispatch, teams]);
+    );
+
+    return items;
+  }, [agent.id, agent.isPublic, agent.name, agent.teamId, dispatch, teams]);
 
   return (
     <div
