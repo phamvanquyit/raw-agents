@@ -15,7 +15,7 @@ const TOOL_UIS: ToolUIEntry[] = [
   { match: isCallAgentToolName, component: CallAgentToolUI },
   { match: (n) => n === "browser", component: BrowserToolUI },
   { match: (n) => n === "get_current_time", component: GetCurrentTimeToolUI },
-  { match: (n) => n === "manage_memory", component: ManageMemoryToolUI },
+  { match: (n) => n === "memory" || n === "user_memory" || n === "manage_memory", component: ManageMemoryToolUI },
 ];
 
 export function resolveToolUI(toolName: string | null | undefined): ComponentType<ToolUIProps> | null {

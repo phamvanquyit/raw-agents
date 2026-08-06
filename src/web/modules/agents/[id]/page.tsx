@@ -15,6 +15,7 @@ import { ChatPage } from "./chat/ChatPage";
 import { type AgentDetailContext, AgentDetailCtx } from "./common/agentDetailContext";
 import { AgentDetailHeader } from "./components/AgentDetailHeader";
 import { AgentFlowView } from "./flow/AgentFlowView";
+import { MemoryPage } from "./memory/MemoryPage";
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
 
@@ -324,6 +325,7 @@ export default function AgentDetailPage() {
           <Routes>
             <Route index element={<ChatPage />} />
             <Route path="chat" element={<Navigate to={`/agents/${id}`} replace />} />
+            <Route path="memory" element={<MemoryPage />} />
             <Route
               path="editor"
               element={

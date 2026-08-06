@@ -35,18 +35,48 @@ export interface Agent extends AgentListItem {
 
 export type NewAgent = Partial<Agent> & { name: string };
 
-// ─── Agent Notes ─────────────────────────────────────────────────────────────
+// ─── Agent Memory Graph ──────────────────────────────────────────────────────
 
-export interface AgentNote {
+export interface MemoryNode {
   id: string;
   agentId: string;
-  title: string;
+  ownerId: string;
   content: string;
+  sourceConversationId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export type NewAgentNote = Omit<AgentNote, "id" | "createdAt" | "updatedAt">;
+export interface MemoryEdge {
+  id: string;
+  agentId: string;
+  ownerId: string;
+  fromId: string;
+  toId: string;
+  relation: string;
+  createdAt: Date;
+}
+
+export interface MemorySessionBranch {
+  conversationId: string;
+  title: string;
+  nodeCount: number;
+}
+
+export interface MemoryOwnerBranch {
+  ownerId: string;
+  label: string;
+  avatar: string | null;
+  isGuest: boolean;
+  nodeCount: number;
+  sessions: MemorySessionBranch[];
+}
+
+export interface AgentMemoryResponse {
+  nodes: MemoryNode[];
+  edges: MemoryEdge[];
+  branches: MemoryOwnerBranch[];
+}
 
 // ─── Agent Teams ─────────────────────────────────────────────────────────────
 
@@ -78,6 +108,8 @@ export interface AgentConversation {
   trigger: "manual" | "cron" | "api" | "meeting" | "public";
   status: "running" | "done" | "failed";
   errorMessage: string | null;
+  summary?: string | null;
+  summaryUpdatedAt?: Date | null;
   startedAt: Date | null;
   finishedAt: Date | null;
   createdAt: Date;

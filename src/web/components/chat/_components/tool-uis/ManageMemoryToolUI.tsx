@@ -1,34 +1,39 @@
-import { Bookmark, ClipboardRemove, Cpu, DangerCircle, Document, DocumentText, Notes, Restart, TrashBinMinimalistic } from "@solar-icons/react";
+import { Bookmark, Cpu, DangerCircle, LinkMinimalistic, Notes, Restart, TrashBinMinimalistic } from "@solar-icons/react";
 import type { ReactNode } from "react";
 import RenderIf from "src/components/RenderIf";
 import { useAppSelector } from "src/store/store";
 import type { ToolUIProps } from "./types";
 
-type MemoryAction = "add_facts" | "remove_facts" | "list" | "save_doc" | "read_doc" | "delete_doc" | string;
+type MemoryAction = "upsert_node" | "update_node" | "forget_node" | "link" | "unlink" | "search" | "neighbors" | "list" | string;
 
-type MemoryFact = { id?: string; content: string };
-type MemoryDoc = { id?: string; title: string; content?: string };
+type MemoryNode = { id?: string; content: string; label?: string; type?: string };
+type MemoryEdge = { id?: string; from_id?: string; to_id?: string; relation?: string };
+type MemoryLink = { relation?: string; direction?: string; node?: MemoryNode };
 
 type MemoryInput = {
   action?: MemoryAction;
-  facts?: string[];
-  fact_ids?: string[];
   id?: string;
-  title?: string;
+  type?: string;
+  label?: string;
   content?: string;
+  from_id?: string;
+  to_id?: string;
+  relation?: string;
+  query?: string;
 };
 
 type MemoryOutput = {
   ok?: boolean;
   error?: string;
-  added?: number;
-  removed?: number;
-  facts?: MemoryFact[];
-  documents?: MemoryDoc[];
   id?: string;
-  title?: string;
-  content?: string;
   message?: string;
+  removed?: number;
+  count?: number;
+  node?: MemoryNode;
+  nodes?: MemoryNode[];
+  edges?: MemoryEdge[];
+  links?: MemoryLink[];
+  edge?: MemoryEdge;
 };
 
 function parseJson<T>(raw: unknown): T | null {
@@ -48,35 +53,37 @@ function actionVerb(action: MemoryAction | undefined, running: boolean, failed: 
   if (failed) return "Memory update failed";
   if (running) {
     switch (action) {
-      case "add_facts":
+      case "upsert_node":
+      case "update_node":
         return "Remembering…";
-      case "remove_facts":
+      case "forget_node":
         return "Forgetting…";
+      case "link":
+        return "Linking…";
+      case "unlink":
+        return "Unlinking…";
+      case "search":
+      case "neighbors":
       case "list":
         return "Recalling…";
-      case "save_doc":
-        return "Saving to memory…";
-      case "read_doc":
-        return "Reading memory…";
-      case "delete_doc":
-        return "Erasing…";
       default:
         return "Updating memory…";
     }
   }
   switch (action) {
-    case "add_facts":
+    case "upsert_node":
+    case "update_node":
       return "Remembered";
-    case "remove_facts":
+    case "forget_node":
       return "Forgot";
+    case "link":
+      return "Linked";
+    case "unlink":
+      return "Unlinked";
+    case "search":
+    case "neighbors":
     case "list":
       return "Recalled";
-    case "save_doc":
-      return "Saved to memory";
-    case "read_doc":
-      return "Opened memory";
-    case "delete_doc":
-      return "Erased";
     default:
       return "Memory";
   }
@@ -86,46 +93,37 @@ function actionIcon(action: MemoryAction | undefined, failed: boolean, running: 
   if (failed) return <DangerCircle size={13} className="text-destructive shrink-0" />;
   if (running) return <Restart size={12} className="animate-spin text-muted-foreground shrink-0" />;
   switch (action) {
-    case "add_facts":
+    case "upsert_node":
+    case "update_node":
       return <Bookmark size={13} className="text-muted-foreground shrink-0" />;
-    case "remove_facts":
-      return <ClipboardRemove size={13} className="text-muted-foreground shrink-0" />;
+    case "forget_node":
+    case "unlink":
+      return <TrashBinMinimalistic size={13} className="text-muted-foreground shrink-0" />;
+    case "link":
+      return <LinkMinimalistic size={13} className="text-muted-foreground shrink-0" />;
+    case "search":
+    case "neighbors":
     case "list":
       return <Cpu size={13} className="text-muted-foreground shrink-0" />;
-    case "save_doc":
-      return <Document size={13} className="text-muted-foreground shrink-0" />;
-    case "read_doc":
-      return <DocumentText size={13} className="text-muted-foreground shrink-0" />;
-    case "delete_doc":
-      return <TrashBinMinimalistic size={13} className="text-muted-foreground shrink-0" />;
     default:
       return <Notes size={13} className="text-muted-foreground shrink-0" />;
   }
 }
 
-function FactChip({ content }: { content: string }) {
+function nodeText(node: MemoryNode): string {
+  return (node.content || node.label || "").trim();
+}
+
+function NodeChip({ node }: { node: MemoryNode }) {
+  const text = nodeText(node);
   return (
-    <span className="inline-flex max-w-full items-center rounded-md border border-border-subtle bg-muted/40 px-2 py-1 text-[11px] leading-[1.4] text-foreground/90">
-      <span className="truncate">{content}</span>
+    <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border-subtle bg-muted/40 px-2 py-1 text-[11px] leading-[1.4] text-foreground/90">
+      <span className="truncate">{text}</span>
     </span>
   );
 }
 
-function DocRow({ title, preview }: { title: string; preview?: string }) {
-  return (
-    <div className="rounded-md border border-border-subtle bg-muted/25 px-2.5 py-2 min-w-0">
-      <div className="flex items-center gap-1.5 min-w-0">
-        <DocumentText size={12} className="text-muted-foreground shrink-0" />
-        <span className="text-[12px] font-medium text-foreground truncate">{title}</span>
-      </div>
-      <RenderIf condition={!!preview}>
-        {() => <p className="m-0 mt-1 text-[11px] text-muted-foreground leading-[1.45] line-clamp-3 whitespace-pre-wrap">{preview}</p>}
-      </RenderIf>
-    </div>
-  );
-}
-
-export function ManageMemoryToolUI({ msg, assistantLabel = "Assistant", assistantColor, showAvatar = true }: ToolUIProps) {
+export function UserMemoryToolUI({ msg, assistantLabel = "Assistant", assistantColor, showAvatar = true }: ToolUIProps) {
   const hasOutput = msg.toolOutput != null;
   const hasError = Boolean(msg.toolError);
   const input = parseJson<MemoryInput>(msg.toolInput) ?? {};
@@ -138,39 +136,38 @@ export function ManageMemoryToolUI({ msg, assistantLabel = "Assistant", assistan
   const callerColor = assistantColor ?? "var(--primary)";
   const action = input.action;
 
-  const addedFacts: MemoryFact[] =
-    output?.facts?.filter((f) => f.content?.trim()) ??
-    (input.facts ?? []).filter((f) => f.trim()).map((content) => ({ content: content.trim() }));
-
-  const listedFacts = (output?.facts ?? []).filter((f) => f.content?.trim());
-  const listedDocs = output?.documents ?? [];
-  const docTitle = output?.title ?? input.title ?? "Document";
-  const docPreview = output?.content ?? input.content;
-  const removeCount = output?.removed ?? input.fact_ids?.length ?? 0;
-  const addCount = output?.added ?? addedFacts.length;
+  const inputContent = (input.content || input.label || "").trim();
+  const nodes = output?.nodes ?? (output?.node ? [output.node] : inputContent ? [{ content: inputContent }] : []);
+  const links = output?.links ?? [];
+  const edges = output?.edges ?? [];
 
   const summaryExtra = (() => {
     if (running || failed) return null;
-    if (action === "add_facts" && addCount > 0) return `${addCount} fact${addCount === 1 ? "" : "s"}`;
-    if (action === "remove_facts" && removeCount > 0) return `${removeCount} fact${removeCount === 1 ? "" : "s"}`;
+    if ((action === "upsert_node" || action === "update_node") && (output?.node || inputContent)) {
+      const text = output?.node ? nodeText(output.node) : inputContent;
+      return text.length > 40 ? `${text.slice(0, 39)}…` : text || null;
+    }
+    if (action === "forget_node") return inputContent || input.id?.slice(0, 8) || null;
+    if (action === "link") return input.relation ?? "related_to";
+    if (action === "unlink") return `${output?.removed ?? 0} link(s)`;
     if (action === "list") {
       const parts: string[] = [];
-      if (listedFacts.length) parts.push(`${listedFacts.length} fact${listedFacts.length === 1 ? "" : "s"}`);
-      if (listedDocs.length) parts.push(`${listedDocs.length} doc${listedDocs.length === 1 ? "" : "s"}`);
+      if (nodes.length) parts.push(`${nodes.length} node${nodes.length === 1 ? "" : "s"}`);
+      if (edges.length) parts.push(`${edges.length} link${edges.length === 1 ? "" : "s"}`);
       return parts.join(" · ") || "empty";
     }
-    if (action === "save_doc" || action === "read_doc" || action === "delete_doc") return docTitle;
+    if (action === "search") return `${output?.count ?? nodes.length} match(es)`;
+    if (action === "neighbors") return `${links.length} link(s)`;
     return null;
   })();
 
   const showBody =
     !running &&
     !failed &&
-    ((action === "add_facts" && addedFacts.length > 0) ||
-      (action === "list" && (listedFacts.length > 0 || listedDocs.length > 0 || hasOutput)) ||
-      (action === "save_doc" && !!docTitle) ||
-      (action === "read_doc" && (!!docTitle || !!docPreview)) ||
-      (action === "delete_doc" && !!docTitle));
+    (((action === "upsert_node" || action === "update_node" || action === "search" || action === "list") && nodes.length > 0) ||
+      (action === "neighbors" && (nodes.length > 0 || links.length > 0)) ||
+      (action === "list" && hasOutput) ||
+      (action === "link" && !!output?.edge));
 
   return (
     <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
@@ -191,9 +188,7 @@ export function ManageMemoryToolUI({ msg, assistantLabel = "Assistant", assistan
             {actionIcon(action, failed, running)}
             <span className="text-[12px] font-medium text-muted-foreground truncate min-w-0">
               {actionVerb(action, running, failed)}
-              <RenderIf condition={!!summaryExtra}>
-                {() => <span className="text-tertiary-foreground"> · {summaryExtra}</span>}
-              </RenderIf>
+              <RenderIf condition={!!summaryExtra}>{() => <span className="text-tertiary-foreground"> · {summaryExtra}</span>}</RenderIf>
             </span>
           </div>
 
@@ -207,42 +202,26 @@ export function ManageMemoryToolUI({ msg, assistantLabel = "Assistant", assistan
 
           <RenderIf condition={showBody}>
             <div className="border-t border-border-subtle px-3 py-2.5 flex flex-col gap-2">
-              <RenderIf condition={action === "add_facts"}>
+              <RenderIf condition={nodes.length > 0}>
                 <div className="flex flex-wrap gap-1.5">
-                  {addedFacts.map((fact, i) => (
-                    <FactChip key={fact.id ?? `${fact.content}-${i}`} content={fact.content} />
+                  {nodes.map((node, i) => (
+                    <NodeChip key={node.id ?? `${nodeText(node)}-${i}`} node={node} />
                   ))}
                 </div>
               </RenderIf>
 
-              <RenderIf condition={action === "list"}>
-                <div className="flex flex-col gap-2">
-                  <RenderIf condition={listedFacts.length > 0}>
-                    <div className="flex flex-wrap gap-1.5">
-                      {listedFacts.map((fact, i) => (
-                        <FactChip key={fact.id ?? `${fact.content}-${i}`} content={fact.content} />
-                      ))}
-                    </div>
-                  </RenderIf>
-                  <RenderIf condition={listedDocs.length > 0}>
-                    <div className="flex flex-col gap-1.5">
-                      {listedDocs.map((doc, i) => (
-                        <DocRow key={doc.id ?? `${doc.title}-${i}`} title={doc.title} />
-                      ))}
-                    </div>
-                  </RenderIf>
-                  <RenderIf condition={listedFacts.length === 0 && listedDocs.length === 0}>
-                    <span className="text-[11px] text-muted-foreground">No memories yet</span>
-                  </RenderIf>
+              <RenderIf condition={links.length > 0}>
+                <div className="flex flex-col gap-1">
+                  {links.map((link) => (
+                    <span key={`${link.direction}-${link.relation}-${link.node?.id ?? ""}`} className="text-[11px] text-muted-foreground">
+                      {link.direction === "in" ? "←" : "→"} {link.relation} {link.node ? nodeText(link.node) : ""}
+                    </span>
+                  ))}
                 </div>
               </RenderIf>
 
-              <RenderIf condition={action === "save_doc" || action === "read_doc"}>
-                <DocRow title={docTitle} preview={docPreview} />
-              </RenderIf>
-
-              <RenderIf condition={action === "delete_doc"}>
-                <DocRow title={docTitle} />
+              <RenderIf condition={action === "list" && nodes.length === 0 && edges.length === 0}>
+                <span className="text-[11px] text-muted-foreground">No memories yet</span>
               </RenderIf>
             </div>
           </RenderIf>
@@ -251,3 +230,6 @@ export function ManageMemoryToolUI({ msg, assistantLabel = "Assistant", assistan
     </div>
   );
 }
+
+/** @deprecated */
+export const ManageMemoryToolUI = UserMemoryToolUI;

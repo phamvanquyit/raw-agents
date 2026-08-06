@@ -1,4 +1,4 @@
-import { ChatRound, Programming } from "@solar-icons/react";
+import { Bookmark, ChatRound, Programming } from "@solar-icons/react";
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ export function parseCron(cron: string | null | undefined): ScheduleState {
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-export type TabId = "chat" | "editor";
+export type TabId = "chat" | "memory" | "editor";
 export const TABS: { id: TabId; label: string; icon: typeof ChatRound; desc: string; path: string }[] = [
   {
     id: "chat",
@@ -92,6 +92,13 @@ export const TABS: { id: TabId; label: string; icon: typeof ChatRound; desc: str
     icon: ChatRound,
     desc: "Chat with the agent",
     path: "",
+  },
+  {
+    id: "memory",
+    label: "Memory",
+    icon: Bookmark,
+    desc: "User knowledge graph",
+    path: "memory",
   },
   {
     id: "editor",
