@@ -12,6 +12,7 @@ Self-hosted AI agents with a web UI — extend them with Python/JS tools & MCP, 
 - 🧠 **Multi-Provider** — OpenAI, Anthropic, Google Gemini, OpenRouter and more via LangChain
 - 🛠️ **Custom Tools** — JavaScript / Python tools, organized in folders on a tree-style Tools page
 - 📚 **Skills** — Shared markdown skill catalog with AI-assisted editing; assign to agents for progressive disclosure (`read_skill`)
+- 🧩 **Memory** — Per-agent user knowledge graph (nodes/edges) with a Memory tab and `memory` tool
 - 🔌 **MCP Servers** — Connect remote MCP servers (SSE / Streamable HTTP), sync catalogs, and attach tools to agents
 - 🌐 **Browser Tool** — Builtin stealth headless browser for navigate, click, fill, snapshot, and screenshots
 - 🔗 **Fetch URL** — Builtin HTTP fetch (`md` / `html` / `raw`) for page and docs reads without a full browser session

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2026-08-06
+
+### Added
+- Agent Memory tab: user knowledge graph (nodes/edges) with branch/session views
+- Memory REST API under `/api/agents/:id/memory` and rebuilt `memory` LLM tool
+- Conversation history compaction and memory budget for long chats
+- Skill assistant `read_skill_file` tool to read working skill/reference content before edits
+- Agent card shortcut to open public chat when the agent is public
+
+### Changed
+- Flat facts/notes memory replaced by an untyped node graph with free-form edge relations
+- Skill agent workflow prefers `read_skill_file` + targeted `edit_skill_file` replaces
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- SQLite migrations `0042_memory_phase1` / `0043_memory_graph` apply on startup (facts migrate to `memory_nodes`; `agent_notes` is dropped)
+- Agents/tools still using `manage_memory` / note documents should switch to the `memory` graph tool
+
 ## [0.19.1] - 2026-08-05
 
 ### Fixed
@@ -340,6 +358,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.20.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.17.2...v0.18.0
