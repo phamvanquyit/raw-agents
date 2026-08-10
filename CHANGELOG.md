@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.2] - 2026-08-10
+
+### Added
+- Sites list as a filterable table with visibility icons (public / protected / unpublished)
+- HttpOnly cookie for password-protected public site access (token no longer in the URL)
+
+### Changed
+- Legacy `?site_token=` / `?token=` public site URLs redirect to a clean path and set the cookie
+- Site unlock flow keeps the access token out of the address bar and asset URLs
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- Existing bookmarks with `?site_token=` still work via redirect; prefer sharing clean `/public/sites/<slug>` links after unlock
+
 ## [0.20.1] - 2026-08-10
 
 ### Added
@@ -378,6 +392,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.20.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.1...v0.20.2
 [0.20.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.0...v0.19.1
