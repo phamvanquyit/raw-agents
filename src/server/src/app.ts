@@ -1,10 +1,11 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
+import rootPkg from "../../../package.json" with { type: "json" };
 import { HttpException } from "./common/exceptions/http.exception.js";
 import { resolveAuth } from "./common/middleware/auth.middleware.js";
 import { buildSpaHtml, requestOrigin } from "./common/spa-html.js";
@@ -29,6 +30,44 @@ import toolsRoute from "./modules/tools/tools.route.js";
 
 import authRoute from "./modules/auth/auth.route.js";
 import usersRoute from "./modules/users/users.route.js";
+
+const APP_VERSION = rootPkg.version;
+
+type SpaBuildMeta = { buildId: string; version: string };
+
+/** Cache headers for production SPA static files. */
+function spaAssetCacheControl(reqPath: string): string {
+  // Vite content-hashed bundles — safe to cache forever
+  if (reqPath.startsWith("/assets/")) {
+    return "public, max-age=31536000, immutable";
+  }
+  // OG image is hot-linked by chatrooms
+  if (reqPath === "/og-image.png") {
+    return "public, max-age=86400";
+  }
+  // favicon / build-meta.json / other unhashed public files — always revalidate
+  return "no-cache";
+}
+
+/** Read build fingerprint written by Vite into web dist (same id baked into the SPA). */
+function loadSpaBuildMeta(webDist: string | undefined): SpaBuildMeta {
+  const fallback: SpaBuildMeta = { buildId: "dev", version: APP_VERSION };
+  if (!webDist) return fallback;
+  const metaPath = join(webDist, "build-meta.json");
+  if (!existsSync(metaPath)) return fallback;
+  try {
+    const raw = JSON.parse(readFileSync(metaPath, "utf8")) as Partial<SpaBuildMeta>;
+    if (typeof raw.buildId === "string" && raw.buildId.trim()) {
+      return {
+        buildId: raw.buildId.trim(),
+        version: typeof raw.version === "string" && raw.version.trim() ? raw.version.trim() : APP_VERSION,
+      };
+    }
+  } catch {
+    /* ignore malformed meta */
+  }
+  return fallback;
+}
 
 function siteAccessFromRequest(c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined } }) {
   const auth = c.req.header("authorization");
@@ -126,20 +165,22 @@ export function createApp(): Hono {
     }
   });
 
+  // ── Serve web build (SPA) ──────────────────────────────────────────────────
+  const webDistPaths = [join(__dirname, "../../web/dist"), join(__dirname, "../public")];
+
+  const webDist = webDistPaths.find((p) => existsSync(join(p, "index.html")));
+  const spaBuildMeta = loadSpaBuildMeta(webDist);
+
   // ── Health check ───────────────────────────────────────────────────────────
   app.get("/api/health", (c) =>
     c.json({
       ok: true,
       app: "raw-agents",
-      version: "0.1.0",
+      version: spaBuildMeta.version,
+      buildId: spaBuildMeta.buildId,
       runtime: "bun",
     }),
   );
-
-  // ── Serve web build (SPA) ──────────────────────────────────────────────────
-  const webDistPaths = [join(__dirname, "../../web/dist"), join(__dirname, "../public")];
-
-  const webDist = webDistPaths.find((p) => existsSync(join(p, "index.html")));
 
   if (webDist) {
     // Unified static handler:
@@ -152,10 +193,7 @@ export function createApp(): Hono {
       const filePath = join(webDist, reqPath);
       if (reqPath !== "/" && existsSync(filePath)) {
         const res = new Response(Bun.file(filePath));
-        // OG image is hot-linked by chatrooms — allow long cache once shipped
-        if (reqPath === "/og-image.png") {
-          res.headers.set("Cache-Control", "public, max-age=86400");
-        }
+        res.headers.set("Cache-Control", spaAssetCacheControl(reqPath));
         return res;
       }
 
@@ -167,8 +205,8 @@ export function createApp(): Hono {
       return new Response(html, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
-          // Don't cache HTML so OG title follows agent renames
-          "Cache-Control": "no-cache",
+          // Never cache the SPA shell — new deploys must pick up new asset hashes
+          "Cache-Control": "no-cache, no-store, must-revalidate",
         },
       });
     });

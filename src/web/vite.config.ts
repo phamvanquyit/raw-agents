@@ -1,15 +1,37 @@
+import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { type Plugin, defineConfig } from "vite";
 import pkg from "../../package.json" with { type: "json" };
+
+/** Prefer CI/Docker `--build-arg BUILD_ID=…`; otherwise a fresh id per build. */
+function resolveBuildId(): string {
+  const fromEnv = process.env.BUILD_ID?.trim();
+  if (fromEnv) return fromEnv;
+  return randomBytes(8).toString("hex");
+}
+
+const APP_BUILD_ID = resolveBuildId();
+
+function buildMetaPlugin(buildId: string, version: string): Plugin {
+  return {
+    name: "raw-agents-build-meta",
+    writeBundle(outputOptions) {
+      const outDir = outputOptions.dir ?? resolve(__dirname, "dist");
+      writeFileSync(resolve(outDir, "build-meta.json"), `${JSON.stringify({ buildId, version }, null, 2)}\n`);
+    },
+  };
+}
 
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_BUILD_ID__: JSON.stringify(APP_BUILD_ID),
   },
   root: __dirname,
-  plugins: [tailwindcss(), react()],
+  plugins: [tailwindcss(), react(), buildMetaPlugin(APP_BUILD_ID, pkg.version)],
   resolve: {
     alias: {
       // "src/common/..." → packages/web/common/...

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Hono } from "hono";
+import rootPkg from "../../../../package.json" with { type: "json" };
 import { createTestApp } from "./test-helpers.js";
 
 describe("Health Check", () => {
@@ -22,5 +23,8 @@ describe("Health Check", () => {
     expect(data.ok).toBe(true);
     expect(data.app).toBe("raw-agents");
     expect(data.runtime).toBe("bun");
+    expect(data.version).toBe(rootPkg.version);
+    expect(typeof data.buildId).toBe("string");
+    expect(String(data.buildId).length).toBeGreaterThan(0);
   });
 });

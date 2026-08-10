@@ -5,6 +5,7 @@
 #
 # Build:
 #   docker build -t phamvanquyit/raw-agents:latest .
+#   docker build --build-arg BUILD_ID=$(git rev-parse --short HEAD) -t phamvanquyit/raw-agents:latest .
 #
 # Run:
 #   docker run -d -p 15888:15888 \
@@ -32,11 +33,16 @@ FROM deps AS builder
 
 WORKDIR /app
 
+# Optional: docker build --build-arg BUILD_ID=$(git rev-parse --short HEAD)
+# When unset, Vite generates a fresh random id per build.
+ARG BUILD_ID=
+ENV BUILD_ID=$BUILD_ID
+
 # Copy source code
 COPY src/ src/
 COPY biome.json ./
 
-# Build web (Vite) → src/web/dist
+# Build web (Vite) → src/web/dist (+ build-meta.json with buildId)
 RUN cd src/web && bun run build
 
 # Build server (Bun bundle) → src/server/dist/index.js + sites-ssr-worker.js
