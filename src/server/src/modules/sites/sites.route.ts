@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { BadRequestException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
+import { BadRequestException, NotFoundException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { accessTokenCookieHeader, readAccessToken, requireAuth } from "../../common/middleware/auth.middleware.js";
 import { type SiteAgentStreamRequest, streamSiteAgent } from "./services/site-agent.service.js";
 import * as svc from "./sites.service.js";
@@ -149,17 +149,24 @@ app.post("/:id/action", async (c) => {
   return c.json(await svc.runDraftAction(id, c.req.raw));
 });
 
-app.get("/:id/thumbnail", async (c) => {
+app.get("/:id/thumbnail", (c) => {
   const id = c.req.param("id");
   svc.requireSiteAccess(id, authUser(c));
-  const tree = c.req.query("tree") === "prod" ? "prod" : "draft";
-  const png = await svc.getSiteThumbnailPng(id, tree);
-  return new Response(png, {
+  const png = svc.getSiteThumbnailPng(id);
+  if (!png) throw new NotFoundException("Thumbnail not found");
+  return new Response(new Uint8Array(png), {
     headers: {
       "Content-Type": "image/png",
       "Cache-Control": "private, max-age=60",
     },
   });
+});
+
+app.put("/:id/thumbnail", async (c) => {
+  const id = c.req.param("id");
+  svc.requireSiteAccess(id, authUser(c));
+  const buf = Buffer.from(await c.req.arrayBuffer());
+  return c.json(svc.saveSiteThumbnailPng(id, buf));
 });
 
 app.post("/:id/resolve-selection", async (c) => {

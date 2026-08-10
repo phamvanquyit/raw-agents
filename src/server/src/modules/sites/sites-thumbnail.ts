@@ -1,23 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { launch } from "cloakbrowser";
-import { eq } from "drizzle-orm";
-import type { Browser } from "playwright-core";
-import { getDb, sites } from "../../common/db/client.js";
-import { runSiteLoad } from "./sites-data-runtime.js";
-import { type SiteTree, ensureReactSiteSources, getSiteRoot, treeContentHash } from "./sites-fs.js";
+import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { getSiteRoot, treeContentHash } from "./sites-fs.js";
 
-const VIEWPORT = { width: 1280, height: 800 };
-const LAUNCH_TIMEOUT_MS = 45_000;
-const NAV_TIMEOUT_MS = 20_000;
-const CAPTURE_VERSION = "3";
-
-/** Minimal 1×1 PNG used when browser capture is unavailable. */
-const PLACEHOLDER_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-
-const inflight = new Map<string, Promise<Buffer>>();
-let browserChain: Promise<void> = Promise.resolve();
-const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const MAX_THUMBNAIL_BYTES = 3 * 1024 * 1024;
 
 function thumbnailPath(siteId: string) {
   return join(getSiteRoot(siteId), "thumbnail.png");
@@ -27,155 +14,37 @@ function thumbnailMetaPath(siteId: string) {
   return join(getSiteRoot(siteId), "thumbnail.hash");
 }
 
-function thumbnailSrcPath(siteId: string) {
-  return join(getSiteRoot(siteId), "thumbnail-src.html");
-}
-
-async function buildThumbnailHtml(siteId: string, tree: SiteTree): Promise<string> {
-  const db = getDb();
-  const row = db.select().from(sites).where(eq(sites.id, siteId)).get();
-  const name = row?.name ?? "Site";
-  const slug = row?.slug ?? "site";
+/** Read thumbnail from the site directory, or null if missing. */
+export function readSiteThumbnailPng(siteId: string): Buffer | null {
+  const path = thumbnailPath(siteId);
+  if (!existsSync(path)) return null;
   try {
-    ensureReactSiteSources(siteId, slug);
-    const { data } = await runSiteLoad(siteId, tree, {
-      request: new Request(`http://site.local/public/sites/${slug}`),
-      query: {},
-    });
-    const title = data && typeof data === "object" && "title" in (data as object) ? String((data as { title?: unknown }).title ?? name) : name;
-    const message = data && typeof data === "object" && "message" in (data as object) ? String((data as { message?: unknown }).message ?? "") : "";
-    return `<!DOCTYPE html><html><body style="margin:0;font-family:system-ui;padding:48px;background:#fff">
-      <h1 style="font-size:42px;margin:0 0 12px">${title.replace(/</g, "&lt;")}</h1>
-      <p style="font-size:22px;color:#555;margin:0">${message.replace(/</g, "&lt;")}</p>
-    </body></html>`;
-  } catch {
-    return `<!DOCTYPE html><html><body style="margin:0;font-family:system-ui;padding:48px"><h1>${name.replace(/</g, "&lt;")}</h1></body></html>`;
-  }
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
-    promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
-}
-
-function readCachedHash(siteId: string): string | null {
-  const meta = thumbnailMetaPath(siteId);
-  if (!existsSync(meta)) return null;
-  try {
-    return readFileSync(meta, "utf8").trim();
+    const buf = readFileSync(path);
+    if (buf.length < 8) return null;
+    return buf;
   } catch {
     return null;
   }
 }
 
-function isThumbnailFresh(siteId: string, tree: SiteTree): boolean {
-  const path = thumbnailPath(siteId);
-  if (!existsSync(path)) return false;
-  try {
-    if (statSync(path).size < 8) return false;
-  } catch {
-    return false;
+/** Persist a client-captured PNG under `{dataDir}/sites/{id}/thumbnail.png`. */
+export function writeSiteThumbnailPng(siteId: string, png: Buffer): void {
+  if (!Buffer.isBuffer(png) || png.length < 8) {
+    throw new BadRequestException("Invalid thumbnail image");
   }
-  return readCachedHash(siteId) === `${CAPTURE_VERSION}:${treeContentHash(siteId, tree)}`;
-}
-
-async function captureHtmlToPng(siteId: string, html: string, outPath: string): Promise<void> {
-  let browser: Browser | null = null;
-  const srcPath = thumbnailSrcPath(siteId);
-  try {
-    writeFileSync(srcPath, html || "<html><body></body></html>", "utf8");
-    browser = await withTimeout(
-      launch({
-        headless: true,
-        humanize: false,
-      }),
-      LAUNCH_TIMEOUT_MS,
-      "Thumbnail browser launch",
-    );
-    const page = await browser.newPage();
-    await page.setViewportSize(VIEWPORT);
-    await page.goto(`file://${srcPath}`, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
-    await page.screenshot({
-      path: outPath,
-      type: "png",
-      clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
-    });
-  } finally {
-    if (browser) await browser.close().catch(() => undefined);
-    if (existsSync(srcPath)) unlinkSync(srcPath);
+  if (png.length > MAX_THUMBNAIL_BYTES) {
+    throw new BadRequestException("Thumbnail too large");
   }
-}
+  if (!png.subarray(0, 4).equals(PNG_MAGIC)) {
+    throw new BadRequestException("Thumbnail must be a PNG");
+  }
 
-async function generateThumbnail(siteId: string, tree: SiteTree): Promise<Buffer> {
   const root = getSiteRoot(siteId);
   mkdirSync(root, { recursive: true });
-  const out = thumbnailPath(siteId);
-  const hash = treeContentHash(siteId, tree);
-
-  try {
-    const html = await buildThumbnailHtml(siteId, tree);
-
-    await new Promise<void>((resolve, reject) => {
-      browserChain = browserChain
-        .then(async () => {
-          await captureHtmlToPng(siteId, html, out);
-        })
-        .then(resolve, reject);
-    });
-
-    if (!existsSync(out) || statSync(out).size < 8) {
-      writeFileSync(out, PLACEHOLDER_PNG);
-    }
-  } catch {
-    writeFileSync(out, PLACEHOLDER_PNG);
-  }
-
-  writeFileSync(thumbnailMetaPath(siteId), `${CAPTURE_VERSION}:${hash}`, "utf8");
-  return readFileSync(out);
+  writeFileSync(thumbnailPath(siteId), png);
+  writeFileSync(thumbnailMetaPath(siteId), treeContentHash(siteId, "draft"), "utf8");
 }
 
-/** Return cached thumbnail bytes, regenerating when missing or stale. */
-export async function ensureSiteThumbnail(siteId: string, tree: SiteTree = "draft"): Promise<Buffer> {
-  if (isThumbnailFresh(siteId, tree)) {
-    return readFileSync(thumbnailPath(siteId));
-  }
-
-  const key = `${siteId}:${tree}`;
-  const existing = inflight.get(key);
-  if (existing) return existing;
-
-  const job = generateThumbnail(siteId, tree).finally(() => {
-    inflight.delete(key);
-  });
-  inflight.set(key, job);
-  return job;
-}
-
-/** Fire-and-forget refresh after source changes (debounced). */
-export function refreshSiteThumbnail(siteId: string, tree: SiteTree = "draft"): void {
-  const key = `${siteId}:${tree}`;
-  const prev = debounceTimers.get(key);
-  if (prev) clearTimeout(prev);
-  debounceTimers.set(
-    key,
-    setTimeout(() => {
-      debounceTimers.delete(key);
-      void ensureSiteThumbnail(siteId, tree).catch(() => undefined);
-    }, 1500),
-  );
-}
-
-export function hasSiteThumbnail(siteId: string, tree: SiteTree = "draft"): boolean {
-  return isThumbnailFresh(siteId, tree);
+export function hasSiteThumbnail(siteId: string): boolean {
+  return readSiteThumbnailPng(siteId) !== null;
 }

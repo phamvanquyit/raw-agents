@@ -21,7 +21,7 @@ import {
   writeScaffold,
   writeSourceFile,
 } from "./sites-fs.js";
-import { ensureSiteThumbnail, refreshSiteThumbnail } from "./sites-thumbnail.js";
+import { readSiteThumbnailPng, writeSiteThumbnailPng } from "./sites-thumbnail.js";
 
 function sitePublicPath(slug: string) {
   return `/public/sites/${slug}`;
@@ -232,7 +232,6 @@ export async function createSite(body: { name?: string; slug?: string; createdBy
     .returning()
     .all();
   wsHub.emit("sites:updated", toSiteResponse(updated));
-  refreshSiteThumbnail(id, "draft");
 
   return toSiteResponse(updated);
 }
@@ -296,7 +295,6 @@ export async function updateSiteFile(id: string, file: string, content: string, 
 
   if (file === "package.json") {
     const site = await installDeps(id, tree);
-    if (tree === "draft") refreshSiteThumbnail(id, "draft");
     return { ok: true, file, tree, draftDirty: isDraftDirty(id), site, depsInstalled: true as const };
   }
 
@@ -306,7 +304,6 @@ export async function updateSiteFile(id: string, file: string, content: string, 
   const [row] = db.update(sites).set(patch).where(eq(sites.id, id)).returning().all();
   const safe = toSiteResponse(row);
   wsHub.emit("sites:updated", safe);
-  if (tree === "draft") refreshSiteThumbnail(id, "draft");
   return { ok: true, file, tree, draftDirty: isDraftDirty(id), site: safe, depsInstalled: false as const };
 }
 
@@ -368,7 +365,6 @@ export async function approveSite(id: string) {
 
   const safe = toSiteResponse(row);
   wsHub.emit("sites:updated", safe);
-  refreshSiteThumbnail(id, "draft");
   if (!result.ok) throw new BadRequestException(`Approved but prod install failed: ${result.error}`);
   return safe;
 }
@@ -381,13 +377,18 @@ export function discardSiteDraft(id: string) {
   const [row] = db.update(sites).set({ draftUpdatedAt: new Date(), updatedAt: new Date() }).where(eq(sites.id, id)).returning().all();
   const safe = toSiteResponse(row);
   wsHub.emit("sites:updated", safe);
-  refreshSiteThumbnail(id, "draft");
   return safe;
 }
 
-export async function getSiteThumbnailPng(id: string, tree: SiteTree = "draft") {
+export function getSiteThumbnailPng(id: string) {
   getSiteOrThrow(id);
-  return ensureSiteThumbnail(id, tree);
+  return readSiteThumbnailPng(id);
+}
+
+export function saveSiteThumbnailPng(id: string, png: Buffer) {
+  getSiteOrThrow(id);
+  writeSiteThumbnailPng(id, png);
+  return { ok: true as const };
 }
 
 /** Bundle check / agent preview — returns shell HTML + backend GET data summary. */
