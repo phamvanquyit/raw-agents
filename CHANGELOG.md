@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.1] - 2026-08-10
+
+### Added
+- Agent Instruct tab for system prompt editing (full page; opens from the flow graph)
+- Settings → Default models for workspace assistant panel defaults
+- Site list thumbnails captured from the live editor preview and uploaded as PNG
+- Deploy fingerprint (`buildId`) on `/api/health`; SPA reloads when a new build is detected
+
+### Changed
+- Agent Memory moved from the main tab bar into the agent header menu
+- Memory graph uses a left sessions sidebar instead of a top branch strip
+- Site thumbnails are no longer generated server-side with a headless browser
+
+### Fixed
+- Password-protected site unlock no longer redirect-loops after the password changes
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- Optional Docker build arg `BUILD_ID` (e.g. git short SHA) for stable deploy fingerprints
+
 ## [0.20.0] - 2026-08-06
 
 ### Added
@@ -358,6 +378,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.20.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.18.0...v0.19.0
