@@ -1,5 +1,5 @@
 import { TrashBinMinimalistic } from "@solar-icons/react";
-import { Background, BackgroundVariant, Controls, type Node, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from "@xyflow/react";
+import { Background, BackgroundVariant, type Node, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Empty, Input, Modal, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
@@ -13,6 +13,8 @@ import { MemoryFlowNode } from "./nodes/MemoryFlowNode";
 
 const flowNodeTypes = { memoryNode: MemoryFlowNode };
 const flowEdgeTypes = { relation: RelationEdge };
+
+const SESSION_SIDEBAR_W = 220;
 
 interface MemoryGraphPanelProps {
   agentId: string;
@@ -195,10 +197,6 @@ function MemoryFlowCanvas({
           className="h-full w-full !bg-transparent"
         >
           <Background variant={BackgroundVariant.Dots} gap={28} size={1.6} color="color-mix(in oklab, var(--color-foreground) 14%, transparent)" />
-          <Controls
-            showInteractive={false}
-            className="!overflow-hidden !rounded-lg !border !border-border !bg-card !shadow-none [&>button]:!border-border [&>button]:!bg-card [&>button]:!text-foreground"
-          />
         </ReactFlow>
       </div>
 
@@ -294,10 +292,12 @@ export function MemoryGraphPanel({ agentId, data, onRefresh }: MemoryGraphPanelP
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
-        <p className="m-0 mr-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">User</p>
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
+    <div className="flex h-full min-h-0 w-full">
+      <aside className="flex h-full shrink-0 flex-col overflow-hidden border-r border-border bg-card" style={{ width: SESSION_SIDEBAR_W }}>
+        <div className="flex shrink-0 items-center border-b border-border px-3 py-2.5">
+          <p className="m-0 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Sessions</p>
+        </div>
+        <div className="min-h-0 flex-1 space-y-px overflow-y-auto p-1.5">
           {branches.map((branch) => {
             const active = branch.ownerId === ownerId;
             const guest = isGuestBranch(branch);
@@ -307,23 +307,17 @@ export function MemoryGraphPanel({ agentId, data, onRefresh }: MemoryGraphPanelP
                 type="button"
                 onClick={() => setOwnerId(branch.ownerId)}
                 className={cn(
-                  "flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 font-[inherit] transition-colors",
-                  active
-                    ? "border-border bg-muted text-foreground"
-                    : "border-transparent bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  "flex w-full cursor-pointer items-center gap-2.5 rounded-lg border-none px-2.5 py-2 text-left font-[inherit] transition-colors",
+                  active ? "bg-primary/[0.08] text-foreground" : "bg-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                 )}
               >
-                {guest ? <GuestAvatar size={20} /> : <UserAvatar avatar={branch.avatar} name={branch.label} size={20} />}
-                <span className="text-[12px] font-medium">{branch.label}</span>
-                <span className="rounded bg-background/60 px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{branch.nodeCount}</span>
+                {guest ? <GuestAvatar size={22} /> : <UserAvatar avatar={branch.avatar} name={branch.label} size={22} />}
+                <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{branch.label}</span>
               </button>
             );
           })}
         </div>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          {ownerEdges.length} link{ownerEdges.length === 1 ? "" : "s"}
-        </span>
-      </div>
+      </aside>
 
       <div className="relative min-h-0 min-w-0 flex-1">
         <div className="absolute inset-0">
