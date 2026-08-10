@@ -1,15 +1,18 @@
 import { AddCircle, Global } from "@solar-icons/react";
-import { Alert, Button, Form, Input, Modal, Spin, message } from "antd";
-import { useEffect, useState } from "react";
+import { Alert, Button, Form, Input, Modal, Segmented, Table, message } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Site } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { createSite, fetchSites } from "./common/sitesSlice";
-import { SiteCard } from "./components/SiteCard";
+import { SITE_VISIBILITY_META, SiteNameCell, type SiteVisibility, SiteVisibilityIcon, siteVisibility } from "./components/SiteCard";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+type VisibilityFilter = "all" | SiteVisibility;
 
 function CreateSiteDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (site: Site) => void }) {
   const dispatch = useAppDispatch();
@@ -90,6 +93,7 @@ export default function SitesPage() {
   const items = useAppSelector((s) => s.sites.items) as Site[];
   const [loading, setLoading] = useState(items.length === 0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -107,21 +111,36 @@ export default function SitesPage() {
     };
   }, [dispatch]);
 
-  const publicCount = items.filter((s) => s.isPublished && !s.hasPublicPassword).length;
+  const filtered = useMemo(() => {
+    if (visibilityFilter === "all") return items;
+    return items.filter((site) => siteVisibility(site) === visibilityFilter);
+  }, [items, visibilityFilter]);
+
+  const columns: ColumnsType<Site> = [
+    {
+      title: "",
+      key: "visibility",
+      width: 40,
+      render: (_, site) => <SiteVisibilityIcon site={site} />,
+    },
+    {
+      title: "Name",
+      key: "name",
+      render: (_, site) => <SiteNameCell site={site} onOpen={() => navigate(`/sites/${site.id}`)} />,
+    },
+    {
+      title: "Path",
+      key: "path",
+      render: (_, site) => <span className="font-mono text-xs text-tertiary-foreground">/public/sites/{site.slug}</span>,
+    },
+  ];
 
   return (
     <PageShell>
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="m-0 text-xl font-semibold leading-tight text-foreground">Sites</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Pages you build and publish
-            <RenderIf condition={items.length > 0}>
-              <span className="ml-2 inline-flex items-center rounded-full bg-brand/12 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-brand-soft">
-                {publicCount}/{items.length} public
-              </span>
-            </RenderIf>
-          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">Pages you build and publish</p>
         </div>
         <Button type="primary" icon={<AddCircle width={16} height={16} />} onClick={() => setDialogOpen(true)}>
           New site
@@ -143,13 +162,37 @@ export default function SitesPage() {
           </div>
         }
       >
-        <Spin spinning={loading && items.length === 0}>
-          <div className="flex flex-col gap-2">
-            {items.map((site) => (
-              <SiteCard key={site.id} site={site} onOpen={() => navigate(`/sites/${site.id}`)} />
-            ))}
-          </div>
-        </Spin>
+        <div className="mb-3">
+          <Segmented<VisibilityFilter>
+            value={visibilityFilter}
+            onChange={setVisibilityFilter}
+            options={[
+              { label: "All", value: "all" },
+              { label: "Public", value: "public" },
+              { label: "Protected", value: "protected" },
+              { label: "Unpublished", value: "unpublished" },
+            ]}
+          />
+        </div>
+        <Table<Site>
+          rowKey="id"
+          size="middle"
+          columns={columns}
+          dataSource={filtered}
+          loading={loading && items.length === 0}
+          pagination={false}
+          onRow={(site) => ({
+            onClick: () => navigate(`/sites/${site.id}`),
+            className: "cursor-pointer",
+          })}
+          locale={{
+            emptyText: (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No {visibilityFilter === "all" ? "" : `${SITE_VISIBILITY_META[visibilityFilter].label.toLowerCase()} `}sites
+              </div>
+            ),
+          }}
+        />
       </RenderIf>
 
       <RenderIf condition={dialogOpen}>

@@ -36,7 +36,9 @@ export const antdTheme: ThemeConfig = {
     boxShadow: "none",
     boxShadowSecondary: "0 0 0 1px rgba(102, 102, 102, 0.32), 0 8px 24px rgba(0, 0, 0, 0.45)",
     boxShadowTertiary: "0 0 0 1px rgba(102, 102, 102, 0.24), 0 4px 12px rgba(0, 0, 0, 0.35)",
-    dropShadowPopover: "0 0 0 1px rgba(102, 102, 102, 0.32), 0 8px 24px rgba(0, 0, 0, 0.45)",
+    // Ant Design 6 Popover/Tooltip apply this as CSS `filter`, not box-shadow.
+    dropShadowPopover:
+      "drop-shadow(0 0 0.5px rgba(160, 160, 160, 0.55)) drop-shadow(0 0 1px rgba(102, 102, 102, 0.45)) drop-shadow(0 8px 24px rgba(0, 0, 0, 0.55))",
   } as ThemeConfig["token"],
   components: {
     Button: {
@@ -46,6 +48,12 @@ export const antdTheme: ThemeConfig = {
     },
     Dropdown: {
       paddingBlock: 4,
+    },
+    Segmented: {
+      // colorBgLayout matches page bg — track would be invisible without override.
+      trackBg: "#2a2a2a",
+      itemSelectedBg: "#3d3d3d",
+      trackPadding: 4,
     },
     Modal: {
       contentBg: "#191919",

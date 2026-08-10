@@ -1,21 +1,45 @@
-import { Global } from "@solar-icons/react";
+import { Global, LinkBrokenMinimalistic, Lock, SquareTopDown } from "@solar-icons/react";
+import { Button, Popover } from "antd";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { Site } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import { sitesApi } from "../common/sitesApi";
 
-function statusOf(site: Site): { label: string; className: string } {
-  if (!site.isPublished) return { label: "Private", className: "text-muted-foreground" };
-  if (site.hasPublicPassword) return { label: "Protected", className: "text-warn" };
-  return { label: "Public", className: "text-success" };
+export type SiteVisibility = "unpublished" | "protected" | "public";
+
+export function siteVisibility(site: Site): SiteVisibility {
+  if (!site.isPublished) return "unpublished";
+  if (site.hasPublicPassword) return "protected";
+  return "public";
 }
 
-export function SiteCard({ site, onOpen }: { site: Site; onOpen: () => void }) {
+export const SITE_VISIBILITY_META: Record<SiteVisibility, { label: string; description: string; className: string; icon: ReactNode }> = {
+  unpublished: {
+    label: "Unpublished",
+    description: "Hidden from the public URL. Only editors can open it here.",
+    className: "text-muted-foreground",
+    icon: <LinkBrokenMinimalistic width={14} height={14} />,
+  },
+  protected: {
+    label: "Protected",
+    description: "Published with a password. Visitors must unlock to view.",
+    className: "text-warn",
+    icon: <Lock width={14} height={14} />,
+  },
+  public: {
+    label: "Public",
+    description: "Anyone with the link can view this site.",
+    className: "text-success",
+    icon: <Global width={14} height={14} />,
+  },
+};
+
+function SitePreview({ site, publicPath }: { site: Site; publicPath: string }) {
   const [thumbSrc, setThumbSrc] = useState<string | null>(null);
   const [thumbLoading, setThumbLoading] = useState(true);
   const [thumbFailed, setThumbFailed] = useState(false);
-  const status = statusOf(site);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,17 +69,8 @@ export function SiteCard({ site, onOpen }: { site: Site; onOpen: () => void }) {
   }, [site.id, site.draftUpdatedAt, site.updatedAt]);
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`Open ${site.name}`}
-      className={cn(
-        "group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-border-subtle bg-card px-3 py-3 text-left",
-        "transition-[border-color,background-color] duration-200",
-        "hover:border-brand/30 hover:bg-secondary",
-      )}
-    >
-      <div className="relative h-[72px] w-[116px] shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-muted">
+    <div className="flex w-[220px] flex-col gap-2 p-1">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-lg border border-border-subtle bg-muted">
         <RenderIf
           condition={!!thumbSrc && !thumbFailed}
           fallback={
@@ -65,21 +80,76 @@ export function SiteCard({ site, onOpen }: { site: Site; onOpen: () => void }) {
             </div>
           }
         >
-          <img
-            src={thumbSrc ?? undefined}
-            alt=""
-            draggable={false}
-            className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-300 ease-out group-hover:scale-[1.04]"
-          />
+          <img src={thumbSrc ?? undefined} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover object-top" />
         </RenderIf>
       </div>
+      <Button
+        type="primary"
+        size="small"
+        block
+        icon={<SquareTopDown width={14} height={14} />}
+        onClick={(e) => {
+          e.stopPropagation();
+          window.open(publicPath, "_blank", "noopener,noreferrer");
+        }}
+      >
+        Open site
+      </Button>
+    </div>
+  );
+}
 
-      <div className="min-w-0 flex-1">
-        <h2 className="m-0 truncate text-base font-semibold leading-6 text-foreground">{site.name}</h2>
-        <p className="mt-0.5 mb-0 truncate font-mono text-[12px] text-tertiary-foreground">/public/sites/{site.slug}</p>
-      </div>
+export function SiteVisibilityIcon({ site }: { site: Site }) {
+  const meta = SITE_VISIBILITY_META[siteVisibility(site)];
 
-      <span className={cn("shrink-0 pr-1 text-[11px] font-medium", status.className)}>{status.label}</span>
-    </button>
+  return (
+    <Popover
+      trigger="hover"
+      placement="top"
+      arrow={{ pointAtCenter: true }}
+      mouseEnterDelay={0.2}
+      mouseLeaveDelay={0.1}
+      content={
+        <div className="max-w-[220px] p-0.5">
+          <p className="m-0 text-sm font-medium text-foreground">{meta.label}</p>
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground">{meta.description}</p>
+        </div>
+      }
+    >
+      <span
+        className={cn("inline-flex size-5 cursor-help items-center justify-center", meta.className)}
+        aria-label={meta.label}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {meta.icon}
+      </span>
+    </Popover>
+  );
+}
+
+export function SiteNameCell({ site, onOpen }: { site: Site; onOpen: () => void }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const publicPath = `/public/sites/${site.slug}`;
+
+  return (
+    <Popover
+      trigger="hover"
+      placement="bottomLeft"
+      mouseEnterDelay={0.25}
+      mouseLeaveDelay={0.15}
+      open={previewOpen}
+      onOpenChange={setPreviewOpen}
+      content={previewOpen ? <SitePreview site={site} publicPath={publicPath} /> : null}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="m-0 min-w-0 max-w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+        aria-label={`Open ${site.name}`}
+      >
+        <span className="block truncate text-sm font-medium text-foreground hover:text-brand-soft">{site.name}</span>
+      </button>
+    </Popover>
   );
 }
