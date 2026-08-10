@@ -219,12 +219,32 @@ export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?:
     </form>
   </div></div>
   <script>
-    (function () {
+    (async function () {
       var slug = ${JSON.stringify(opts.slug)};
-      var saved = localStorage.getItem("site_public_auth_" + slug);
-      if (saved && !new URLSearchParams(location.search).get("e")) {
-        location.replace(location.pathname + "?site_token=" + encodeURIComponent(saved));
-        return;
+      var params = new URLSearchParams(location.search);
+      var key = "site_public_auth_" + slug;
+      var saved = localStorage.getItem(key);
+      // Unlock page with site_token means the server rejected it (e.g. password changed).
+      // Clear storage and stop redirecting — otherwise location.replace loops forever.
+      if (params.get("site_token")) {
+        localStorage.removeItem(key);
+        if (history.replaceState) {
+          history.replaceState(null, "", location.pathname + (params.get("e") ? "?e=1" : ""));
+        }
+      } else if (saved && !params.get("e")) {
+        try {
+          var tokenRes = await fetch("/api/public/sites/" + encodeURIComponent(slug) + "/verify-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: saved }),
+          });
+          var tokenData = await tokenRes.json();
+          if (tokenData.valid) {
+            location.replace(location.pathname + "?site_token=" + encodeURIComponent(saved));
+            return;
+          }
+        } catch (_) {}
+        localStorage.removeItem(key);
       }
       document.getElementById("f").addEventListener("submit", async function (e) {
         e.preventDefault();
@@ -240,7 +260,7 @@ export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?:
           return;
         }
         if (data.token) {
-          localStorage.setItem("site_public_auth_" + slug, data.token);
+          localStorage.setItem(key, data.token);
           location.href = location.pathname + "?site_token=" + encodeURIComponent(data.token);
           return;
         }

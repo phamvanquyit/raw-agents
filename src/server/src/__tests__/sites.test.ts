@@ -212,6 +212,25 @@ export default function App() {
     expect(openDoc.status).toBe(200);
     expect(await openDoc.text()).toContain('id="root"');
 
+    // Password change must invalidate old tokens (unlock page must not redirect-loop)
+    await authRequest(app, token, "PUT", `/api/sites/${site.id}`, {
+      publicPassword: "n3w-secret",
+    });
+    const staleDoc = await app.request(`/public/sites/secret-site?site_token=${verified.token}`);
+    expect(staleDoc.status).toBe(200);
+    const staleHtml = await staleDoc.text();
+    expect(staleHtml).toContain("Enter password");
+    expect(staleHtml).toContain('params.get("site_token")');
+    expect(staleHtml).toContain("verify-token");
+
+    const staleVerify = await app.request("/api/public/sites/secret-site/verify-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: verified.token }),
+    });
+    expect(staleVerify.status).toBe(200);
+    expect(((await staleVerify.json()) as { valid: boolean }).valid).toBe(false);
+
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 180_000);
 
