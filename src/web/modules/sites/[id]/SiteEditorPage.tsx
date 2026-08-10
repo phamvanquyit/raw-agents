@@ -21,6 +21,7 @@ import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
 import type { Site } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import { getSettingValues } from "src/modules/settings/common/settingsApi";
+import { capturePreviewIframe } from "../common/capturePreviewIframe";
 import { sitesApi } from "../common/sitesApi";
 import { SiteAgentPanel } from "../components/SiteAgentPanel";
 
@@ -116,6 +117,8 @@ export default function SiteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thumbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [site, setSite] = useState<Site | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -165,9 +168,32 @@ export default function SiteEditorPage() {
     }, 700);
   }, [runPreview]);
 
+  const captureAndUploadThumbnail = useCallback(async () => {
+    if (!id) return;
+    const iframe = previewIframeRef.current;
+    if (!iframe) return;
+    try {
+      const blob = await capturePreviewIframe(iframe);
+      if (!blob) return;
+      await sitesApi.uploadThumbnail(id, blob);
+    } catch {
+      /* ignore capture failures — list falls back to icon */
+    }
+  }, [id]);
+
+  const onPreviewLoad = useCallback(() => {
+    setPreviewLoading(false);
+    if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);
+    thumbTimerRef.current = setTimeout(() => {
+      thumbTimerRef.current = null;
+      void captureAndUploadThumbnail();
+    }, 400);
+  }, [captureAndUploadThumbnail]);
+
   useEffect(() => {
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+      if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);
     };
   }, []);
 
@@ -457,12 +483,13 @@ export default function SiteEditorPage() {
           >
             <div className="relative flex min-h-0 flex-1 flex-col">
               <iframe
+                ref={previewIframeRef}
                 key={previewEpoch}
                 title="preview"
                 className="min-h-0 flex-1 w-full bg-white"
                 style={{ pointerEvents: panelResizing ? "none" : undefined }}
                 src={previewSrc}
-                onLoad={() => setPreviewLoading(false)}
+                onLoad={onPreviewLoad}
               />
               <RenderIf condition={previewLoading}>
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50 text-sm text-muted-foreground backdrop-blur-[1px]">

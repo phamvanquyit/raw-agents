@@ -25,7 +25,7 @@ export function SiteCard({ site, onOpen }: { site: Site; onOpen: () => void }) {
     setThumbSrc(null);
 
     void sitesApi
-      .getThumbnail(site.id, { tree: "draft" })
+      .getThumbnail(site.id)
       .then((blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);

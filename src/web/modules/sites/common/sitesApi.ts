@@ -1,4 +1,4 @@
-import { apiClient } from "src/common/api";
+import { apiClient, authorizedFetch } from "src/common/api";
 import type { Site, SiteFilesResponse } from "src/common/types";
 
 export const sitesApi = {
@@ -29,7 +29,24 @@ export const sitesApi = {
 
   action: (id: string, formData: FormData) => apiClient.postFormData<{ result: unknown }>(`/api/sites/${id}/action`, formData),
 
-  getThumbnail: (id: string, opts?: { tree?: "draft" | "prod" }) => apiClient.getBlob(`/api/sites/${id}/thumbnail`, { tree: opts?.tree ?? "draft" }),
+  getThumbnail: (id: string) => apiClient.getBlob(`/api/sites/${id}/thumbnail`),
+
+  uploadThumbnail: async (id: string, blob: Blob) => {
+    const response = await authorizedFetch(`/api/sites/${id}/thumbnail`, {
+      method: "PUT",
+      headers: { "Content-Type": "image/png" },
+      body: blob,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Upload failed" }));
+      const message =
+        error && typeof error === "object" && typeof (error as { message?: unknown }).message === "string"
+          ? (error as { message: string }).message
+          : `HTTP ${response.status}`;
+      throw new Error(message);
+    }
+    return response.json() as Promise<{ ok: boolean }>;
+  },
 
   resolveSelection: (id: string, body: { sourceAnchor?: string; tagName?: string; className?: string; text?: string; outerHtml?: string }) =>
     apiClient.post<{
