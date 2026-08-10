@@ -482,7 +482,6 @@ export async function renderPublicSiteDocument(slug: string, request: Request, a
       apiBase: `/api/public/sites/${site.slug}`,
       slug: site.slug,
       assetBase: `/public/sites/${site.slug}/assets`,
-      siteToken: access?.token,
     }),
     requiresPassword,
   };

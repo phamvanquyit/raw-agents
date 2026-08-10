@@ -148,14 +148,9 @@ export function buildSiteShellHtml(opts: {
   apiBase: string;
   slug: string;
   assetBase: string;
-  siteToken?: string | null;
 }): string {
-  const qs = new URLSearchParams();
-  if (opts.siteToken) qs.set("site_token", opts.siteToken);
-  const q = qs.toString();
-  const suffix = q ? `?${q}` : "";
-  const cssHref = `${opts.assetBase}/styles.css${suffix}`;
-  const jsHref = `${opts.assetBase}/app.js${suffix}`;
+  const cssHref = `${opts.assetBase}/styles.css`;
+  const jsHref = `${opts.assetBase}/app.js`;
 
   return compactHtml(
     `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="ra-site-api" content="${opts.apiBase}"/><meta name="ra-site-slug" content="${opts.slug}"/><title>${escapeHtml(opts.title)}</title><link rel="stylesheet" href="${cssHref}"/></head><body><div id="root"></div><script type="module" src="${jsHref}"></script></body></html>`,
@@ -224,8 +219,7 @@ export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?:
       var params = new URLSearchParams(location.search);
       var key = "site_public_auth_" + slug;
       var saved = localStorage.getItem(key);
-      // Unlock page with site_token means the server rejected it (e.g. password changed).
-      // Clear storage and stop redirecting — otherwise location.replace loops forever.
+      // Legacy ?site_token= URLs — clear storage and strip query (cookie auth only).
       if (params.get("site_token")) {
         localStorage.removeItem(key);
         if (history.replaceState) {
@@ -237,10 +231,11 @@ export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?:
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ token: saved }),
+            credentials: "same-origin",
           });
           var tokenData = await tokenRes.json();
           if (tokenData.valid) {
-            location.replace(location.pathname + "?site_token=" + encodeURIComponent(saved));
+            location.replace(location.pathname);
             return;
           }
         } catch (_) {}
@@ -253,6 +248,7 @@ export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?:
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ password: password }),
+          credentials: "same-origin",
         });
         var data = await res.json();
         if (!res.ok || !data.valid) {
@@ -261,8 +257,6 @@ export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?:
         }
         if (data.token) {
           localStorage.setItem(key, data.token);
-          location.href = location.pathname + "?site_token=" + encodeURIComponent(data.token);
-          return;
         }
         location.href = location.pathname;
       });

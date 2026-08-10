@@ -207,21 +207,36 @@ export default function App() {
     const verified = (await okVerify.json()) as { valid: boolean; token?: string };
     expect(verified.valid).toBe(true);
     expect(verified.token).toBeTruthy();
+    const setCookie = okVerify.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("ra_site_token_secret-site=");
+    expect(setCookie).toContain("HttpOnly");
 
-    const openDoc = await app.request(`/public/sites/secret-site?site_token=${verified.token}`);
+    const openDoc = await app.request("/public/sites/secret-site", {
+      headers: { Cookie: `ra_site_token_secret-site=${verified.token}` },
+    });
     expect(openDoc.status).toBe(200);
-    expect(await openDoc.text()).toContain('id="root"');
+    const openHtml = await openDoc.text();
+    expect(openHtml).toContain('id="root"');
+    expect(openHtml).not.toContain("site_token=");
 
-    // Password change must invalidate old tokens (unlock page must not redirect-loop)
+    // Legacy ?site_token= redirects to clean URL and sets cookie
+    const legacyRedirect = await app.request(`/public/sites/secret-site?site_token=${verified.token}`);
+    expect(legacyRedirect.status).toBe(302);
+    expect(legacyRedirect.headers.get("location")).toBe("/public/sites/secret-site");
+    expect(legacyRedirect.headers.get("set-cookie") ?? "").toContain("ra_site_token_secret-site=");
+
+    // Password change must invalidate old tokens
     await authRequest(app, token, "PUT", `/api/sites/${site.id}`, {
       publicPassword: "n3w-secret",
     });
-    const staleDoc = await app.request(`/public/sites/secret-site?site_token=${verified.token}`);
+    const staleDoc = await app.request("/public/sites/secret-site", {
+      headers: { Cookie: `ra_site_token_secret-site=${verified.token}` },
+    });
     expect(staleDoc.status).toBe(200);
     const staleHtml = await staleDoc.text();
     expect(staleHtml).toContain("Enter password");
-    expect(staleHtml).toContain('params.get("site_token")');
     expect(staleHtml).toContain("verify-token");
+    expect(staleDoc.headers.get("set-cookie") ?? "").toContain("Max-Age=0");
 
     const staleVerify = await app.request("/api/public/sites/secret-site/verify-token", {
       method: "POST",
@@ -230,6 +245,7 @@ export default function App() {
     });
     expect(staleVerify.status).toBe(200);
     expect(((await staleVerify.json()) as { valid: boolean }).valid).toBe(false);
+    expect(staleVerify.headers.get("set-cookie") ?? "").toContain("Max-Age=0");
 
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 180_000);

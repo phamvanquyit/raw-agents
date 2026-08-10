@@ -7,7 +7,13 @@ import { logger } from "hono/logger";
 
 import rootPkg from "../../../package.json" with { type: "json" };
 import { HttpException } from "./common/exceptions/http.exception.js";
-import { resolveAuth } from "./common/middleware/auth.middleware.js";
+import {
+  clearSiteAccessTokenCookieHeader,
+  parseCookieValue,
+  resolveAuth,
+  siteAccessTokenCookieHeader,
+  siteTokenCookieName,
+} from "./common/middleware/auth.middleware.js";
 import { buildSpaHtml, requestOrigin } from "./common/spa-html.js";
 
 import agentsRoute from "./modules/agents/agents.route.js";
@@ -69,13 +75,14 @@ function loadSpaBuildMeta(webDist: string | undefined): SpaBuildMeta {
   return fallback;
 }
 
-function siteAccessFromRequest(c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined } }) {
+function siteAccessFromRequest(c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined } }, slug: string) {
   const auth = c.req.header("authorization");
   const bearer = auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : undefined;
   const headerToken = c.req.header("x-site-access-token")?.trim();
   const queryToken = c.req.query("token")?.trim() || c.req.query("site_token")?.trim();
+  const cookieToken = parseCookieValue(c.req.header("Cookie"), siteTokenCookieName(slug)) ?? undefined;
   return {
-    token: bearer || headerToken || queryToken || undefined,
+    token: bearer || headerToken || queryToken || cookieToken || undefined,
   };
 }
 
@@ -133,12 +140,31 @@ export function createApp(): Hono {
 
   // ── Public site documents (real HTML + assets — before SPA fallback) ───────
   app.get("/public/sites/:slug", async (c) => {
-    const access = siteAccessFromRequest(c);
-    try {
-      const doc = await renderPublicSiteDocument(c.req.param("slug"), c.req.raw, access);
-      return new Response(doc.html, {
-        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+    const slug = c.req.param("slug");
+    const legacyToken = c.req.query("site_token")?.trim() || c.req.query("token")?.trim();
+    // Strip legacy ?site_token= from URL; persist via HttpOnly cookie instead.
+    if (legacyToken) {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: `/public/sites/${encodeURIComponent(slug)}`,
+          "Set-Cookie": siteAccessTokenCookieHeader(slug, legacyToken),
+          "Cache-Control": "no-store",
+        },
       });
+    }
+
+    const access = siteAccessFromRequest(c, slug);
+    try {
+      const doc = await renderPublicSiteDocument(slug, c.req.raw, access);
+      const headers: Record<string, string> = {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      };
+      if (doc.kind === "unlock") {
+        headers["Set-Cookie"] = clearSiteAccessTokenCookieHeader(slug);
+      }
+      return new Response(doc.html, { headers });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       const status = message.includes("not found") || message.includes("Not found") ? 404 : 500;
@@ -150,11 +176,12 @@ export function createApp(): Hono {
   });
 
   app.get("/public/sites/:slug/assets/:file", async (c) => {
-    const access = siteAccessFromRequest(c);
+    const slug = c.req.param("slug");
+    const access = siteAccessFromRequest(c, slug);
     const file = c.req.param("file");
     if (file !== "app.js" && file !== "styles.css") return c.json({ message: "Not found" }, 404);
     try {
-      const asset = await getPublicSiteAsset(c.req.param("slug"), file, access);
+      const asset = await getPublicSiteAsset(slug, file, access);
       return new Response(asset.body, {
         headers: { "Content-Type": asset.contentType, "Cache-Control": "no-store" },
       });

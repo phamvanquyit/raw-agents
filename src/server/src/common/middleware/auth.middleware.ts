@@ -106,6 +106,23 @@ export function clearAccessTokenCookieHeader(): string {
   return `${ACCESS_TOKEN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`;
 }
 
+/** HttpOnly cookie for password-protected public site documents/assets (no token in URL). */
+export const SITE_TOKEN_COOKIE_PREFIX = "ra_site_token_";
+
+export function siteTokenCookieName(slug: string): string {
+  return `${SITE_TOKEN_COOKIE_PREFIX}${slug}`;
+}
+
+export function siteAccessTokenCookieHeader(slug: string, token: string, maxAgeSec = 24 * 60 * 60): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${siteTokenCookieName(slug)}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAgeSec}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+export function clearSiteAccessTokenCookieHeader(slug: string): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${siteTokenCookieName(slug)}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`;
+}
+
 // ─── Middleware ────────────────────────────────────────────────────────────────
 
 /**

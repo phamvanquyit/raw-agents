@@ -1,6 +1,12 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import {
+  clearSiteAccessTokenCookieHeader,
+  parseCookieValue,
+  siteAccessTokenCookieHeader,
+  siteTokenCookieName,
+} from "../../common/middleware/auth.middleware.js";
 import { streamChatSSE } from "../agents/raw-agent/raw-agent.service.js";
 import { relayRunToSSE, runRegistry } from "../agents/raw-agent/utils/run-registry.js";
 import { loadPublicSiteData, renderPublicSite, runPublicAction, verifySitePublicAccessToken, verifySitePublicPassword } from "../sites/sites.service.js";
@@ -16,16 +22,18 @@ import {
 } from "./public.service.js";
 
 function siteAccessFromRequest(
-  c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined } },
+  c: { req: { header: (name: string) => string | undefined; query: (name: string) => string | undefined; param: (name: string) => string } },
   body?: { password?: string; token?: string },
 ) {
+  const slug = c.req.param("slug");
   const auth = c.req.header("authorization");
   const bearer = auth?.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : undefined;
   const headerToken = c.req.header("x-site-access-token")?.trim();
-  const queryToken = c.req.query("token")?.trim();
+  const queryToken = c.req.query("token")?.trim() || c.req.query("site_token")?.trim();
+  const cookieToken = slug ? (parseCookieValue(c.req.header("Cookie"), siteTokenCookieName(slug)) ?? undefined) : undefined;
   return {
     password: body?.password,
-    token: body?.token || bearer || headerToken || queryToken || undefined,
+    token: body?.token || bearer || headerToken || queryToken || cookieToken || undefined,
   };
 }
 
@@ -148,15 +156,29 @@ app.get("/sites/:slug/data", async (c) => {
 });
 
 app.post("/sites/:slug/verify", async (c) => {
+  const slug = c.req.param("slug");
   const body = await c.req.json<{ password?: string }>().catch(() => ({}) as { password?: string });
-  const result = await verifySitePublicPassword(c.req.param("slug"), body.password);
-  return c.json(result);
+  const result = await verifySitePublicPassword(slug, body.password);
+  const headers: Record<string, string> = {};
+  if (result.token) {
+    headers["Set-Cookie"] = siteAccessTokenCookieHeader(slug, result.token);
+  } else {
+    headers["Set-Cookie"] = clearSiteAccessTokenCookieHeader(slug);
+  }
+  return c.json(result, { headers });
 });
 
 app.post("/sites/:slug/verify-token", async (c) => {
+  const slug = c.req.param("slug");
   const body = await c.req.json<{ token?: string }>().catch(() => ({}) as { token?: string });
-  const result = await verifySitePublicAccessToken(c.req.param("slug"), body.token);
-  return c.json(result);
+  const result = await verifySitePublicAccessToken(slug, body.token);
+  const headers: Record<string, string> = {};
+  if (result.valid && body.token) {
+    headers["Set-Cookie"] = siteAccessTokenCookieHeader(slug, body.token);
+  } else {
+    headers["Set-Cookie"] = clearSiteAccessTokenCookieHeader(slug);
+  }
+  return c.json(result, { headers });
 });
 
 app.post("/sites/:slug/action", async (c) => {
