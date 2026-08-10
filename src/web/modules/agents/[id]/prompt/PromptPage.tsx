@@ -1,4 +1,4 @@
-import { CloseSquare, Diskette, DocumentText } from "@solar-icons/react";
+import { Diskette, DocumentText } from "@solar-icons/react";
 import { Button, message } from "antd";
 import type * as MonacoNS from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -96,7 +96,7 @@ function ResizableSplitter({
   );
 }
 
-export function PromptPage({ onClose }: { onClose?: () => void }) {
+export function PromptPage() {
   const { id, systemPrompt, setSystemPrompt, agent } = useAgentDetailContext();
 
   const editorRef = useRef<EditorInstance | null>(null);
@@ -230,7 +230,7 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
   const isEmpty = !systemPrompt || systemPrompt.trim().length === 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-brand/12">
@@ -257,16 +257,6 @@ export function PromptPage({ onClose }: { onClose?: () => void }) {
         >
           {saving ? "Saving…" : "Save"}
         </Button>
-        {onClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex size-8 shrink-0 items-center justify-center rounded-md text-tertiary-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <CloseSquare size={18} />
-          </button>
-        ) : null}
       </header>
 
       <div className="min-h-0 flex-1">

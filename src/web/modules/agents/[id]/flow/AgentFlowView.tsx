@@ -9,10 +9,9 @@
 
 import { Background, BackgroundVariant, type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Modal } from "antd";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Agent, AgentListItem, AgentSkillAssignment, AgentTeam, AgentTool, AgentToolAssignment, McpServer, Skill, ToolFolder } from "src/common/types";
-import { PromptPage } from "../prompt/PromptPage";
 import { CountedEdge } from "./edges/CountedEdge";
 import { layoutFanoutSection, measureChildWidth } from "./layout";
 import { AgentConfigNode, type AgentConfigNodeType } from "./nodes/AgentConfigNode";
@@ -144,10 +143,10 @@ function AgentFlowInner({
   publicPassword,
   onSavePassword,
 }: AgentFlowViewProps) {
+  const navigate = useNavigate();
   const assignedToolIds = useMemo(() => new Set(toolAssignments.map((a) => a.toolId)), [toolAssignments]);
   const assignedSkillIds = useMemo(() => new Set(skillAssignments.map((a) => a.skillId)), [skillAssignments]);
   const callableSet = useMemo(() => new Set(callableAgentIds), [callableAgentIds]);
-  const [promptModalOpen, setPromptModalOpen] = useState(false);
 
   const handleToggleTool = useCallback(
     (toolId: string, connected: boolean) => {
@@ -375,7 +374,7 @@ function AgentFlowInner({
         onDescriptionChange,
         onAvatarChange,
         onModelChange,
-        onOpenPrompt: () => setPromptModalOpen(true),
+        onOpenPrompt: () => navigate(`/agents/${agent.id}/instruct`),
         isPublic,
         onTogglePublish,
       },
@@ -604,6 +603,7 @@ function AgentFlowInner({
     onTogglePublish,
     publicPassword,
     onSavePassword,
+    navigate,
   ]);
 
   // Tools that belong to an MCP server (edges go from server node, not tool node)
@@ -809,38 +809,6 @@ function AgentFlowInner({
         .agent-detail-flow .react-flow__selection { background: color-mix(in srgb, var(--primary) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent) }
         @keyframes agentFlowDash { to { stroke-dashoffset: -20 } }
       `}</style>
-      {/* ── Prompt Modal ── */}
-      <Modal
-        open={promptModalOpen}
-        onCancel={() => setPromptModalOpen(false)}
-        title={null}
-        closable={false}
-        footer={null}
-        width="100%"
-        destroyOnHidden
-        style={{ top: 0, margin: 0, paddingBottom: 0, maxWidth: "100vw" }}
-        styles={{
-          container: {
-            height: "100vh",
-            borderRadius: 0,
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--background)",
-            boxShadow: "none",
-          },
-          body: {
-            padding: 0,
-            flex: 1,
-            minHeight: 0,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-          },
-        }}
-      >
-        <PromptPage onClose={() => setPromptModalOpen(false)} />
-      </Modal>
 
       <ReactFlow
         nodes={nodes}

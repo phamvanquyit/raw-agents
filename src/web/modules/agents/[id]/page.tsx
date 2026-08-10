@@ -1,5 +1,5 @@
 // ─── Agent Detail Page ────────────────────────────────────────────────────────
-// Route: /agents/:id/* — Full-screen agent detail with Chat / Editor tabs.
+// Route: /agents/:id/* — Full-screen agent detail with Chat / Instruct / Editor tabs.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -16,6 +16,7 @@ import { type AgentDetailContext, AgentDetailCtx } from "./common/agentDetailCon
 import { AgentDetailHeader } from "./components/AgentDetailHeader";
 import { AgentFlowView } from "./flow/AgentFlowView";
 import { MemoryPage } from "./memory/MemoryPage";
+import { PromptPage } from "./prompt/PromptPage";
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
 
@@ -325,6 +326,7 @@ export default function AgentDetailPage() {
           <Routes>
             <Route index element={<ChatPage />} />
             <Route path="chat" element={<Navigate to={`/agents/${id}`} replace />} />
+            <Route path="instruct" element={<PromptPage />} />
             <Route path="memory" element={<MemoryPage />} />
             <Route
               path="editor"

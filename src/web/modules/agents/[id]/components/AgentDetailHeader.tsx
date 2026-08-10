@@ -1,6 +1,6 @@
-import { AltArrowLeft, MenuDots, TrashBinTrash } from "@solar-icons/react";
+import { AltArrowLeft, Graph, MenuDots, TrashBinTrash } from "@solar-icons/react";
 import { Modal, Popover } from "antd";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import type { Agent } from "src/common/types";
 import { UserAvatar } from "src/components/UserAvatar";
@@ -15,12 +15,19 @@ interface AgentDetailHeaderProps {
 
 export function AgentDetailHeader({ id, agent, avatar, onDelete }: AgentDetailHeaderProps) {
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleBack = useCallback(() => {
     navigate("/agents");
   }, [navigate]);
 
+  const openMemory = useCallback(() => {
+    setMenuOpen(false);
+    navigate(`/agents/${id}/memory`);
+  }, [navigate, id]);
+
   const confirmDelete = useCallback(() => {
+    setMenuOpen(false);
     Modal.confirm({
       title: `Delete "${agent.name}"?`,
       content: "This action cannot be undone. All conversations and tasks will be lost.",
@@ -80,19 +87,31 @@ export function AgentDetailHeader({ id, agent, avatar, onDelete }: AgentDetailHe
 
       <div className="relative z-[1] flex items-center justify-end h-8 pr-1">
         <Popover
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
           trigger="click"
           placement="bottomRight"
           arrow={false}
           styles={{ root: { width: 180 }, container: { width: 180, padding: 4 } }}
           content={
-            <button
-              type="button"
-              className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-destructive cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-destructive/10"
-              onClick={confirmDelete}
-            >
-              <TrashBinTrash width={13} height={13} />
-              <span>Delete Agent</span>
-            </button>
+            <div className="flex flex-col gap-0.5">
+              <button
+                type="button"
+                className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-foreground cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-muted"
+                onClick={openMemory}
+              >
+                <Graph width={13} height={13} className="text-muted-foreground" />
+                <span>Memory</span>
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium text-destructive cursor-pointer transition-colors duration-100 bg-transparent border-none font-[inherit] hover:bg-destructive/10"
+                onClick={confirmDelete}
+              >
+                <TrashBinTrash width={13} height={13} />
+                <span>Delete Agent</span>
+              </button>
+            </div>
           }
         >
           <button
