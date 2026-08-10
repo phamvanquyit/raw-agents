@@ -5,18 +5,24 @@ import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProviders
 import { useAppDispatch } from "src/store/store";
 
 import type { SettingsTab } from "./common/constants";
+import { DefaultModelsPage } from "./default-models/DefaultModelsPage";
 import { GeneralPage } from "./general/GeneralPage";
 import { ProvidersPage } from "./providers/ProvidersPage";
 import { UsersPage } from "./users/UsersPage";
 
 const TAB_COMPONENTS: Record<SettingsTab, React.ComponentType> = {
   general: GeneralPage,
+  "default-models": DefaultModelsPage,
   providers: ProvidersPage,
   users: UsersPage,
 };
 
 const TAB_META: Record<SettingsTab, { title: string; description: string }> = {
   general: { title: "General", description: "Workspace defaults and preferences" },
+  "default-models": {
+    title: "Default models",
+    description: "Default LLM models used by assistant panels across the workspace",
+  },
   providers: { title: "LLM Providers", description: "Configure API keys and models for agents" },
   users: { title: "Users", description: "Manage accounts and roles" },
 };
@@ -24,7 +30,9 @@ const TAB_META: Record<SettingsTab, { title: string; description: string }> = {
 function useActiveTab(): SettingsTab | null {
   const { pathname } = useLocation();
   const segment = pathname.split("/").filter(Boolean)[1];
-  if (segment === "general" || segment === "providers" || segment === "users") return segment;
+  if (segment === "general" || segment === "default-models" || segment === "providers" || segment === "users") {
+    return segment;
+  }
   return null;
 }
 
