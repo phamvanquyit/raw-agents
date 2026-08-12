@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-08-12
+
+### Added
+- Soft-wait for long-running custom Python tools, with `background_tasks` (list / get / await / cancel)
+- Custom tool icons via Lucide SVG picker (tools list and chat tool calls)
+- Skill assistant `delete_skill_file` to remove reference files
+- Chat UI for `get_tool_schema` tool calls
+- Richer frontend design guidance in the site coding agent prompt
+
+### Changed
+- Solar icons load via per-category imports; Vite chunking keeps heavy editors out of the shared vendor chunk
+- Chat code blocks drop syntax highlighting (lighter dependency)
+
+### Fixed
+- Ant Design popover borders no longer tinted by CSS filter drop-shadow
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- Existing tool `icon` values that are emoji or Solar name keys show the default until re-picked as SVG
+
 ## [0.20.2] - 2026-08-10
 
 ### Added
@@ -392,6 +412,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.21.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.2...v0.21.0
 [0.20.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.1...v0.20.2
 [0.20.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.19.1...v0.20.0
