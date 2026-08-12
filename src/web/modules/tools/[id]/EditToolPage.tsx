@@ -2,7 +2,9 @@
 // Route: /tools/:id — Full-page editor for a single tool.
 // Layout: Header → [ Editor(top) + RunPanel(bottom, collapsible) | CodingAgentPanel(right) ]
 
-import { CheckCircle, CloseCircle, Programming } from "@solar-icons/react";
+import Programming from "@solar-icons/react/it/Programming";
+import CheckCircle from "@solar-icons/react/ui/CheckCircle";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
 import { Button } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -224,6 +226,15 @@ export default function EditToolPage() {
     }
   }, [id, isActive, toggling, dispatch, hasValidationErrors]);
 
+  const handleIconChange = useCallback(
+    async (nextIcon: string | null) => {
+      if (!id) return;
+      await dispatch(updateTool({ id, icon: nextIcon })).unwrap();
+      setTool((prev) => (prev ? { ...prev, icon: nextIcon ?? undefined } : prev));
+    },
+    [id, dispatch],
+  );
+
   // ── Save ──
   const [saveError, setSaveError] = useState<string | null>(null);
   const handleSave = async (codeOverride?: string) => {
@@ -349,6 +360,7 @@ export default function EditToolPage() {
       <EditToolHeader
         label={toolLabel}
         toolId={id}
+        icon={tool?.icon}
         isActive={isActive}
         toggling={toggling}
         deleting={deleting}
@@ -357,6 +369,7 @@ export default function EditToolPage() {
         onToggleActive={handleToggleActive}
         onDelete={handleDelete}
         onSave={handleSave}
+        onIconChange={handleIconChange}
       />
 
       {/* Body: [Editor + RunPanel] | CodingAgentPanel */}

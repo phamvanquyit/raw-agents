@@ -10,7 +10,7 @@
 export type AgentSseEvent =
   | { type: "text-delta"; text: string }
   | { type: "thinking-delta"; text: string }
-  | { type: "tool-call"; toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }
+  | { type: "tool-call"; toolCallId?: string; toolName: string; toolLabel?: string; toolIcon?: string | null; input: unknown }
   | { type: "tool-result"; toolCallId?: string; toolName: string; result: unknown }
   | { type: "done"; text?: string; reason?: string }
   | { type: "error"; error: string };
@@ -18,7 +18,7 @@ export type AgentSseEvent =
 export interface AgentSseCallbacks {
   onTextDelta: (text: string) => void;
   onThinkingDelta: (text: string) => void;
-  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; toolIcon?: string | null; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
   onDone: (text: string) => void | Promise<void>;
   onError: (error: string) => void | Promise<void>;
@@ -43,6 +43,7 @@ export function normalizeSseEvent(raw: Record<string, unknown>): AgentSseEvent |
       toolCallId: raw.toolCallId as string | undefined,
       toolName: String(raw.toolName ?? "unknown"),
       toolLabel: raw.toolLabel as string | undefined,
+      toolIcon: (raw.toolIcon as string | null | undefined) ?? null,
       input: raw.input,
     };
   }
@@ -110,6 +111,7 @@ export async function parseSseStream(
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           toolLabel: event.toolLabel,
+          toolIcon: event.toolIcon,
           input: event.input,
         });
         return false;

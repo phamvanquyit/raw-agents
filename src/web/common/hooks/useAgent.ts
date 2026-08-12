@@ -39,7 +39,7 @@ export interface ChatMessage {
 interface AgentStreamCallbacks {
   onChunk: (chunk: string) => void;
   onThinking: (chunk: string) => void;
-  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; toolIcon?: string | null; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
   onDone: (text: string) => void;
   onError: (err: string) => void;
@@ -141,7 +141,7 @@ export async function stopAgentChat(agentId: string, conversationId: string): Pr
 interface ChatSSECallbacks {
   onChunk: (chunk: string) => void;
   onThinking: (chunk: string) => void;
-  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; toolIcon?: string | null; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
   onDone: (text: string) => void;
   onError: (err: string) => void;
@@ -231,7 +231,7 @@ interface RunOptions {
   userMessage: string;
   onChunk: (chunk: string) => void;
   onThinking?: (chunk: string) => void;
-  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; toolIcon?: string | null; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
   /** Called when server is done — messages already saved by server */
   onDone: (text: string) => void;

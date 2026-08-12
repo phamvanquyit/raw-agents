@@ -13,6 +13,8 @@ export interface ChatAgentMessage {
   toolName?: string;
   /** Human-readable label for the tool (e.g. "Tìm kiếm Web") */
   toolLabel?: string;
+  /** Custom tool SVG icon markup (Iconify Lucide) */
+  toolIcon?: string | null;
   /** Raw tool input params */
   toolInput?: unknown;
   /** Raw tool output / result */

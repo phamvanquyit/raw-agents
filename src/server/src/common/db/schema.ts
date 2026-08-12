@@ -213,7 +213,7 @@ export const agentTools = sqliteTable("agent_tools", {
   name: text("name").notNull().unique(), // snake_case identifier
   label: text("label").notNull(),
   description: text("description").notNull(),
-  /** Emoji or icon key shown next to the tool name in the UI */
+  /** SVG markup (Iconify Lucide) shown next to the tool name in the UI */
   icon: text("icon"),
   parameters: text("parameters", { mode: "json" }).$type<object>().notNull().default(sql`'{"type":"object","properties":{},"required":[]}'`),
   codeContent: text("code_content").notNull(),

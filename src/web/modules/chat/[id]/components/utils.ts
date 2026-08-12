@@ -24,6 +24,7 @@ export function toDisplayMsg(m: any): ChatAgentMessage {
       content: String(meta.toolName ?? m.content ?? "tool"),
       toolName: String(meta.toolName ?? m.content ?? "Tool"),
       toolLabel: meta.toolLabel as string | undefined,
+      toolIcon: (meta.toolIcon as string | null | undefined) ?? null,
       toolInput: meta.toolInput,
       toolOutput: meta.toolOutput as string | undefined,
       toolError: Boolean(meta.toolError),

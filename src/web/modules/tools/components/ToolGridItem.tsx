@@ -1,6 +1,7 @@
-import { Lock, Programming } from "@solar-icons/react";
+import Programming from "@solar-icons/react/it/Programming";
+import Lock from "@solar-icons/react/security/Lock";
 import type { AgentTool } from "src/common/types";
-import { SolarIcon } from "src/components/SolarIcon";
+import { ToolIcon } from "./ToolIcon";
 
 export function ToolTableRow({
   tool,
@@ -35,7 +36,7 @@ export function ToolTableRow({
           isBuiltin ? "bg-chart-2/10 text-chart-2" : "bg-muted text-muted-foreground",
         ].join(" ")}
       >
-        <SolarIcon name={tool.icon} size={16} fallback={<FallbackIcon size={16} />} />
+        <ToolIcon icon={tool.icon} size={16} fallback={<FallbackIcon size={16} />} />
       </div>
 
       <span

@@ -11,7 +11,7 @@ type MessageFilter = (m: ChatAgentMessage) => boolean;
 export interface SSECallbacks {
   onChunk: (chunk: string) => void;
   onThinking: (chunk: string) => void;
-  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown }) => void;
+  onToolCall: (call: { toolCallId?: string; toolName: string; toolLabel?: string; toolIcon?: string | null; input: unknown }) => void;
   onToolResult: (call: { toolCallId?: string; toolName: string; result: unknown }) => void;
   onDone: () => Promise<void> | void;
   onError: (err?: string) => Promise<void> | void;
@@ -89,10 +89,10 @@ function mergeServerWithOptimistic(serverRows: AgentMessage[], prev: AgentMessag
 
 function upsertOptimisticTool(
   prev: AgentMessage[],
-  call: { toolCallId?: string; toolName: string; toolLabel?: string; input: unknown },
+  call: { toolCallId?: string; toolName: string; toolLabel?: string; toolIcon?: string | null; input: unknown },
   convId: string,
 ): AgentMessage[] {
-  const { toolCallId, toolName, toolLabel, input } = call;
+  const { toolCallId, toolName, toolLabel, toolIcon, input } = call;
   const label = toolLabel ?? formatToolName(toolName);
 
   if (toolCallId) {
@@ -104,6 +104,7 @@ function upsertOptimisticTool(
         // Prefer non-empty complete args from later upsert events
         if (input !== undefined) meta.toolInput = input;
         if (toolLabel) meta.toolLabel = toolLabel;
+        if (toolIcon != null) meta.toolIcon = toolIcon;
         meta.toolName = toolName;
         meta.toolCallId = toolCallId;
         return { ...m, content: toolName, metadata: meta };
@@ -124,6 +125,7 @@ function upsertOptimisticTool(
       toolLabel: label,
       toolInput: input ?? {},
       toolCallId,
+      ...(toolIcon != null ? { toolIcon } : {}),
     },
     createdAt: new Date(),
   };
@@ -375,7 +377,7 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
         setThinkingContent(thinkingContentRef.current);
         setActivityStatus("Thinking...");
       },
-      onToolCall: ({ toolCallId, toolName, toolLabel, input }) => {
+      onToolCall: ({ toolCallId, toolName, toolLabel, toolIcon, input }) => {
         setStreamError(null);
 
         const live = takeLiveSnapshot();
@@ -385,7 +387,7 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
         setMessages((prev) => {
           const alreadyPainted = Boolean(toolCallId && prev.some((m) => m.role === "tool" && toolCallIdOf(m) === toolCallId));
           const withSegment = alreadyPainted ? prev : commitLiveSegment(prev, convId, live, "split");
-          return upsertOptimisticTool(withSegment, { toolCallId, toolName, toolLabel, input }, convId);
+          return upsertOptimisticTool(withSegment, { toolCallId, toolName, toolLabel, toolIcon, input }, convId);
         });
 
         if (isCallAgentToolName(toolName)) {

@@ -1,11 +1,15 @@
-import { AltArrowLeft, Diskette, TrashBinTrash } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Diskette from "@solar-icons/react/devices/Diskette";
+import TrashBinTrash from "@solar-icons/react/ui/TrashBinTrash";
 import { Button, Modal, Switch } from "antd";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { ToolIconPicker } from "../../components/ToolIconPicker";
 
 interface EditToolHeaderProps {
   label: string;
   toolId?: string;
+  icon?: string | null;
   isActive: boolean;
   toggling: boolean;
   deleting: boolean;
@@ -14,9 +18,23 @@ interface EditToolHeaderProps {
   onToggleActive: () => void;
   onDelete: () => void;
   onSave: () => void;
+  onIconChange: (icon: string | null) => void | Promise<void>;
 }
 
-export function EditToolHeader({ label, toolId, isActive, toggling, deleting, saving, isDirty, onToggleActive, onDelete, onSave }: EditToolHeaderProps) {
+export function EditToolHeader({
+  label,
+  toolId,
+  icon,
+  isActive,
+  toggling,
+  deleting,
+  saving,
+  isDirty,
+  onToggleActive,
+  onDelete,
+  onSave,
+  onIconChange,
+}: EditToolHeaderProps) {
   const navigate = useNavigate();
 
   const handleDeleteClick = () => {
@@ -42,6 +60,7 @@ export function EditToolHeader({ label, toolId, isActive, toggling, deleting, sa
       </button>
 
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
+        <ToolIconPicker icon={icon} onChange={onIconChange} />
         <h1 className="text-base font-semibold text-foreground truncate m-0 leading-5">{label}</h1>
         <AnimatePresence>
           {isDirty && !saving && (

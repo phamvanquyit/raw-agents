@@ -23,7 +23,7 @@ import { type AssignmentWithTool, listAssignments } from "../../agents.service.j
 import { isCallAgentToolName, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { resolveSystemPrompt } from "./buildSystemPrompt.js";
 import { appendToolsCatalog, buildLazyToolsBundle } from "./lazy-tools.middleware.js";
-import { getToolLabel, resolveAgentTools } from "./resolveTools.js";
+import { getToolIcon, getToolLabel, resolveAgentTools } from "./resolveTools.js";
 
 const MODEL_NODE = "model_request";
 const NOSTREAM_TAG = "langsmith:nostream";
@@ -42,7 +42,7 @@ function isParentModelStreamChunk(metadata: Record<string, unknown> | undefined)
 export type AgentStreamEvent =
   | { type: "text-delta"; text: string }
   | { type: "thinking-delta"; text: string }
-  | { type: "tool-call"; toolCallId: string; toolName: string; toolLabel: string; input: unknown }
+  | { type: "tool-call"; toolCallId: string; toolName: string; toolLabel: string; toolIcon?: string | null; input: unknown }
   | { type: "tool-result"; toolCallId: string; toolName: string; result: unknown }
   | { type: "done"; text: string }
   | { type: "error"; error: string };
@@ -441,6 +441,7 @@ export async function* streamAgent(
                         toolCallId: tc.id,
                         toolName: tc.name,
                         toolLabel: getToolLabel(tc.name),
+                        toolIcon: getToolIcon(tc.name),
                         input: enrichToolCallInput(tc.name, earlyArgs),
                       };
                     }
@@ -470,6 +471,7 @@ export async function* streamAgent(
                     toolCallId: tcId,
                     toolName: tc.name,
                     toolLabel: getToolLabel(tc.name),
+                    toolIcon: getToolIcon(tc.name),
                     input: enrichToolCallInput(tc.name, tc.args),
                   };
                 }
@@ -516,6 +518,7 @@ export async function* streamAgent(
             toolCallId: tcId,
             toolName: pending.name,
             toolLabel: getToolLabel(pending.name),
+            toolIcon: getToolIcon(pending.name),
             input: enrichToolCallInput(pending.name, parsedArgs),
           };
         }

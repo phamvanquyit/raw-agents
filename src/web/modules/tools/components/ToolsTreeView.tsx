@@ -17,18 +17,23 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AddCircle, Folder, MenuDots, PenNewSquare, Programming, TrashBinTrash } from "@solar-icons/react";
+import Folder from "@solar-icons/react/folders/Folder";
+import Programming from "@solar-icons/react/it/Programming";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import TrashBinTrash from "@solar-icons/react/ui/TrashBinTrash";
 import { Button, Dropdown, Modal, Tag, message } from "antd";
 import type { MenuProps } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentTool } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
-import { SolarIcon } from "src/components/SolarIcon";
 import { cn } from "src/lib/utils";
 import { useAppDispatch } from "src/store/store";
 import type { ToolFolderWithTools } from "../common/toolFoldersSlice";
 import { fetchTools, reorderTools, reorderToolsLocal } from "../common/toolsSlice";
 import { AddToolDialog } from "./AddToolDialog";
+import { ToolIcon } from "./ToolIcon";
 
 const UNGROUPED_ID = "ungrouped";
 
@@ -245,7 +250,7 @@ function ToolRowView({
             tool.isActive ? "bg-success/10 text-success ring-success/20" : "bg-destructive/10 text-destructive ring-destructive/20",
           )}
         >
-          <SolarIcon name={tool.icon} size={14} fallback={<Programming width={14} height={14} />} />
+          <ToolIcon icon={tool.icon} size={14} fallback={<Programming width={14} height={14} />} />
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <span className="min-w-0 truncate font-mono text-[13px] leading-snug text-foreground/90 group-hover/tool:text-foreground transition-colors">

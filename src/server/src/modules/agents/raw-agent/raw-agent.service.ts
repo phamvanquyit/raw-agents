@@ -192,6 +192,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
               toolInput: event.input,
               toolLabel: event.toolLabel,
               toolName: event.toolName,
+              ...(event.toolIcon != null ? { toolIcon: event.toolIcon } : {}),
             });
             break;
           }
@@ -223,7 +224,13 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
             conversationId,
             role: "tool",
             content: event.toolName,
-            metadata: { toolName: event.toolName, toolLabel: event.toolLabel, toolInput: event.input, toolCallId: event.toolCallId },
+            metadata: {
+              toolName: event.toolName,
+              toolLabel: event.toolLabel,
+              toolInput: event.input,
+              toolCallId: event.toolCallId,
+              ...(event.toolIcon != null ? { toolIcon: event.toolIcon } : {}),
+            },
           });
           if (toolMsg.id) toolMsgIds.set(event.toolCallId, toolMsg.id);
           break;

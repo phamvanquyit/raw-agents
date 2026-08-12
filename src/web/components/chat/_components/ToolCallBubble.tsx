@@ -1,17 +1,25 @@
-import { AltArrowDown, DangerCircle, Programming, Restart } from "@solar-icons/react";
+import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
+import Restart from "@solar-icons/react/arrows/Restart";
+import Programming from "@solar-icons/react/it/Programming";
+import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import { useState } from "react";
 import RenderIf from "src/components/RenderIf";
 import { cn } from "src/lib/utils";
+import { ToolIcon } from "src/modules/tools/components/ToolIcon";
 import { useAppSelector } from "src/store/store";
 import type { ChatAgentMessage } from "../common/types";
 import { formatToolName, prettyJson } from "../common/utils";
 import { resolveToolUI } from "./tool-uis";
 
-function ToolLeadingIcon({ hasError, open }: { hasError: boolean; open: boolean }) {
+function ToolStatusIcon({ hasError, open, toolIcon }: { hasError: boolean; open: boolean; toolIcon?: string | null }) {
   return (
     <span className="relative size-4 shrink-0">
       <span className={cn("absolute inset-0 flex items-center justify-center transition-opacity", open ? "opacity-0" : "opacity-100 group-hover:opacity-0")}>
-        {hasError ? <DangerCircle size={13} className="text-destructive" /> : <Programming size={13} className="text-muted-foreground" />}
+        {hasError ? (
+          <DangerCircle size={13} className="text-destructive" />
+        ) : (
+          <ToolIcon icon={toolIcon} size={13} className="text-muted-foreground" fallback={<Programming size={13} className="text-muted-foreground" />} />
+        )}
       </span>
       <span
         className={cn(
@@ -33,50 +41,57 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
   const [open, setOpen] = useState(false);
   const activeConvId = useAppSelector((s) => s.chat.activeConversationId);
   const conversations = useAppSelector((s) => s.chat.conversations);
+  const tools = useAppSelector((s) => s.tools.items) as { name: string; icon?: string | null }[];
   const isConvRunning = conversations.find((c) => c.id === activeConvId)?.status === "running";
   const running = isPending && !!isConvRunning;
 
   const label = msg.toolLabel ?? formatToolName(msg.toolName ?? "Tool");
+  const toolIcon = msg.toolIcon ?? tools.find((t) => t.name === msg.toolName)?.icon ?? null;
 
   if (isPending) {
     return (
-      <div className="rounded-lg border border-border-subtle overflow-hidden mb-1.5">
-        <div className="w-full flex items-center gap-2 px-3 py-1.5 bg-muted/30">
+      <div className="mb-1.5 overflow-hidden rounded-lg border border-border-subtle">
+        <div className="flex w-full items-center gap-2 bg-muted/30 px-3 py-1.5">
           {running ? (
-            <Restart size={12} className="animate-spin text-muted-foreground shrink-0" />
+            <Restart size={12} className="shrink-0 animate-spin text-muted-foreground" />
           ) : (
-            <Programming size={13} className="text-muted-foreground shrink-0" />
+            <ToolIcon
+              icon={toolIcon}
+              size={13}
+              className="shrink-0 text-muted-foreground"
+              fallback={<Programming size={13} className="text-muted-foreground" />}
+            />
           )}
-          <span className="text-[12px] font-medium text-muted-foreground truncate flex-1 text-left">{label}</span>
+          <span className="flex-1 truncate text-left text-[12px] font-medium text-muted-foreground">{label}</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border-subtle overflow-hidden mb-1.5">
+    <div className="mb-1.5 overflow-hidden rounded-lg border border-border-subtle">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="group w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none transition-colors bg-muted/30 hover:bg-muted/45"
+        className="group flex w-full cursor-pointer items-center gap-2 bg-muted/30 px-3 py-1.5 outline-none transition-colors hover:bg-muted/45"
       >
-        <ToolLeadingIcon hasError={hasError} open={open} />
-        <span className="text-[12px] font-medium text-muted-foreground group-hover:text-foreground transition-colors truncate flex-1 text-left">{label}</span>
+        <ToolStatusIcon hasError={hasError} open={open} toolIcon={toolIcon} />
+        <span className="flex-1 truncate text-left text-[12px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">{label}</span>
       </button>
 
       <RenderIf condition={open}>
         <div className="border-t border-border-subtle font-mono text-[11px]">
           <RenderIf condition={hasInput}>
-            <div className="px-3 py-2 border-b border-border-subtle/60">
-              <span className="text-2xs text-muted-foreground uppercase tracking-widest font-sans font-semibold">input</span>
-              <pre className="m-0 mt-1 whitespace-pre-wrap break-all text-muted-foreground leading-[1.65] max-h-27.5 overflow-y-auto font-normal">
+            <div className="border-b border-border-subtle/60 px-3 py-2">
+              <span className="text-2xs font-sans font-semibold uppercase tracking-widest text-muted-foreground">input</span>
+              <pre className="m-0 mt-1 max-h-27.5 overflow-y-auto break-all whitespace-pre-wrap font-normal leading-[1.65] text-muted-foreground">
                 {prettyJson(msg.toolInput)}
               </pre>
             </div>
           </RenderIf>
           <div className="px-3 py-2">
-            <span className="text-2xs uppercase tracking-widest font-sans font-semibold text-muted-foreground">output</span>
-            <pre className="m-0 mt-1 whitespace-pre-wrap break-all leading-[1.65] max-h-75 overflow-y-auto font-normal text-muted-foreground">
+            <span className="text-2xs font-sans font-semibold uppercase tracking-widest text-muted-foreground">output</span>
+            <pre className="m-0 mt-1 max-h-75 overflow-y-auto break-all whitespace-pre-wrap font-normal leading-[1.65] text-muted-foreground">
               {hasOutput ? prettyJson(msg.toolOutput) : "Tool execution failed"}
             </pre>
           </div>
@@ -91,14 +106,19 @@ export function ToolCallGroup({
   assistantLabel = "Assistant",
   assistantColor,
   showAvatar = true,
-}: { messages: ChatAgentMessage[]; assistantLabel?: string; assistantColor?: string | null; showAvatar?: boolean }) {
+}: {
+  messages: ChatAgentMessage[];
+  assistantLabel?: string;
+  assistantColor?: string | null;
+  showAvatar?: boolean;
+}) {
   const color = assistantColor ?? "var(--primary)";
   return (
-    <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
+    <div className="mt-1 animate-[fadeIn_0.28s_ease-out_both]">
       {showAvatar && (
         <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
           <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase select-none"
+            className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase select-none"
             style={{ background: color, color: "var(--primary-foreground)", letterSpacing: "0.08em" }}
           >
             {assistantLabel}
@@ -134,11 +154,11 @@ export function ToolCallBubble({
 
   const color = assistantColor ?? "var(--primary)";
   return (
-    <div className="animate-[fadeIn_0.28s_ease-out_both] mt-1">
+    <div className="mt-1 animate-[fadeIn_0.28s_ease-out_both]">
       {showAvatar && (
         <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
           <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase select-none"
+            className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase select-none"
             style={{ background: color, color: "var(--primary-foreground)", letterSpacing: "0.08em" }}
           >
             {assistantLabel}
