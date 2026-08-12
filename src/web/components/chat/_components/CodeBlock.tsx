@@ -1,7 +1,6 @@
-import { Clipboard, ClipboardCheck } from "@solar-icons/react";
+import Clipboard from "@solar-icons/react/notes/Clipboard";
+import ClipboardCheck from "@solar-icons/react/notes/ClipboardCheck";
 import { useState } from "react";
-import SyntaxHighlighter from "react-syntax-highlighter";
-import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import { MermaidBlock } from "./MermaidBlock";
 
 // ── Language display labels ───────────────────────────────────────────────
@@ -99,18 +98,9 @@ export function CodeBlock({ language = "", children, pendingMermaid = false }: C
         </button>
       </div>
 
-      {/* Code */}
-      <SyntaxHighlighter
-        language={lang || "text"}
-        style={atomOneDark}
-        useInlineStyles
-        wrapLongLines={false}
-        PreTag="div"
-        CodeTag="code"
-        customStyle={{ fontSize: "12.5px", padding: "0", margin: 0, background: "transparent" }}
-      >
-        {children}
-      </SyntaxHighlighter>
+      <pre className="m-0 overflow-x-auto p-3 text-[12.5px] leading-relaxed whitespace-pre font-mono text-white/70">
+        <code>{children}</code>
+      </pre>
     </div>
   );
 }
