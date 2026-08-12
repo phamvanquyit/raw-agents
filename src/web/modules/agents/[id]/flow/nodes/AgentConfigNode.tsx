@@ -3,7 +3,9 @@
 // Contains: avatar, name, description, model picker, instruct button.
 // Receives edges from tools (right-top) and callable agents (right-bottom).
 
-import { AltArrowRight, DocumentText, Global } from "@solar-icons/react";
+import AltArrowRight from "@solar-icons/react/arrows/AltArrowRight";
+import Global from "@solar-icons/react/map/Global";
+import DocumentText from "@solar-icons/react/notes/DocumentText";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";

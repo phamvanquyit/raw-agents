@@ -1,4 +1,6 @@
-import { PenNewSquare, UserPlus, UsersGroupTwoRounded } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import UserPlus from "@solar-icons/react/users/UserPlus";
+import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
 import { Button, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";

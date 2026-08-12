@@ -1,4 +1,5 @@
-import { AddCircle, Alarm } from "@solar-icons/react";
+import Alarm from "@solar-icons/react/time/Alarm";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
 import { Alert, Button, Form, Input, Modal, Spin, message } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";

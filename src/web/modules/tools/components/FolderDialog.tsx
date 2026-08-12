@@ -1,4 +1,5 @@
-import { AddCircle, PenNewSquare } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
 import { Button, Form, Input, Modal, message } from "antd";
 import type { InputRef } from "antd";
 import { useEffect, useRef, useState } from "react";

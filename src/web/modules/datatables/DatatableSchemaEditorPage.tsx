@@ -1,4 +1,6 @@
-import { AddCircle, AltArrowLeft, Database } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import Database from "@solar-icons/react/ui/Database";
 import { Button, message } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";

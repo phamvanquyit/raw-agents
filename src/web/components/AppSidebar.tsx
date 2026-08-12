@@ -1,20 +1,18 @@
-import {
-  AlarmPlay,
-  AltArrowLeft,
-  Database,
-  FaceScanSquare,
-  Global,
-  HomeAngle,
-  KeyMinimalistic,
-  LockPassword,
-  Logout2,
-  MenuDots,
-  Planet2,
-  Programming,
-  Settings,
-  Stars,
-  User as UserIcon,
-} from "@solar-icons/react";
+import Logout2 from "@solar-icons/react/arrows-action/Logout2";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Planet2 from "@solar-icons/react/astronomy/Planet2";
+import FaceScanSquare from "@solar-icons/react/faces/FaceScanSquare";
+import Programming from "@solar-icons/react/it/Programming";
+import Global from "@solar-icons/react/map/Global";
+import KeyMinimalistic from "@solar-icons/react/security/KeyMinimalistic";
+import LockPassword from "@solar-icons/react/security/LockPassword";
+import Settings from "@solar-icons/react/settings/Settings";
+import AlarmPlay from "@solar-icons/react/time/AlarmPlay";
+import Database from "@solar-icons/react/ui/Database";
+import HomeAngle from "@solar-icons/react/ui/HomeAngle";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import UserIcon from "@solar-icons/react/users/User";
+import Stars from "@solar-icons/react/weather/Stars";
 import { Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { useEffect, useState } from "react";

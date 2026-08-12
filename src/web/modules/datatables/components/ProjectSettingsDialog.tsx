@@ -1,4 +1,4 @@
-import { TrashBinMinimalistic } from "@solar-icons/react";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Button, Form, Input, Modal, Popconfirm, message } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";

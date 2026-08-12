@@ -1,4 +1,5 @@
-import { CloseCircle, Stars } from "@solar-icons/react";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
+import Stars from "@solar-icons/react/weather/Stars";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";

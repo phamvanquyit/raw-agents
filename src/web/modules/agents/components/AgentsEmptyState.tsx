@@ -1,4 +1,4 @@
-import { FaceScanSquare } from "@solar-icons/react";
+import FaceScanSquare from "@solar-icons/react/faces/FaceScanSquare";
 
 export function AgentsEmptyState() {
   return (

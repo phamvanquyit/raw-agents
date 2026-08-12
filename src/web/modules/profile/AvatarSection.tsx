@@ -1,4 +1,4 @@
-import { Refresh } from "@solar-icons/react";
+import Refresh from "@solar-icons/react/arrows/Refresh";
 import { message } from "antd";
 import { useState } from "react";
 import { apiClient } from "src/common/api";

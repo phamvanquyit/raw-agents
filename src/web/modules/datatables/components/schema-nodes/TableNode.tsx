@@ -1,4 +1,5 @@
-import { Database, PenNewSquare } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Database from "@solar-icons/react/ui/Database";
 import type { NodeProps } from "@xyflow/react";
 import { propertyTypeIcon, propertyTypeLabel } from "../../common/columnUtils";
 import type { TableNode } from "./types";

@@ -1,4 +1,5 @@
-import { CloseCircle, MagicStick } from "@solar-icons/react";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
+import MagicStick from "@solar-icons/react/ui/MagicStick";
 import { useEffect, useRef, useState } from "react";
 
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";

@@ -1,4 +1,4 @@
-import { TrashBinMinimalistic } from "@solar-icons/react";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import type { AgentConversation } from "src/common/types";
 
 interface ConversationItemProps {

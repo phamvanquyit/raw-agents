@@ -1,16 +1,14 @@
-import {
-  AltArrowLeft,
-  CheckCircle,
-  Global,
-  Link as LinkIcon,
-  Lock,
-  MenuDots,
-  PenNewSquare,
-  Refresh,
-  Restart,
-  TransferHorizontal,
-  TrashBinMinimalistic,
-} from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Refresh from "@solar-icons/react/arrows/Refresh";
+import Restart from "@solar-icons/react/arrows/Restart";
+import TransferHorizontal from "@solar-icons/react/arrows/TransferHorizontal";
+import Global from "@solar-icons/react/map/Global";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Lock from "@solar-icons/react/security/Lock";
+import LinkIcon from "@solar-icons/react/text-formatting/Link";
+import CheckCircle from "@solar-icons/react/ui/CheckCircle";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Alert, Button, Dropdown, Form, Input, Modal, Popconfirm, Popover, Switch, Tag, message } from "antd";
 import type { MenuProps } from "antd";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";

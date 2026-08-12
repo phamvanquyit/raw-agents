@@ -1,4 +1,4 @@
-import { FaceScanSquare } from "@solar-icons/react";
+import FaceScanSquare from "@solar-icons/react/faces/FaceScanSquare";
 import type { AgentListItem } from "src/common/types";
 import { AgentCardGrid } from "./AgentCardGrid";
 import { AgentsSectionHeader } from "./AgentsSectionHeader";

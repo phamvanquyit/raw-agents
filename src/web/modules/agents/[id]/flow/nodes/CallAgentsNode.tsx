@@ -2,7 +2,8 @@
 // Single card node (like Tools / MCP Servers). Click opens a popover listing other
 // agents grouped by team, each with a Switch to enable/disable call_agent.
 
-import { CloseCircle, FaceScanSquare } from "@solar-icons/react";
+import FaceScanSquare from "@solar-icons/react/faces/FaceScanSquare";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";

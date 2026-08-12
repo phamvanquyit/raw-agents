@@ -1,4 +1,5 @@
-import { AltArrowLeft, Magnifier } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Magnifier from "@solar-icons/react/search/Magnifier";
 import { Popover } from "antd";
 import type { TooltipPlacement } from "antd/es/tooltip";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -338,6 +339,7 @@ export function ModelPicker({
           container: {
             ...(widthStyle ?? {}),
             padding: 0,
+            border: "none",
             boxShadow: "none",
             background: "transparent",
           },

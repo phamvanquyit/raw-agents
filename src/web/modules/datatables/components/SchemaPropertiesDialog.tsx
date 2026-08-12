@@ -1,4 +1,6 @@
-import { AddCircle, Restart, TrashBinMinimalistic } from "@solar-icons/react";
+import Restart from "@solar-icons/react/arrows/Restart";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Button, Input, Modal, Popconfirm, Select, Switch, message } from "antd";
 import { useMemo, useState } from "react";
 import { cn } from "src/common/lib/cn";

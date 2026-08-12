@@ -1,4 +1,4 @@
-import { Key } from "@solar-icons/react";
+import Key from "@solar-icons/react/security/Key";
 import { useForm } from "@tanstack/react-form";
 import { Button, Form, Input, message } from "antd";
 import { apiClient } from "src/common/api";

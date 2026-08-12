@@ -47,23 +47,30 @@ export default defineConfig({
       input: resolve(__dirname, "index.html"),
       output: {
         manualChunks(id) {
-          // Monaco editor — largest single chunk
-          if (id.includes("monaco-editor") || id.includes("@monaco-editor")) {
-            return "vendor-monaco";
+          // Heavy editors / graphs (incl. @xyflow on agent flow / memory / schema) —
+          // keep OUT of vendor-misc and do not force a shared named chunk (that can
+          // swallow Vite's preload helper and cause the entry to statically import
+          // monaco/mermaid/xyflow on first paint).
+          if (
+            id.includes("node_modules/monaco-editor") ||
+            id.includes("node_modules/@monaco-editor") ||
+            id.includes("node_modules/pixi.js") ||
+            id.includes("node_modules/@pixi") ||
+            id.includes("node_modules/mermaid") ||
+            id.includes("node_modules/katex") ||
+            id.includes("node_modules/cytoscape") ||
+            id.includes("node_modules/dagre") ||
+            id.includes("node_modules/@dagrejs") ||
+            id.includes("node_modules/elkjs") ||
+            id.includes("node_modules/framer-motion") ||
+            id.includes("node_modules/@xyflow") ||
+            id.includes("node_modules/.bun/@xyflow") ||
+            id.includes("node_modules/@solar-icons") ||
+            id.includes("node_modules/.bun/@solar-icons")
+          ) {
+            return;
           }
-          // PixiJS
-          if (id.includes("pixi.js") || id.includes("@pixi")) {
-            return "vendor-pixi";
-          }
-          // Mermaid + its heavy sub-deps (katex, cytoscape, etc.)
-          if (id.includes("mermaid") || id.includes("katex") || id.includes("cytoscape") || id.includes("dagre") || id.includes("elkjs")) {
-            return "vendor-mermaid";
-          }
-          // Framer Motion
-          if (id.includes("framer-motion")) {
-            return "vendor-framer";
-          }
-          // All other node_modules (including react + react-dom) → one chunk
+          // Remaining node_modules (react, antd, …) → one shared chunk
           // NOTE: do NOT split react/react-dom into a separate chunk — packages
           // in vendor-misc import react, creating a circular chunk dependency
           // that causes a runtime TypeError on the production build.

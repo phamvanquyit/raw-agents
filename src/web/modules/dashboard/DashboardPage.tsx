@@ -1,4 +1,9 @@
-import { ChatRound, FaceScanSquare, Global, PlugCircle, Programming, UsersGroupTwoRounded } from "@solar-icons/react";
+import PlugCircle from "@solar-icons/react/devices/PlugCircle";
+import FaceScanSquare from "@solar-icons/react/faces/FaceScanSquare";
+import Programming from "@solar-icons/react/it/Programming";
+import Global from "@solar-icons/react/map/Global";
+import ChatRound from "@solar-icons/react/messages/ChatRound";
+import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
 import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Agent } from "src/common/types";

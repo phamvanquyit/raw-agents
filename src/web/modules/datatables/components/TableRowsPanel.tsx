@@ -1,4 +1,8 @@
-import { AddCircle, Database, MenuDots, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import Database from "@solar-icons/react/ui/Database";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Button, Dropdown, Modal, message } from "antd";
 import { type MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
 import { useAppTimezone } from "src/common/hooks/useAppTimezone";

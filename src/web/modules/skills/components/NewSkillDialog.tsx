@@ -1,4 +1,4 @@
-import { AddCircle } from "@solar-icons/react";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
 import { Button, Form, Input, Modal, message } from "antd";
 import type { InputRef } from "antd";
 import { type ReactNode, useEffect, useRef, useState } from "react";

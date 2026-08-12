@@ -1,4 +1,7 @@
-import { AltArrowLeft, Database, Settings, Widget } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Settings from "@solar-icons/react/settings/Settings";
+import Widget from "@solar-icons/react/settings/Widget";
+import Database from "@solar-icons/react/ui/Database";
 import { Button, message } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";

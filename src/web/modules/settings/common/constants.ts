@@ -1,4 +1,8 @@
-import { CpuBolt, Key, type Settings, Tuning2, UsersGroupTwoRounded } from "@solar-icons/react";
+import CpuBolt from "@solar-icons/react/devices/CpuBolt";
+import Key from "@solar-icons/react/security/Key";
+import type Settings from "@solar-icons/react/settings/Settings";
+import Tuning2 from "@solar-icons/react/settings/Tuning2";
+import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
 
 export type SettingsTab = "general" | "default-models" | "providers" | "users";
 

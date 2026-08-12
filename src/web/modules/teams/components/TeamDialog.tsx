@@ -1,4 +1,5 @@
-import { PenNewSquare, TrashBinTrash } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import TrashBinTrash from "@solar-icons/react/ui/TrashBinTrash";
 import { Button, Form, Input, Modal, message } from "antd";
 import type { InputRef } from "antd";
 import { useEffect, useRef, useState } from "react";

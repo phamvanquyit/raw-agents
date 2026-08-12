@@ -1,4 +1,7 @@
-import { AltArrowLeft, Graph, MenuDots, TrashBinTrash } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Graph from "@solar-icons/react/business/Graph";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import TrashBinTrash from "@solar-icons/react/ui/TrashBinTrash";
 import { Modal, Popover } from "antd";
 import { useCallback, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";

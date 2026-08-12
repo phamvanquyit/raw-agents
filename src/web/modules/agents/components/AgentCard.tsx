@@ -1,4 +1,7 @@
-import { Clipboard, Global, MenuDots, UsersGroupTwoRounded } from "@solar-icons/react";
+import Global from "@solar-icons/react/map/Global";
+import Clipboard from "@solar-icons/react/notes/Clipboard";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
 import { Dropdown, message } from "antd";
 import type { MenuProps } from "antd";
 import { useMemo, useState } from "react";

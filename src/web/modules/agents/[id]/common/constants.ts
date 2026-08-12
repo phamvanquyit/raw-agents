@@ -1,4 +1,6 @@
-import { ChatRoundDots, Notes, Structure } from "@solar-icons/react";
+import Structure from "@solar-icons/react/it/Structure";
+import ChatRoundDots from "@solar-icons/react/messages/ChatRoundDots";
+import Notes from "@solar-icons/react/notes/Notes";
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
 

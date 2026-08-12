@@ -1,4 +1,4 @@
-import { AltArrowLeft } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
 import { NavLink, useParams } from "react-router-dom";
 import type { Agent } from "src/common/types";
 import { UserAvatar } from "src/components/UserAvatar";

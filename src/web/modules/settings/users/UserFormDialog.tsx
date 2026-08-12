@@ -1,4 +1,7 @@
-import { PenNewSquare, Restart, TrashBinMinimalistic, UserPlus } from "@solar-icons/react";
+import Restart from "@solar-icons/react/arrows/Restart";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
+import UserPlus from "@solar-icons/react/users/UserPlus";
 import { useForm } from "@tanstack/react-form";
 import { Button, Form, Input, Modal, Select, message } from "antd";
 import { useState } from "react";

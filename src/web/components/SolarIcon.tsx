@@ -1,53 +1,63 @@
-/**
- * SolarIcon — lazy-resolve a @solar-icons/react component by name string.
- *
- * Usage:
- *   <SolarIcon name={tool.icon} size={20} weight="Outline" fallback={<Programming size={20} />} />
- *
- * - name: icon component name (e.g. "Programming", "Lock", "Cpu")
- * - If name is falsy or not found in the library, renders `fallback` (defaults to null).
- * - The solar module is loaded once and cached in a module-level variable.
- */
-
 import type React from "react";
 import { useEffect, useState } from "react";
+import { SOLAR_ICON_CATEGORY } from "./solarIconCategories";
 
-// ─── Module-level cache ───────────────────────────────────────────────────────
+type IconComponent = React.ComponentType<{
+  size?: number;
+  weight?: string;
+  className?: string;
+}>;
 
-let _solarModule: Record<string, React.ComponentType<any>> | null = null;
-let _loadPromise: Promise<Record<string, React.ComponentType<any>>> | null = null;
+type IconModule = { default: IconComponent };
 
-function loadSolarModule(): Promise<Record<string, React.ComponentType<any>>> {
-  if (_solarModule) return Promise.resolve(_solarModule);
-  if (_loadPromise) return _loadPromise;
-  _loadPromise = import("@solar-icons/react").then((mod) => {
-    _solarModule = mod as unknown as Record<string, React.ComponentType<any>>;
-    return _solarModule;
-  });
-  return _loadPromise;
+const cache = new Map<string, IconComponent | null>();
+const inflight = new Map<string, Promise<IconComponent | null>>();
+
+function loadSolarIcon(name: string): Promise<IconComponent | null> {
+  if (cache.has(name)) return Promise.resolve(cache.get(name) ?? null);
+
+  const pending = inflight.get(name);
+  if (pending) return pending;
+
+  const category = SOLAR_ICON_CATEGORY[name];
+  if (!category) {
+    cache.set(name, null);
+    return Promise.resolve(null);
+  }
+
+  const promise = import(`@solar-icons/react/${category}/${name}`)
+    .then((mod: IconModule) => {
+      const Icon = mod.default ?? null;
+      cache.set(name, Icon);
+      return Icon;
+    })
+    .catch(() => {
+      cache.set(name, null);
+      return null;
+    })
+    .finally(() => {
+      inflight.delete(name);
+    });
+
+  inflight.set(name, promise);
+  return promise;
 }
 
-function getSolarIcon(name: string): React.ComponentType<any> | null {
-  return _solarModule?.[name] ?? null;
-}
-
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
-export function useSolarIcon(name?: string | null): React.ComponentType<any> | null {
-  const [Icon, setIcon] = useState<React.ComponentType<any> | null>(() => (name ? getSolarIcon(name) : null));
+export function useSolarIcon(name?: string | null): IconComponent | null {
+  const [Icon, setIcon] = useState<IconComponent | null>(() => (name ? (cache.get(name) ?? null) : null));
 
   useEffect(() => {
     if (!name) {
       setIcon(null);
       return;
     }
-    if (_solarModule) {
-      setIcon(() => getSolarIcon(name));
+    if (cache.has(name)) {
+      setIcon(() => cache.get(name) ?? null);
       return;
     }
     let cancelled = false;
-    loadSolarModule().then((mod) => {
-      if (!cancelled) setIcon(() => mod[name] ?? null);
+    void loadSolarIcon(name).then((resolved) => {
+      if (!cancelled) setIcon(() => resolved);
     });
     return () => {
       cancelled = true;
@@ -57,15 +67,11 @@ export function useSolarIcon(name?: string | null): React.ComponentType<any> | n
   return Icon;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 interface SolarIconProps {
-  /** Icon component name from @solar-icons/react, e.g. "Programming" */
   name?: string | null;
   size?: number;
   weight?: "Bold" | "BoldDuotone" | "Linear" | "Outline";
   className?: string;
-  /** Rendered when name is falsy or the icon is not found */
   fallback?: React.ReactNode;
 }
 

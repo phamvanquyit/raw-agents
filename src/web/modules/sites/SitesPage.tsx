@@ -1,4 +1,5 @@
-import { AddCircle, Global } from "@solar-icons/react";
+import Global from "@solar-icons/react/map/Global";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
 import { Alert, Button, Form, Input, Modal, Segmented, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
@@ -54,6 +55,7 @@ function CreateSiteDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       <Form layout="vertical">
         <Form.Item label="Name" required>
           <Input
+            autoFocus
             value={name}
             placeholder="News page"
             onChange={(e) => {

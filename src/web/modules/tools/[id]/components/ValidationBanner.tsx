@@ -1,4 +1,4 @@
-import { DangerTriangle } from "@solar-icons/react";
+import DangerTriangle from "@solar-icons/react/ui/DangerTriangle";
 
 interface ValidationBannerProps {
   errors: string[];

@@ -1,4 +1,6 @@
-import { DangerCircle, PlugCircle, Widget } from "@solar-icons/react";
+import PlugCircle from "@solar-icons/react/devices/PlugCircle";
+import Widget from "@solar-icons/react/settings/Widget";
+import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import { Switch, Tooltip } from "antd";
 import { cn } from "src/common/lib/cn";
 import type { McpServer } from "src/common/types";

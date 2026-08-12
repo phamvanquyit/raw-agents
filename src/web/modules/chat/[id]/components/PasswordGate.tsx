@@ -1,4 +1,4 @@
-import { Lock } from "@solar-icons/react";
+import Lock from "@solar-icons/react/security/Lock";
 import { Button } from "antd";
 import { useEffect, useRef } from "react";
 import { UserAvatar } from "src/components/UserAvatar";

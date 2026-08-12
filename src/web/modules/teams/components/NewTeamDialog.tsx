@@ -1,4 +1,4 @@
-import { UsersGroupTwoRounded } from "@solar-icons/react";
+import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
 import { Button, Form, Input, Modal } from "antd";
 import type { InputRef } from "antd";
 import { type ReactNode, useEffect, useRef, useState } from "react";

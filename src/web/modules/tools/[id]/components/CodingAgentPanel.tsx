@@ -5,7 +5,7 @@
  * Streaming lives in useAssistantStreaming — no Redux dependency.
  */
 
-import { MagicStick } from "@solar-icons/react";
+import MagicStick from "@solar-icons/react/ui/MagicStick";
 import { useRef, useState } from "react";
 
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
@@ -142,6 +142,7 @@ export function CodingAgentPanel({
           providerId={providerId}
           model={model}
           onModelChange={onModelChange}
+          focusSignal={providerId && model ? streamUrl : undefined}
           enableTypeToFocus={false}
         />
       </div>

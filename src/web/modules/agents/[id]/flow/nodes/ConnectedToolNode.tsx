@@ -1,4 +1,7 @@
-import { Folder, Planet2, Programming, Stars } from "@solar-icons/react";
+import Planet2 from "@solar-icons/react/astronomy/Planet2";
+import Folder from "@solar-icons/react/folders/Folder";
+import Programming from "@solar-icons/react/it/Programming";
+import Stars from "@solar-icons/react/weather/Stars";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 
 export type ConnectedToolNodeData = {

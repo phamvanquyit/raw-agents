@@ -1,4 +1,4 @@
-import { MagicStick } from "@solar-icons/react";
+import MagicStick from "@solar-icons/react/ui/MagicStick";
 import { useRef, useState } from "react";
 
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";

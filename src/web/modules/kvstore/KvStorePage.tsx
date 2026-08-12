@@ -1,4 +1,8 @@
-import { AddCircle, KeyMinimalistic, Magnifier, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Magnifier from "@solar-icons/react/search/Magnifier";
+import KeyMinimalistic from "@solar-icons/react/security/KeyMinimalistic";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Alert, Button, Empty, Form, Input, Modal, Pagination, Popconfirm, Table, Tooltip, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useRef, useState } from "react";
@@ -75,7 +79,7 @@ function EntryDialog({
       </p>
       <Form layout="vertical">
         <Form.Item label="Key" required>
-          <Input value={form.key} placeholder="BASE_URL" onChange={(e) => setForm((f) => ({ ...f, key: e.target.value.toUpperCase() }))} />
+          <Input autoFocus value={form.key} placeholder="BASE_URL" onChange={(e) => setForm((f) => ({ ...f, key: e.target.value.toUpperCase() }))} />
         </Form.Item>
         <Form.Item label="Value" required>
           <Input.TextArea

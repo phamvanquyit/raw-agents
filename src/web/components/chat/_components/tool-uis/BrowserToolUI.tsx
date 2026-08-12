@@ -1,4 +1,7 @@
-import { AltArrowDown, DangerCircle, Global, Restart } from "@solar-icons/react";
+import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
+import Restart from "@solar-icons/react/arrows/Restart";
+import Global from "@solar-icons/react/map/Global";
+import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import { useState } from "react";
 import RenderIf from "src/components/RenderIf";
 import { cn } from "src/lib/utils";

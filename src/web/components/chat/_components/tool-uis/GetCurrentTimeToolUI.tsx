@@ -1,4 +1,6 @@
-import { ClockCircle, DangerCircle, Restart } from "@solar-icons/react";
+import Restart from "@solar-icons/react/arrows/Restart";
+import ClockCircle from "@solar-icons/react/time/ClockCircle";
+import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import RenderIf from "src/components/RenderIf";
 import { useAppSelector } from "src/store/store";
 import type { ToolUIProps } from "./types";

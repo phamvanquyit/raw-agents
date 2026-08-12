@@ -1,4 +1,7 @@
-import { ChatRound, PenNewSquare, SidebarMinimalistic, TrashBinMinimalistic } from "@solar-icons/react";
+import SidebarMinimalistic from "@solar-icons/react/it/SidebarMinimalistic";
+import ChatRound from "@solar-icons/react/messages/ChatRound";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { UserAvatar } from "src/components/UserAvatar";
 import type { ConvMeta, PublicAgent } from "./types";
 

@@ -1,4 +1,9 @@
-import { Calendar, CheckSquare, Code, Hashtag, ListCheck, Text } from "@solar-icons/react";
+import Code from "@solar-icons/react/it/Code";
+import Hashtag from "@solar-icons/react/it/Hashtag";
+import ListCheck from "@solar-icons/react/list/ListCheck";
+import Text from "@solar-icons/react/text-formatting/Text";
+import Calendar from "@solar-icons/react/time/Calendar";
+import CheckSquare from "@solar-icons/react/ui/CheckSquare";
 import type { ReactNode } from "react";
 import { cn } from "src/common/lib/cn";
 import type { DatatableColumn, DatatableColumnType } from "src/common/types";

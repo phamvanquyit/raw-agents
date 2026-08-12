@@ -1,4 +1,13 @@
-import { AltArrowLeft, CheckCircle, ClockCircle, CloseCircle, Diskette, History, Play, Settings, StopCircle, TrashBinMinimalistic } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Diskette from "@solar-icons/react/devices/Diskette";
+import Settings from "@solar-icons/react/settings/Settings";
+import ClockCircle from "@solar-icons/react/time/ClockCircle";
+import History from "@solar-icons/react/time/History";
+import CheckCircle from "@solar-icons/react/ui/CheckCircle";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
+import Play from "@solar-icons/react/video/Play";
+import StopCircle from "@solar-icons/react/video/StopCircle";
 import { Button, Drawer, Form, Input, InputNumber, Popconfirm, Tag, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";

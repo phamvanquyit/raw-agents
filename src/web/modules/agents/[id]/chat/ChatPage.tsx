@@ -1,4 +1,6 @@
-import { AltArrowDown, PenNewSquare, SidebarMinimalistic } from "@solar-icons/react";
+import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
+import SidebarMinimalistic from "@solar-icons/react/it/SidebarMinimalistic";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
@@ -39,6 +41,7 @@ function toDisplayMsg(m: {
       toolCallId: meta.toolCallId as string | undefined,
       toolName: String(meta.toolName ?? m.content ?? "Tool"),
       toolLabel: meta.toolLabel as string | undefined,
+      toolIcon: (meta.toolIcon as string | null | undefined) ?? null,
       toolInput: meta.toolInput,
       toolOutput: meta.toolOutput as string | undefined,
       toolError: Boolean(meta.toolError),

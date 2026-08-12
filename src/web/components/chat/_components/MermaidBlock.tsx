@@ -1,4 +1,8 @@
-import { Download, FullScreen, Moon, QuitFullScreen, Sun } from "@solar-icons/react";
+import Download from "@solar-icons/react/arrows-action/Download";
+import FullScreen from "@solar-icons/react/video/FullScreen";
+import QuitFullScreen from "@solar-icons/react/video/QuitFullScreen";
+import Moon from "@solar-icons/react/weather/Moon";
+import Sun from "@solar-icons/react/weather/Sun";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { sanitizeMermaid } from "../common/sanitizeMermaid";
 

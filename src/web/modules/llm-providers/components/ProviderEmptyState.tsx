@@ -1,4 +1,4 @@
-import { Key } from "@solar-icons/react";
+import Key from "@solar-icons/react/security/Key";
 import { Button } from "antd";
 
 interface ProviderEmptyStateProps {

@@ -1,4 +1,8 @@
-import { Key, Magnifier, PenNewSquare, Refresh, TrashBinMinimalistic } from "@solar-icons/react";
+import Refresh from "@solar-icons/react/arrows/Refresh";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Magnifier from "@solar-icons/react/search/Magnifier";
+import Key from "@solar-icons/react/security/Key";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Button, Empty, Form, Input, Modal, Select, Skeleton, Tag, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "src/common/api";

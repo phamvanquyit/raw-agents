@@ -3,7 +3,8 @@
 // grouped by folder (tree lines), each with a small Switch.
 // Connected leaves: folder icon + name → tool icon + name (built in AgentFlowView).
 
-import { CloseCircle, Programming } from "@solar-icons/react";
+import Programming from "@solar-icons/react/it/Programming";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";

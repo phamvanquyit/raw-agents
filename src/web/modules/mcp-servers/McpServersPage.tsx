@@ -1,4 +1,12 @@
-import { AddCircle, Clipboard, ClipboardCheck, Magnifier, PenNewSquare, PlugCircle, RefreshCircle, TrashBinMinimalistic, Widget } from "@solar-icons/react";
+import RefreshCircle from "@solar-icons/react/arrows/RefreshCircle";
+import PlugCircle from "@solar-icons/react/devices/PlugCircle";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Clipboard from "@solar-icons/react/notes/Clipboard";
+import ClipboardCheck from "@solar-icons/react/notes/ClipboardCheck";
+import Magnifier from "@solar-icons/react/search/Magnifier";
+import Widget from "@solar-icons/react/settings/Widget";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Alert, Button, Drawer, Empty, Input, Popconfirm, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { apiClient } from "src/common/api";

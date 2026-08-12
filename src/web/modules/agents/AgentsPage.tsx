@@ -1,4 +1,5 @@
-import { AddCircle, UsersGroupTwoRounded } from "@solar-icons/react";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
 import { Button } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";

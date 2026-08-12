@@ -1,4 +1,5 @@
-import { AddCircle, TrashBinMinimalistic } from "@solar-icons/react";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Button } from "antd";
 import { useRef } from "react";
 import { DEFAULT_JOB_SCHEDULE, type JobSchedule } from "../common/schedule";

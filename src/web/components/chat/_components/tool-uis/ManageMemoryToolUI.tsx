@@ -1,4 +1,10 @@
-import { Bookmark, Cpu, DangerCircle, LinkMinimalistic, Notes, Restart, TrashBinMinimalistic } from "@solar-icons/react";
+import Restart from "@solar-icons/react/arrows/Restart";
+import Cpu from "@solar-icons/react/devices/Cpu";
+import Notes from "@solar-icons/react/notes/Notes";
+import Bookmark from "@solar-icons/react/school/Bookmark";
+import LinkMinimalistic from "@solar-icons/react/text-formatting/LinkMinimalistic";
+import DangerCircle from "@solar-icons/react/ui/DangerCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import type { ReactNode } from "react";
 import RenderIf from "src/components/RenderIf";
 import { useAppSelector } from "src/store/store";

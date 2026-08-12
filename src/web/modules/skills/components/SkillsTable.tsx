@@ -1,4 +1,6 @@
-import { BookBookmark, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import BookBookmark from "@solar-icons/react/school/BookBookmark";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Button, Popconfirm, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo } from "react";

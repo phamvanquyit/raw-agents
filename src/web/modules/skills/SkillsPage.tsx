@@ -1,4 +1,5 @@
-import { AddCircle, Magnifier } from "@solar-icons/react";
+import Magnifier from "@solar-icons/react/search/Magnifier";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
 import { Button, Input } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";

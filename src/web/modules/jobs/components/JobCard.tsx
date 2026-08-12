@@ -1,4 +1,5 @@
-import { Alarm, ClockCircle } from "@solar-icons/react";
+import Alarm from "@solar-icons/react/time/Alarm";
+import ClockCircle from "@solar-icons/react/time/ClockCircle";
 import { Popover } from "antd";
 import { cn } from "src/common/lib/cn";
 import type { Job } from "src/common/types";

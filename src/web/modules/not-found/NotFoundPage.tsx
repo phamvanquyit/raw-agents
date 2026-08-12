@@ -1,4 +1,4 @@
-import { HomeAngle } from "@solar-icons/react";
+import HomeAngle from "@solar-icons/react/ui/HomeAngle";
 import { Button } from "antd";
 import { Link } from "react-router-dom";
 

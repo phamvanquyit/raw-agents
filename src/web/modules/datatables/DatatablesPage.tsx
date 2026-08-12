@@ -1,4 +1,5 @@
-import { AddCircle, Database } from "@solar-icons/react";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import Database from "@solar-icons/react/ui/Database";
 import { Button, Modal, Spin, message } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";

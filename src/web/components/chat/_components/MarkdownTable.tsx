@@ -1,4 +1,5 @@
-import { Clipboard, ClipboardCheck } from "@solar-icons/react";
+import Clipboard from "@solar-icons/react/notes/Clipboard";
+import ClipboardCheck from "@solar-icons/react/notes/ClipboardCheck";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 
 function escapeCell(text: string): string {

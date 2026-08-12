@@ -1,4 +1,5 @@
-import { AltArrowDown, AltArrowUp } from "@solar-icons/react";
+import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
+import AltArrowUp from "@solar-icons/react/arrows/AltArrowUp";
 import { useEffect, useRef, useState } from "react";
 import type { ChatAgentMessage } from "../common/types";
 

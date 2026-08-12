@@ -1,4 +1,5 @@
-import { Diskette, DocumentText } from "@solar-icons/react";
+import Diskette from "@solar-icons/react/devices/Diskette";
+import DocumentText from "@solar-icons/react/notes/DocumentText";
 import { Button, message } from "antd";
 import type * as MonacoNS from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";

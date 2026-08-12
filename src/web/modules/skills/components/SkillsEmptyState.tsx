@@ -1,4 +1,5 @@
-import { AddCircle, BookBookmark } from "@solar-icons/react";
+import BookBookmark from "@solar-icons/react/school/BookBookmark";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
 import { Button } from "antd";
 import { NewSkillDialog } from "./NewSkillDialog";
 

@@ -1,4 +1,4 @@
-import { Lock } from "@solar-icons/react";
+import Lock from "@solar-icons/react/security/Lock";
 import { Button, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";

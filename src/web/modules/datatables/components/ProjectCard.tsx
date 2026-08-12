@@ -1,4 +1,7 @@
-import { Database, MenuDots, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Database from "@solar-icons/react/ui/Database";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Button, Dropdown, Tag } from "antd";
 import type { MenuProps } from "antd";
 import { cn } from "src/common/lib/cn";

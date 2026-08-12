@@ -1,4 +1,6 @@
-import { AltArrowDown, AltArrowUp, Refresh } from "@solar-icons/react";
+import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
+import AltArrowUp from "@solar-icons/react/arrows/AltArrowUp";
+import Refresh from "@solar-icons/react/arrows/Refresh";
 import { Button, Form, Input, Modal } from "antd";
 
 import { useEffect, useState } from "react";

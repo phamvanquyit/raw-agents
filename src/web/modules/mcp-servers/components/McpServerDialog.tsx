@@ -1,4 +1,5 @@
-import { AddCircle, TrashBinMinimalistic } from "@solar-icons/react";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Alert, Button, Form, Input, Modal, message } from "antd";
 import { useState } from "react";
 import type { McpServer } from "src/common/types";
@@ -107,7 +108,7 @@ export function McpServerDialog({
       <p className="mb-3 text-sm text-muted-foreground">Connect a remote MCP endpoint over HTTP. Optional headers are used for auth.</p>
       <Form layout="vertical">
         <Form.Item label="Name" required>
-          <Input value={name} placeholder="my-server" onChange={(e) => setName(e.target.value)} />
+          <Input autoFocus value={name} placeholder="my-server" onChange={(e) => setName(e.target.value)} />
         </Form.Item>
         <Form.Item label="URL" required>
           <Input value={url} placeholder="https://example.com/mcp" onChange={(e) => setUrl(e.target.value)} />

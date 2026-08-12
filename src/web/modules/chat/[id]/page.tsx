@@ -1,4 +1,6 @@
-import { AltArrowDown, PenNewSquare, SidebarMinimalistic } from "@solar-icons/react";
+import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
+import SidebarMinimalistic from "@solar-icons/react/it/SidebarMinimalistic";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { AgentMessage } from "src/common/types";

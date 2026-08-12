@@ -1,4 +1,6 @@
-import { CheckCircle, CloseCircle, Programming } from "@solar-icons/react";
+import Programming from "@solar-icons/react/it/Programming";
+import CheckCircle from "@solar-icons/react/ui/CheckCircle";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
 import { Popover, Table } from "antd";
 import type { Param } from "../../common/constants";
 

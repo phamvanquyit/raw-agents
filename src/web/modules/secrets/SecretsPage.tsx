@@ -1,4 +1,8 @@
-import { AddCircle, LockPassword, Magnifier, PenNewSquare, TrashBinMinimalistic } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Magnifier from "@solar-icons/react/search/Magnifier";
+import LockPassword from "@solar-icons/react/security/LockPassword";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Alert, Button, Empty, Form, Input, Modal, Pagination, Popconfirm, Table, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useRef, useState } from "react";
@@ -81,7 +85,7 @@ function SecretDialog({
       </p>
       <Form layout="vertical">
         <Form.Item label="Key" required>
-          <Input value={form.key} placeholder="API_TOKEN" onChange={(e) => setForm((f) => ({ ...f, key: e.target.value.toUpperCase() }))} />
+          <Input autoFocus value={form.key} placeholder="API_TOKEN" onChange={(e) => setForm((f) => ({ ...f, key: e.target.value.toUpperCase() }))} />
         </Form.Item>
         <Form.Item label={isEdit ? "New value (leave blank to keep)" : "Value"} required={!isEdit}>
           <Input.Password

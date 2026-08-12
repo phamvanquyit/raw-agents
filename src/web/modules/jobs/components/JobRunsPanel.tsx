@@ -1,4 +1,12 @@
-import { CheckCircle, ClockCircle, CloseCircle, DangerCircle, DangerTriangle, InfoCircle, Magnifier, PlayCircle, StopCircle } from "@solar-icons/react";
+import Magnifier from "@solar-icons/react/search/Magnifier";
+import ClockCircle from "@solar-icons/react/time/ClockCircle";
+import CheckCircle from "@solar-icons/react/ui/CheckCircle";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
+import DangerCircle from "@solar-icons/react/ui/DangerCircle";
+import DangerTriangle from "@solar-icons/react/ui/DangerTriangle";
+import InfoCircle from "@solar-icons/react/ui/InfoCircle";
+import PlayCircle from "@solar-icons/react/video/PlayCircle";
+import StopCircle from "@solar-icons/react/video/StopCircle";
 import { Button, Input, Switch } from "antd";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { JobLogEntry, JobLogLevel, JobRun } from "src/common/types";

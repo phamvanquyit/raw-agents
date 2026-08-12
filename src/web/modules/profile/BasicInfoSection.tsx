@@ -1,4 +1,4 @@
-import { CheckCircle } from "@solar-icons/react";
+import CheckCircle from "@solar-icons/react/ui/CheckCircle";
 import { useForm } from "@tanstack/react-form";
 import { Button, Form, Input, message } from "antd";
 import { apiClient } from "src/common/api";

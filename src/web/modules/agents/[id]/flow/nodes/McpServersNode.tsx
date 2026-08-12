@@ -2,7 +2,8 @@
 // Single card node (like Tools). Click opens a popover listing MCP tools
 // grouped by server (tree lines), each with a Switch. Connected tools fan out as children.
 
-import { CloseCircle, Planet2 } from "@solar-icons/react";
+import Planet2 from "@solar-icons/react/astronomy/Planet2";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";

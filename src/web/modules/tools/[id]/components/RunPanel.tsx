@@ -1,4 +1,4 @@
-import { CloseCircle } from "@solar-icons/react";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
 import { type Ref, forwardRef, useImperativeHandle, useRef, useState } from "react";
 
 type RunStatus = "idle" | "running" | "ok" | "error";

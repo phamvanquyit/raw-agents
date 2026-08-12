@@ -1,4 +1,7 @@
-import { Global, LinkBrokenMinimalistic, Lock, SquareTopDown } from "@solar-icons/react";
+import SquareTopDown from "@solar-icons/react/arrows-action/SquareTopDown";
+import Global from "@solar-icons/react/map/Global";
+import Lock from "@solar-icons/react/security/Lock";
+import LinkBrokenMinimalistic from "@solar-icons/react/text-formatting/LinkBrokenMinimalistic";
 import { Button, Popover } from "antd";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";

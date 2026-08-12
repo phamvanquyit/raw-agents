@@ -1,4 +1,6 @@
-import { ChatRound, PenNewSquare, SidebarMinimalistic } from "@solar-icons/react";
+import SidebarMinimalistic from "@solar-icons/react/it/SidebarMinimalistic";
+import ChatRound from "@solar-icons/react/messages/ChatRound";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
 import { useCallback, useMemo } from "react";
 import type { AgentConversation } from "src/common/types";
 import { deleteConversation } from "src/modules/chat/common/chatSlice";

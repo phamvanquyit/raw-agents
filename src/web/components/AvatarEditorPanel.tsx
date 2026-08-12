@@ -1,4 +1,4 @@
-import { Refresh } from "@solar-icons/react";
+import Refresh from "@solar-icons/react/arrows/Refresh";
 import { Button } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Avatar from "react-nice-avatar";

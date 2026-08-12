@@ -1,4 +1,4 @@
-import { TrashBinMinimalistic } from "@solar-icons/react";
+import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import { Background, BackgroundVariant, type Node, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Empty, Input, Modal, message } from "antd";

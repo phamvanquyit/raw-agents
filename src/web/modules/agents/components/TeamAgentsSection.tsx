@@ -1,4 +1,6 @@
-import { AddCircle, PenNewSquare, UsersGroupTwoRounded } from "@solar-icons/react";
+import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
 import { Button } from "antd";
 import type { AgentListItem } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
