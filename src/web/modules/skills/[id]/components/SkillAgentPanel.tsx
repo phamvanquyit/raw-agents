@@ -1,4 +1,4 @@
-import { MagicStick } from "@solar-icons/react";
+import MagicStick from "@solar-icons/react/ui/MagicStick";
 import { useRef, useState } from "react";
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
 import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
@@ -38,6 +38,10 @@ export function SkillAgentPanel({ providerId, model, streamUrl, onToolAction, on
       if (m.toolName === "edit_skill_file") {
         const input = m.toolInput as { path?: string; mode?: string } | undefined;
         return `edit ${input?.path ?? "file"} (${input?.mode ?? "…"})`;
+      }
+      if (m.toolName === "delete_skill_file") {
+        const input = m.toolInput as { path?: string } | undefined;
+        return `delete ${input?.path ?? "file"}`;
       }
       return null;
     },
@@ -133,6 +137,7 @@ export function SkillAgentPanel({ providerId, model, streamUrl, onToolAction, on
           providerId={providerId}
           model={model}
           onModelChange={onModelChange}
+          focusSignal={providerId && model ? streamUrl : undefined}
           enableTypeToFocus={false}
         />
       </div>

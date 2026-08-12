@@ -1,4 +1,9 @@
-import { AddCircle, BookBookmark, DocumentText, FileText, Folder, TrashBinTrash } from "@solar-icons/react";
+import FileText from "@solar-icons/react/files/FileText";
+import Folder from "@solar-icons/react/folders/Folder";
+import DocumentText from "@solar-icons/react/notes/DocumentText";
+import BookBookmark from "@solar-icons/react/school/BookBookmark";
+import AddCircle from "@solar-icons/react/ui/AddCircle";
+import TrashBinTrash from "@solar-icons/react/ui/TrashBinTrash";
 import { Form, Input, Modal, message } from "antd";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { cn } from "src/common/lib/cn";
@@ -251,21 +256,20 @@ function TreeRow({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
+    <div
       className={cn(
-        "group flex w-full items-center gap-1.5 py-1.5 pr-1.5 text-left transition-colors",
+        "group flex w-full items-center gap-0.5 py-0.5 pr-1.5 transition-colors",
         indent ? "pl-7" : "pl-2",
         active ? "bg-accent text-brand-soft" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
       )}
     >
-      {icon}
-      <span className="min-w-0 flex-1 truncate tracking-tight">{children}</span>
-      {aiDraft && <span className="shrink-0 rounded px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-soft bg-accent">AI</span>}
-      {dirty && !aiDraft && <span className="size-1.5 shrink-0 rounded-full bg-brand-soft" />}
+      <button type="button" onClick={onClick} title={title} className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 py-1 text-left">
+        {icon}
+        <span className="min-w-0 flex-1 truncate tracking-tight">{children}</span>
+        {aiDraft && <span className="shrink-0 rounded px-1 text-[10px] font-semibold uppercase tracking-wide text-brand-soft bg-accent">AI</span>}
+        {dirty && !aiDraft && <span className="size-1.5 shrink-0 rounded-full bg-brand-soft" />}
+      </button>
       {action}
-    </button>
+    </div>
   );
 }

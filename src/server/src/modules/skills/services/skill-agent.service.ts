@@ -8,7 +8,12 @@ import { fetchUrlTool } from "../../../common/ai/agent-tools/fetch-url.tool.js";
 import { createCompactEditMiddleware, redactEditHistoryPayloads } from "../../../common/ai/compact-edit-middleware.js";
 import { getChatModel } from "../../../common/ai/getChatModel.js";
 import { streamAgentSSE } from "../../../common/ai/stream-agent-sse.js";
-import { buildSkillAgentSystemPrompt, makeEditSkillFileTool, makeReadSkillFileTool } from "../common/agent-tools/edit-skill-file.tool.js";
+import {
+  buildSkillAgentSystemPrompt,
+  makeDeleteSkillFileTool,
+  makeEditSkillFileTool,
+  makeReadSkillFileTool,
+} from "../common/agent-tools/edit-skill-file.tool.js";
 import { getSkill } from "../skills.service.js";
 
 interface ToolCallMessage {
@@ -109,7 +114,13 @@ export async function streamSkillAgent(skillId: string, body: SkillStreamRequest
     const { providerId, modelId, messages } = body;
     const model = await getChatModel(providerId, modelId);
 
-    const tools: StructuredToolInterface[] = [makeReadSkillFileTool(skillId), makeEditSkillFileTool(skillId), browserTool, fetchUrlTool];
+    const tools: StructuredToolInterface[] = [
+      makeReadSkillFileTool(skillId),
+      makeEditSkillFileTool(skillId),
+      makeDeleteSkillFileTool(skillId),
+      browserTool,
+      fetchUrlTool,
+    ];
 
     const agent = createAgent({
       model,

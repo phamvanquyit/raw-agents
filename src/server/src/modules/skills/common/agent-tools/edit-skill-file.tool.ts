@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { type EditHunk, applyEdits, normalizeToLf } from "../../../../common/ai/apply-exact-replace.js";
-import { getSkill, getWorkingContent, listReferences, readSkillPath, writeSkillDraftPath } from "../../skills.service.js";
+import { deleteReference, getReferenceByName, getSkill, getWorkingContent, listReferences, readSkillPath, writeSkillDraftPath } from "../../skills.service.js";
 
 const editHunkSchema = z.object({
   old_string: z.string().min(1),
@@ -29,6 +29,10 @@ const editSkillFileSchema = z
 
 const readSkillFileSchema = z.object({
   path: z.string().describe('Virtual file path: "SKILL.md" or "references/{kebab-name}.md"'),
+});
+
+const deleteSkillFileSchema = z.object({
+  path: z.string().describe('Reference path only: "references/{kebab-name}.md". Cannot delete SKILL.md.'),
 });
 
 function availablePaths(skillId: string): string[] {
@@ -125,6 +129,67 @@ export function makeEditSkillFileTool(skillId: string) {
   );
 }
 
+export function makeDeleteSkillFileTool(skillId: string) {
+  return tool(
+    async (input) => {
+      const parsed = deleteSkillFileSchema.safeParse(input);
+      if (!parsed.success) {
+        return JSON.stringify({
+          ok: false,
+          error: parsed.error.issues.map((i) => i.message).join("; "),
+          available: availablePaths(skillId),
+        });
+      }
+
+      const path = parsed.data.path.replace(/^\/+/, "").trim();
+      if (path === "SKILL.md") {
+        return JSON.stringify({
+          ok: false,
+          error: "Cannot delete SKILL.md",
+          available: availablePaths(skillId),
+        });
+      }
+
+      const refMatch = path.match(/^references\/([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/);
+      if (!refMatch?.[1]) {
+        return JSON.stringify({
+          ok: false,
+          error: 'path must be "references/{kebab-name}.md"',
+          available: availablePaths(skillId),
+        });
+      }
+
+      const existing = getReferenceByName(skillId, refMatch[1]);
+      if (!existing) {
+        return JSON.stringify({
+          ok: false,
+          error: `File not found: ${path}`,
+          available: availablePaths(skillId),
+        });
+      }
+
+      try {
+        deleteReference(skillId, existing.id);
+        return JSON.stringify({
+          ok: true,
+          path,
+          deleted: true,
+          message: "Reference deleted permanently. Remove any links to this path from SKILL.md via edit_skill_file if needed.",
+          available: availablePaths(skillId),
+        });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+    {
+      name: "delete_skill_file",
+      description:
+        "Permanently delete a references/{kebab-name}.md file. Cannot delete SKILL.md. After deleting, remove links to that path from SKILL.md via edit_skill_file when present.",
+      schema: deleteSkillFileSchema,
+    },
+  );
+}
+
 export function buildSkillAgentSystemPrompt(skillId: string): string {
   const skill = getSkill(skillId);
   const refs = listReferences(skillId);
@@ -161,6 +226,7 @@ ${workingSkillMd}
 <tools>
   • read_skill_file — read working content of SKILL.md or a reference (draft if present, else published). Call this before editing any reference, and whenever replace fails.
   • edit_skill_file — write a draft of SKILL.md or references/*.md (prefer mode=replace with unique hunks; mode=full for new files / large rewrites). Changes land as a draft; the user Accepts in the editor to publish.
+  • delete_skill_file — permanently delete a references/{kebab-name}.md file (cannot delete SKILL.md). Then unlink that path from SKILL.md if mentioned.
   • fetch_url — prefer for simple page/docs reads (output_mode=md).
   • browser — only for SPA/JS pages that need interaction or a post-render snapshot.
 </tools>
@@ -170,7 +236,8 @@ ${workingSkillMd}
 2. Before editing a reference: read_skill_file on that exact path.
 3. Research only when the user asks or facts are missing: fetch_url (md) first; browser only if fetch is insufficient. Summarize findings into the skill — never dump raw page text.
 4. Edit via edit_skill_file. Prefer small replace hunks with unique old_string. If replace fails: read_skill_file again, then retry with a better unique hunk or mode=full.
-5. After edits, briefly tell the user what changed and that they must Accept to publish.
+5. To remove a reference: delete_skill_file on that exact path, then edit_skill_file on SKILL.md to drop any links to it.
+6. After edits, briefly tell the user what changed and that they must Accept to publish (deletes apply immediately).
 </workflow>
 
 <quality>
@@ -183,6 +250,7 @@ ${workingSkillMd}
 
 <rules>
 - Always edit via edit_skill_file — never paste full files as chat-only text.
+- Delete references only via delete_skill_file — never claim a file is gone without calling it.
 - Never invent reference paths; use listed paths or create a new kebab-case name deliberately.
 - Be concise in chat replies; put durable content into the skill files.
 </rules>`;

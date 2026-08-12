@@ -1,4 +1,7 @@
-import { AltArrowLeft, Diskette, MenuDots, TrashBinTrash } from "@solar-icons/react";
+import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
+import Diskette from "@solar-icons/react/devices/Diskette";
+import MenuDots from "@solar-icons/react/ui/MenuDots";
+import TrashBinTrash from "@solar-icons/react/ui/TrashBinTrash";
 import { Button, Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { AnimatePresence, motion } from "framer-motion";

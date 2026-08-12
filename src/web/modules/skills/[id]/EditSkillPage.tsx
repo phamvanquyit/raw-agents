@@ -1,4 +1,5 @@
-import { CheckCircle, CloseCircle } from "@solar-icons/react";
+import CheckCircle from "@solar-icons/react/ui/CheckCircle";
+import CloseCircle from "@solar-icons/react/ui/CloseCircle";
 import { Alert, Button, Modal, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -155,20 +156,24 @@ export default function EditSkillPage() {
       if (localWasClean) setSkillDraft(md);
 
       void skillsApi.listReferences(id).then((list) => {
+        const ids = new Set(list.map((r) => r.id));
         setRefs(list);
-        setSavedRefs((prevSaved) => {
-          const nextSaved: Record<string, string> = { ...prevSaved };
+        setSavedRefs(() => {
+          const nextSaved: Record<string, string> = {};
           for (const r of list) nextSaved[r.id] = r.content;
           return nextSaved;
         });
         setRefDrafts((prevLocal) => {
-          const nextLocal: Record<string, string> = { ...prevLocal };
+          const nextLocal: Record<string, string> = {};
           for (const r of list) {
-            if (!(r.id in nextLocal)) nextLocal[r.id] = r.content;
+            nextLocal[r.id] = r.id in prevLocal ? prevLocal[r.id]! : r.content;
           }
           return nextLocal;
         });
         syncAiDraftsFromServer(payload, list);
+        if (selectedRef.current.kind === "reference" && !ids.has(selectedRef.current.refId)) {
+          setSelected({ kind: "skill", path: "SKILL.md" });
+        }
       });
     });
     return unsub;
@@ -397,19 +402,61 @@ export default function EditSkillPage() {
 
   const handleToolAction = useCallback(
     (event: ToolActionEvent) => {
-      if (event.toolName !== "edit_skill_file" || event.type !== "tool-result") return;
-      let out: { ok?: boolean; path?: string; content?: string } | null = null;
-      if (typeof event.output === "string") {
-        try {
-          out = JSON.parse(event.output) as { ok?: boolean; path?: string; content?: string };
-        } catch {
-          out = null;
+      if (event.type !== "tool-result") return;
+
+      if (event.toolName === "edit_skill_file") {
+        let out: { ok?: boolean; path?: string; content?: string } | null = null;
+        if (typeof event.output === "string") {
+          try {
+            out = JSON.parse(event.output) as { ok?: boolean; path?: string; content?: string };
+          } catch {
+            out = null;
+          }
+        } else if (event.output && typeof event.output === "object") {
+          out = event.output as { ok?: boolean; path?: string; content?: string };
         }
-      } else if (event.output && typeof event.output === "object") {
-        out = event.output as { ok?: boolean; path?: string; content?: string };
+        if (out?.ok && out.path && typeof out.content === "string") {
+          applyAiDraft(out.path, out.content);
+        }
+        return;
       }
-      if (out?.ok && out.path && typeof out.content === "string") {
-        applyAiDraft(out.path, out.content);
+
+      if (event.toolName === "delete_skill_file") {
+        let out: { ok?: boolean; path?: string } | null = null;
+        if (typeof event.output === "string") {
+          try {
+            out = JSON.parse(event.output) as { ok?: boolean; path?: string };
+          } catch {
+            out = null;
+          }
+        } else if (event.output && typeof event.output === "object") {
+          out = event.output as { ok?: boolean; path?: string };
+        }
+        if (!out?.ok || !out.path) return;
+        const path = out.path;
+        setRefs((prev) => {
+          const removed = prev.find((r) => `references/${r.name}.md` === path);
+          if (!removed) return prev;
+          setRefDrafts((d) => {
+            const next = { ...d };
+            delete next[removed.id];
+            return next;
+          });
+          setSavedRefs((d) => {
+            const next = { ...d };
+            delete next[removed.id];
+            return next;
+          });
+          setAiDrafts((d) => {
+            const next = { ...d };
+            delete next[path];
+            return next;
+          });
+          if (selectedRef.current.kind === "reference" && selectedRef.current.refId === removed.id) {
+            setSelected({ kind: "skill", path: "SKILL.md" });
+          }
+          return prev.filter((r) => r.id !== removed.id);
+        });
       }
     },
     [applyAiDraft],

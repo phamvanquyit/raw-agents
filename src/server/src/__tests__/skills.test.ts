@@ -499,6 +499,43 @@ Full rewrite via assistant draft.
     expect(missing.available).toContain("references/api-notes.md");
   });
 
+  test("makeDeleteSkillFileTool — deletes reference; rejects SKILL.md", async () => {
+    const { makeDeleteSkillFileTool, makeEditSkillFileTool, makeReadSkillFileTool } = await import(
+      "../modules/skills/common/agent-tools/edit-skill-file.tool.js"
+    );
+    const editTool = makeEditSkillFileTool(skillId);
+    await editTool.invoke({
+      path: "references/to-remove.md",
+      mode: "full",
+      content: "temp",
+    });
+
+    const deleteTool = makeDeleteSkillFileTool(skillId);
+    const blocked = JSON.parse(String(await deleteTool.invoke({ path: "SKILL.md" }))) as { ok: boolean; error: string };
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toContain("Cannot delete SKILL.md");
+
+    const missing = JSON.parse(String(await deleteTool.invoke({ path: "references/no-such.md" }))) as {
+      ok: boolean;
+      available: string[];
+    };
+    expect(missing.ok).toBe(false);
+    expect(missing.available).toContain("references/to-remove.md");
+
+    const deleted = JSON.parse(String(await deleteTool.invoke({ path: "references/to-remove.md" }))) as {
+      ok: boolean;
+      deleted: boolean;
+      available: string[];
+    };
+    expect(deleted.ok).toBe(true);
+    expect(deleted.deleted).toBe(true);
+    expect(deleted.available).not.toContain("references/to-remove.md");
+
+    const readTool = makeReadSkillFileTool(skillId);
+    const gone = JSON.parse(String(await readTool.invoke({ path: "references/to-remove.md" }))) as { ok: boolean };
+    expect(gone.ok).toBe(false);
+  });
+
   test("buildSkillAgentSystemPrompt — includes working SKILL.md and refs", async () => {
     const { buildSkillAgentSystemPrompt } = await import("../modules/skills/common/agent-tools/edit-skill-file.tool.js");
     const prompt = buildSkillAgentSystemPrompt(skillId);
@@ -508,6 +545,7 @@ Full rewrite via assistant draft.
     expect(prompt).toContain("references/api-notes.md");
     expect(prompt).toContain("edit_skill_file");
     expect(prompt).toContain("read_skill_file");
+    expect(prompt).toContain("delete_skill_file");
     expect(prompt).toContain("<workflow>");
     expect(prompt).toContain("<quality>");
     expect(prompt.toLowerCase()).not.toContain("cursor");
