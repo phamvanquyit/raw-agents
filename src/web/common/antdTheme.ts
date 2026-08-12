@@ -1,4 +1,4 @@
-import type { ModalProps } from "antd";
+import type { ModalProps, PopoverProps } from "antd";
 import { type ThemeConfig, theme } from "antd";
 
 /** Dark-only Ant Design theme mapped to app palette. */
@@ -36,9 +36,10 @@ export const antdTheme: ThemeConfig = {
     boxShadow: "none",
     boxShadowSecondary: "0 0 0 1px rgba(102, 102, 102, 0.32), 0 8px 24px rgba(0, 0, 0, 0.45)",
     boxShadowTertiary: "0 0 0 1px rgba(102, 102, 102, 0.24), 0 4px 12px rgba(0, 0, 0, 0.35)",
-    // Ant Design 6 Popover/Tooltip apply this as CSS `filter`, not box-shadow.
-    dropShadowPopover:
-      "drop-shadow(0 0 0.5px rgba(160, 160, 160, 0.55)) drop-shadow(0 0 1px rgba(102, 102, 102, 0.45)) drop-shadow(0 8px 24px rgba(0, 0, 0, 0.55))",
+    // Ant Design 6 applies this as CSS `filter` on Popover/Tooltip root.
+    // Non-none values tint colored borders (e.g. flow tool popovers) — keep off;
+    // depth comes from container boxShadow / component styles instead.
+    dropShadowPopover: "none",
   } as ThemeConfig["token"],
   components: {
     Button: {
@@ -98,6 +99,16 @@ export const antdTheme: ThemeConfig = {
     },
     Cascader: {
       optionSelectedBg: "color-mix(in oklab, #dd7627 14%, transparent)",
+    },
+  },
+};
+
+/** Default Popover edge — real border/box-shadow, not CSS `filter` (dropShadowPopover). */
+export const antdPopoverConfig: Pick<PopoverProps, "styles"> = {
+  styles: {
+    container: {
+      border: "1px solid rgba(102, 102, 102, 0.32)",
+      boxShadow: "0 8px 24px rgba(0, 0, 0, 0.45)",
     },
   },
 };

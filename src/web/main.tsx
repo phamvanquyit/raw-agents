@@ -1,7 +1,7 @@
 import { ConfigProvider } from "antd";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
-import { antdModalConfig, antdTheme } from "src/common/antdTheme";
+import { antdModalConfig, antdPopoverConfig, antdTheme } from "src/common/antdTheme";
 import { initReloadOnStaleDeploy } from "src/common/reloadOnStaleDeploy";
 import { initScrollbarHover } from "src/common/scrollbarHover";
 import { initTheme } from "src/common/theme";
@@ -17,7 +17,7 @@ initReloadOnStaleDeploy();
 // wrap their holders so they inherit the dark theme.
 ConfigProvider.config({
   holderRender: (children) => (
-    <ConfigProvider theme={antdTheme} modal={antdModalConfig}>
+    <ConfigProvider theme={antdTheme} modal={antdModalConfig} popover={antdPopoverConfig}>
       {children}
     </ConfigProvider>
   ),
@@ -30,7 +30,7 @@ if (!rootEl) {
 
 createRoot(rootEl).render(
   <Provider store={store}>
-    <ConfigProvider theme={antdTheme} modal={antdModalConfig}>
+    <ConfigProvider theme={antdTheme} modal={antdModalConfig} popover={antdPopoverConfig}>
       <App />
     </ConfigProvider>
   </Provider>,
