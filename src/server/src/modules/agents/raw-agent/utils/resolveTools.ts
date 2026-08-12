@@ -16,16 +16,19 @@ import { z } from "zod";
 import { type McpCatalogTool, agentTools, agents, getDb, mcpServers, toolFolders } from "../../../../common/db/client.js";
 import { callMcpTool } from "../../../mcp-servers/mcp-client.js";
 import { buildMcpLangGraphName, parseMcpToolId } from "../../../mcp-servers/mcp-tool-id.js";
-import { runTool } from "../../../tools/tools.service.js";
+import { runToolWithSoftWait } from "../../../tools/tools.service.js";
 
 import { browserTool } from "../../../../common/ai/agent-tools/browser.tool.js";
 import { fetchUrlTool } from "../../../../common/ai/agent-tools/fetch-url.tool.js";
+import { makeBackgroundTasksTool } from "../llm-tools/background-tasks.tool.js";
 import { type CallAgentTarget, isCallAgentToolName, makeCallAgentTools, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
 import { datatableTool } from "../llm-tools/datatable.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
 import { kvStoreTool } from "../llm-tools/kv-store.tool.js";
 import { makeMemoryTool } from "../llm-tools/memory.tool.js";
 import { makeReadSkillTool } from "../llm-tools/read-skill.tool.js";
+
+import { CUSTOM_TOOL_SOFT_WAIT_MS } from "../../../tools/common/python-runner.js";
 
 const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   get_current_time: getCurrentTimeTool,
@@ -60,6 +63,7 @@ export function getToolLabel(toolName: string): string {
     manage_memory: "Memory",
     read_skill: "Read Skill",
     get_tool_schema: "Get Tool Schema",
+    background_tasks: "Background Tasks",
   };
   if (KNOWN_LABELS[toolName]) return KNOWN_LABELS[toolName];
   try {
@@ -87,6 +91,18 @@ export function getToolLabel(toolName: string): string {
     /* ignore */
   }
   return formatToolName(toolName);
+}
+
+/** SVG markup for a custom tool, or null for builtins/MCP/unknown. */
+export function getToolIcon(toolName: string): string | null {
+  try {
+    const row = getDb().select({ icon: agentTools.icon }).from(agentTools).where(eq(agentTools.name, toolName)).get();
+    const icon = row?.icon?.trim();
+    if (icon?.startsWith("<svg")) return icon;
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 export function getCallAgentLabel(args: unknown): string {
@@ -144,23 +160,42 @@ function buildZodSchema(parameters: object): z.ZodObject<Record<string, z.ZodTyp
   return z.object(shape);
 }
 
-function buildCustomTool(record: {
-  id: string;
-  name: string;
-  description: string;
-  parameters: object;
-  codeContent: string;
-}): StructuredToolInterface {
+function buildCustomTool(
+  record: {
+    id: string;
+    name: string;
+    description: string;
+    parameters: object;
+    codeContent: string;
+  },
+  context: { agentId: string; conversationId?: string | null },
+): StructuredToolInterface {
   const schema = buildZodSchema(record.parameters);
 
   return tool(
     async (input: unknown) => {
       try {
         const inputJson = JSON.stringify(input ?? {});
-        const result = await runTool(record.id, inputJson, record.codeContent);
-        if (!result) {
+        const soft = await runToolWithSoftWait({
+          id: record.id,
+          inputJson,
+          code: record.codeContent,
+          softWaitMs: CUSTOM_TOOL_SOFT_WAIT_MS,
+          agentId: context.agentId,
+          conversationId: context.conversationId,
+        });
+        if (!soft) {
           return JSON.stringify({ error: `Custom tool "${record.name}" not found`, ok: false });
         }
+        if (soft.status === "running") {
+          return JSON.stringify({
+            status: "running",
+            taskId: soft.taskId,
+            toolName: soft.toolName,
+            message: "Still running in the background. Use background_tasks (await/get/list/cancel) with this taskId.",
+          });
+        }
+        const result = JSON.parse(soft.payload) as { ok?: boolean; result?: unknown; error?: string };
         if (!result.ok) {
           return JSON.stringify({ error: result.error ?? `Custom tool "${record.name}" failed`, ok: false });
         }
@@ -268,7 +303,12 @@ export function resolveAgentTools(
 
     const row = db.select().from(agentTools).where(eq(agentTools.id, toolId)).get();
     if (row?.isActive) {
-      tools.push(buildCustomTool(row));
+      tools.push(
+        buildCustomTool(row, {
+          agentId,
+          conversationId: options.conversationId ?? null,
+        }),
+      );
     }
   }
 
@@ -287,6 +327,7 @@ export function resolveAgentTools(
 
   tools.push(makeMemoryTool(agentId, ownerId, isGuest, { conversationId: options.conversationId ?? null }));
   tools.push(makeReadSkillTool(agentId));
+  tools.push(makeBackgroundTasksTool({ agentId, conversationId: options.conversationId ?? null }));
 
   return tools;
 }

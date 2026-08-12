@@ -10,6 +10,7 @@ interface ToolDefinition {
 }
 import { TOOL_DEF as BROWSER_DEF } from "../../common/ai/agent-tools/browser.tool.js";
 import { TOOL_DEF as FETCH_URL_DEF } from "../../common/ai/agent-tools/fetch-url.tool.js";
+import { TOOL_DEF as BACKGROUND_TASKS_DEF } from "../agents/raw-agent/llm-tools/background-tasks.tool.js";
 import { TOOL_DEF as DATATABLE_DEF } from "../agents/raw-agent/llm-tools/datatable.tool.js";
 import { TOOL_DEF as GET_TIME_DEF } from "../agents/raw-agent/llm-tools/get-current-time.tool.js";
 import { TOOL_DEF as KV_STORE_DEF } from "../agents/raw-agent/llm-tools/kv-store.tool.js";
@@ -24,6 +25,7 @@ const ALL_TOOL_DEFS: ToolDefinition[] = [
   DATATABLE_DEF,
   MEMORY_DEF,
   READ_SKILL_DEF,
+  BACKGROUND_TASKS_DEF,
   {
     toolName: "edit_code",
     toolLabel: "Edit Code",
@@ -75,10 +77,19 @@ import { type NewAgentTool, agentToolAssignments, agentTools, getDb } from "../.
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { getDataDir } from "../../common/utils/data-dir.js";
 import { wsHub } from "../../common/ws/wsHub.js";
-import { executeTool } from "./common/python-runner.js";
+import { type SoftWaitExecuteResult, executeTool, executeToolWithSoftWait } from "./common/python-runner.js";
 
 /** Core tools that are always-on and shouldn't appear in user-facing tool lists */
-const ALWAYS_ON_TOOL_NAMES = new Set(["memory", "user_memory", "manage_memory", "read_skill", "edit_code", "run_current_script", "update_prompt"]);
+const ALWAYS_ON_TOOL_NAMES = new Set([
+  "memory",
+  "user_memory",
+  "manage_memory",
+  "read_skill",
+  "background_tasks",
+  "edit_code",
+  "run_current_script",
+  "update_prompt",
+]);
 
 /** Virtual AgentTool objects built from the tool registry */
 const BUILTIN_TOOLS = ALL_TOOL_DEFS.filter((b) => !ALWAYS_ON_TOOL_NAMES.has(b.toolName)).map((b) => ({
@@ -243,6 +254,29 @@ export async function runTool(id: string, inputJson = "{}", code?: string) {
   const codeToRun = code ?? tool.codeContent;
   const resultStr = await executeTool(id, codeToRun, inputJson, getDataDir());
   return JSON.parse(resultStr);
+}
+
+export async function runToolWithSoftWait(opts: {
+  id: string;
+  inputJson?: string;
+  code?: string;
+  softWaitMs?: number;
+  agentId?: string;
+  conversationId?: string | null;
+}): Promise<SoftWaitExecuteResult | null> {
+  const tool = getTool(opts.id);
+  if (!tool) return null;
+  const codeToRun = opts.code ?? tool.codeContent;
+  return executeToolWithSoftWait({
+    toolId: opts.id,
+    toolName: tool.name,
+    code: codeToRun,
+    inputJson: opts.inputJson ?? "{}",
+    dataDir: getDataDir(),
+    softWaitMs: opts.softWaitMs,
+    agentId: opts.agentId,
+    conversationId: opts.conversationId,
+  });
 }
 
 /** Update draftCode for a tool and notify FE (used by edit_code tool). */

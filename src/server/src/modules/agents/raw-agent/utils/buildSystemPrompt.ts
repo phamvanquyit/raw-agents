@@ -60,6 +60,16 @@ Actions: upsert_node, update_node, forget_node, link, unlink, search, neighbors,
 </memory_instructions>`;
 }
 
+function buildBackgroundTasksInstructions(): string {
+  return `<background_tasks>
+Custom Python tools may return \`{ "status": "running", "taskId": "..." }\` if they take longer than ~2 minutes.
+Do not re-invoke the same tool to poll. Use \`background_tasks\`:
+- \`await\` (preferred) — wait up to timeout_ms for completion
+- \`get\` / \`list\` — check status
+- \`cancel\` — stop a running task
+</background_tasks>`;
+}
+
 function buildSkillsSection(skills: SkillSummary[]): string | null {
   if (skills.length === 0) return null;
   const list = skills.map((s) => `- ${s.name} — ${s.description}`).join("\n");
@@ -108,6 +118,7 @@ export function buildSystemPrompt(agent: AgentLike, options: BuildSystemPromptOp
 
   if (agent.systemPrompt) parts.push(buildRoleSection(agent.systemPrompt));
   parts.push(buildMemoryInstructions());
+  parts.push(buildBackgroundTasksInstructions());
 
   const skillsSection = skills ? buildSkillsSection(skills) : null;
   if (skillsSection) parts.push(skillsSection);

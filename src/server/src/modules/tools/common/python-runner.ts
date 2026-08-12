@@ -1,9 +1,13 @@
-import { execFile, execSync } from "node:child_process";
+import { type ChildProcess, execFile, execSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
+import { bgTaskRegistry } from "./bg-task-registry.js";
 import { startRawagentsProxy } from "./rawagents-proxy.js";
 import { writeRawagentsPackage } from "./rawagents-python.js";
+
+/** Soft-wait before detaching a custom tool into bgTaskRegistry (Cursor-style). */
+export const CUSTOM_TOOL_SOFT_WAIT_MS = 120_000;
 
 // ─── Python stdlib (skip auto-install) ───────────────────────────────────────
 const PYTHON_STDLIB = new Set([
@@ -121,7 +125,7 @@ function runCmd(
   args: string[],
   cwd: string,
   env: Record<string, string> = {},
-  timeoutMs = 30_000,
+  timeoutMs = 600_000,
 ): Promise<{ success: boolean; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     execFile(
@@ -146,6 +150,72 @@ function runCmd(
       },
     );
   });
+}
+
+type SpawnHandle = {
+  pid: number | undefined;
+  child: ChildProcess;
+  done: Promise<{ success: boolean; stdout: string; stderr: string }>;
+  kill: () => void;
+};
+
+/** Spawn without hard timeout — used for agent soft-wait / background tasks. */
+function spawnCmd(cmd: string, args: string[], cwd: string, env: Record<string, string> = {}): SpawnHandle {
+  const child = spawn(cmd, args, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  const maxBuf = 5 * 1024 * 1024;
+  child.stdout?.on("data", (chunk: Buffer | string) => {
+    stdout += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    if (stdout.length > maxBuf) stdout = stdout.slice(-maxBuf);
+  });
+  child.stderr?.on("data", (chunk: Buffer | string) => {
+    stderr += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    if (stderr.length > maxBuf) stderr = stderr.slice(-maxBuf);
+  });
+
+  let killed = false;
+  const done = new Promise<{ success: boolean; stdout: string; stderr: string }>((resolve) => {
+    child.on("error", (err) => {
+      resolve({ success: false, stdout, stderr: stderr || err.message });
+    });
+    child.on("close", (code) => {
+      resolve({
+        success: !killed && code === 0,
+        stdout,
+        stderr: killed ? stderr || "Process cancelled" : stderr,
+      });
+    });
+  });
+
+  return {
+    pid: child.pid,
+    child,
+    done,
+    kill: () => {
+      killed = true;
+      if (child.killed) return;
+      try {
+        child.kill("SIGTERM");
+      } catch {
+        /* ignore */
+      }
+      setTimeout(() => {
+        if (!child.killed) {
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            /* ignore */
+          }
+        }
+      }, 2_000);
+    },
+  };
 }
 
 function whichPython(): string {
@@ -348,7 +418,14 @@ except Exception as _e:
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function executeTool(toolId: string, code: string, inputJson: string, dataDir: string): Promise<string> {
+type PreparedRun = {
+  venvPython: string;
+  sandboxDir: string;
+  scriptPath: string;
+  proxy: ReturnType<typeof startRawagentsProxy>;
+};
+
+async function prepareToolRun(toolId: string, code: string, dataDir: string): Promise<PreparedRun | { errorJson: string }> {
   const sandboxDir = join(dataDir, "tool_envs", toolId);
   mkdirSync(sandboxDir, { recursive: true });
 
@@ -356,32 +433,25 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
   const venvDir = join(sandboxDir, ".venv");
   const venvPython = join(venvDir, os.platform() === "win32" ? "Scripts/python.exe" : "bin/python");
 
-  // Ensure venv
   if (!existsSync(venvDir)) {
     await runCmd(pythonPath, ["-m", "venv", venvDir], sandboxDir, {}, 60_000);
   }
 
-  // Auto-install missing packages (with in-memory cache)
   const pkgs = detectPackages(code);
   if (pkgs.length > 0) {
     const cached = installedCache.get(toolId);
     const missing = cached ? pkgs.filter((p) => !cached.has(p)) : pkgs.filter((p) => !isPkgInstalled(sandboxDir, p));
     if (missing.length > 0) {
-      const installResult = await runCmd(
-        venvPython,
-        ["-m", "pip", "install", "--quiet", ...missing],
-        sandboxDir,
-        {},
-        120_000, // pip install: 2 min timeout
-      );
+      const installResult = await runCmd(venvPython, ["-m", "pip", "install", "--quiet", ...missing], sandboxDir, {}, 120_000);
       if (!installResult.success) {
-        return JSON.stringify({
-          ok: false,
-          error: `❌ Package install failed [${missing.join(", ")}]:\n${installResult.stderr}`,
-        });
+        return {
+          errorJson: JSON.stringify({
+            ok: false,
+            error: `❌ Package install failed [${missing.join(", ")}]:\n${installResult.stderr}`,
+          }),
+        };
       }
     }
-    // Update cache with all resolved packages
     const updated = cached ?? new Set<string>();
     for (const p of pkgs) updated.add(p);
     installedCache.set(toolId, updated);
@@ -395,56 +465,146 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
   writeFileSync(scriptPath, script, "utf-8");
 
   const proxy = startRawagentsProxy();
+  return { venvPython, sandboxDir, scriptPath, proxy };
+}
+
+function cleanupPrepared(prep: PreparedRun): void {
+  prep.proxy.stop();
+  try {
+    unlinkSync(prep.scriptPath);
+  } catch {
+    /* ignore */
+  }
+}
+
+function formatRunResult(result: { success: boolean; stdout: string; stderr: string }): string {
+  const stdout = result.stdout.trim();
+  const stderr = result.stderr.trim();
+
+  const attachConsole = (v: Record<string, unknown>) => {
+    if (stderr) v.console = stderr;
+    return v;
+  };
+
+  if (!result.success) {
+    if (stdout?.startsWith("{")) {
+      try {
+        return JSON.stringify(attachConsole(JSON.parse(stdout)));
+      } catch {
+        /* noop */
+      }
+    }
+    return JSON.stringify({
+      ok: false,
+      error: stderr || stdout || "Script exited with error",
+    });
+  }
+
+  if (!stdout) {
+    return JSON.stringify(attachConsole({ ok: true, result: null, console: stderr || null }));
+  }
 
   try {
-    const result = await runCmd(venvPython, [scriptPath], sandboxDir, {
+    return JSON.stringify(attachConsole(JSON.parse(stdout)));
+  } catch {
+    return JSON.stringify(attachConsole({ ok: true, result: stdout }));
+  }
+}
+
+function parseOutcomeFromResultJson(resultStr: string): { ok: boolean; result?: unknown; error?: string; console?: string } {
+  try {
+    const parsed = JSON.parse(resultStr) as { ok?: boolean; result?: unknown; error?: string; console?: string };
+    return {
+      ok: parsed.ok === true,
+      result: parsed.result,
+      error: parsed.error,
+      console: typeof parsed.console === "string" ? parsed.console : undefined,
+    };
+  } catch {
+    return { ok: false, error: resultStr };
+  }
+}
+
+export async function executeTool(toolId: string, code: string, inputJson: string, dataDir: string): Promise<string> {
+  const prepared = await prepareToolRun(toolId, code, dataDir);
+  if ("errorJson" in prepared) return prepared.errorJson;
+
+  try {
+    const result = await runCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, {
       INPUT_JSON: inputJson,
-      RAWAGENTS_URL: proxy.url,
-      RAWAGENTS_TOKEN: proxy.token,
-      PYTHONPATH: sandboxDir,
+      RAWAGENTS_URL: prepared.proxy.url,
+      RAWAGENTS_TOKEN: prepared.proxy.token,
+      PYTHONPATH: prepared.sandboxDir,
       PYTHONDONTWRITEBYTECODE: "1",
       PYTHONUNBUFFERED: "1",
     });
-
-    const stdout = result.stdout.trim();
-    const stderr = result.stderr.trim();
-
-    const attachConsole = (v: Record<string, unknown>) => {
-      if (stderr) v.console = stderr;
-      return v;
-    };
-
-    if (!result.success) {
-      if (stdout?.startsWith("{")) {
-        try {
-          return JSON.stringify(attachConsole(JSON.parse(stdout)));
-        } catch {
-          /* noop */
-        }
-      }
-      return JSON.stringify({
-        ok: false,
-        error: stderr || stdout || "Script exited with error",
-      });
-    }
-
-    if (!stdout) {
-      return JSON.stringify(attachConsole({ ok: true, result: null, console: stderr || null }));
-    }
-
-    try {
-      return JSON.stringify(attachConsole(JSON.parse(stdout)));
-    } catch {
-      return JSON.stringify(attachConsole({ ok: true, result: stdout }));
-    }
+    return formatRunResult(result);
   } finally {
-    proxy.stop();
-    try {
-      unlinkSync(scriptPath);
-    } catch {
-      /* ignore */
-    }
+    cleanupPrepared(prepared);
   }
+}
+
+export type SoftWaitExecuteResult = { status: "completed"; payload: string } | { status: "running"; taskId: string; toolName: string };
+
+export type ExecuteToolSoftWaitOptions = {
+  toolId: string;
+  toolName: string;
+  code: string;
+  inputJson: string;
+  dataDir: string;
+  softWaitMs?: number;
+  agentId?: string;
+  conversationId?: string | null;
+};
+
+/**
+ * Run a custom tool with Cursor-style soft-wait: wait up to softWaitMs for completion,
+ * otherwise return taskId while the process continues in the background.
+ */
+export async function executeToolWithSoftWait(opts: ExecuteToolSoftWaitOptions): Promise<SoftWaitExecuteResult> {
+  const softWaitMs = opts.softWaitMs ?? CUSTOM_TOOL_SOFT_WAIT_MS;
+  const prepared = await prepareToolRun(opts.toolId, opts.code, opts.dataDir);
+  if ("errorJson" in prepared) {
+    return { status: "completed", payload: prepared.errorJson };
+  }
+
+  const handle = spawnCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, {
+    INPUT_JSON: opts.inputJson,
+    RAWAGENTS_URL: prepared.proxy.url,
+    RAWAGENTS_TOKEN: prepared.proxy.token,
+    PYTHONPATH: prepared.sandboxDir,
+    PYTHONDONTWRITEBYTECODE: "1",
+    PYTHONUNBUFFERED: "1",
+  });
+
+  const softTimer = new Promise<"timeout">((resolve) => {
+    setTimeout(() => resolve("timeout"), Math.max(0, softWaitMs));
+  });
+
+  const raced = await Promise.race([handle.done.then((r) => ({ kind: "done" as const, r })), softTimer.then(() => ({ kind: "timeout" as const }))]);
+
+  if (raced.kind === "done") {
+    cleanupPrepared(prepared);
+    return { status: "completed", payload: formatRunResult(raced.r) };
+  }
+
+  const taskId = bgTaskRegistry.register({
+    toolId: opts.toolId,
+    toolName: opts.toolName,
+    agentId: opts.agentId,
+    conversationId: opts.conversationId,
+    pid: handle.pid,
+    kill: handle.kill,
+  });
+
+  void handle.done.then((r) => {
+    const payload = formatRunResult(r);
+    const outcome = parseOutcomeFromResultJson(payload);
+    bgTaskRegistry.finish(taskId, outcome);
+    cleanupPrepared(prepared);
+  });
+
+  return { status: "running", taskId, toolName: opts.toolName };
 }
 
 export async function validateToolCode(code: string): Promise<{ ok: boolean; error?: string }> {
