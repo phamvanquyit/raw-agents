@@ -171,6 +171,20 @@ export function saveMessage(data: Omit<NewAgentMessage, "id" | "createdAt">): { 
 }
 
 /**
+ * Append suffix to an existing message's content.
+ */
+export function appendMessageContent(msgId: string, suffix: string) {
+  if (!suffix) return;
+  const db = getDb();
+  const row = db.select().from(agentMessages).where(eq(agentMessages.id, msgId)).get();
+  if (!row) return;
+  db.update(agentMessages)
+    .set({ content: `${row.content ?? ""}${suffix}` })
+    .where(eq(agentMessages.id, msgId))
+    .run();
+}
+
+/**
  * Merge patch into message metadata.
  */
 export function patchMessageMetadata(msgId: string, patch: Record<string, unknown>) {

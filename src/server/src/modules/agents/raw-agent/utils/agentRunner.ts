@@ -17,6 +17,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 import { eq } from "drizzle-orm";
 import { createAgent } from "langchain";
+import { extractAiMessageText, unstreamedTextRemainder } from "../../../../common/ai/ai-message-text.js";
 import { getChatModel } from "../../../../common/ai/getChatModel.js";
 import { agents, getDb } from "../../../../common/db/client.js";
 import { type AssignmentWithTool, listAssignments } from "../../agents.service.js";
@@ -354,11 +355,21 @@ export async function* streamAgent(
     });
 
     let fullText = "";
-    // Track which tool calls we've already emitted (with complete args)
+    let streamedThisMessage = "";
     const emittedToolCalls = new Set<string>();
-    // Accumulate tool_call_chunks args (streamed incrementally by LangChain)
-    // Key: toolCallId, Value: { name, argsStr (accumulated) }
     const pendingToolCalls = new Map<string, { name: string; argsStr: string }>();
+
+    const yieldTextDelta = function* (text: string) {
+      if (!text) return;
+      fullText += text;
+      streamedThisMessage += text;
+      yield { type: "text-delta" as const, text };
+    };
+
+    const flushUnstreamedFromAiMessage = function* (msg: { content?: unknown }) {
+      const rest = unstreamedTextRemainder(extractAiMessageText(msg?.content), streamedThisMessage);
+      if (rest) yield* yieldTextDelta(rest);
+    };
 
     try {
       for await (const chunk of stream) {
@@ -375,8 +386,7 @@ export async function* streamAgent(
 
             // ── Extract text + thinking from content ──
             if (typeof content === "string" && content) {
-              fullText += content;
-              yield { type: "text-delta", text: content };
+              yield* yieldTextDelta(content);
             } else if (Array.isArray(content)) {
               for (const block of content) {
                 // Claude: {type:"thinking", thinking:"..."}
@@ -407,13 +417,9 @@ export async function* streamAgent(
                 }
                 // Standard text block
                 else if (block.type === "text" && block.text) {
-                  fullText += block.text;
-                  yield { type: "text-delta", text: block.text };
-                }
-                // Output text block (Responses API)
-                else if (block.type === "output_text" && block.text) {
-                  fullText += block.text;
-                  yield { type: "text-delta", text: block.text };
+                  yield* yieldTextDelta(block.text);
+                } else if (block.type === "output_text" && block.text) {
+                  yield* yieldTextDelta(block.text);
                 }
               }
             }
@@ -462,8 +468,14 @@ export async function* streamAgent(
             if (!state?.messages) continue;
 
             for (const msg of state.messages) {
-              // Agent node: AI message with tool_calls → emit/upsert tool-call with full args
+              const msgType = msg?._getType?.() ?? msg?.type;
+              const isAi = msgType === "ai" || msgType === "AIMessage" || msgType === "AIMessageChunk";
+              if (isAi || (Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0)) {
+                yield* flushUnstreamedFromAiMessage(msg);
+              }
+
               if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
+                streamedThisMessage = "";
                 for (const tc of msg.tool_calls) {
                   const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
                   emittedToolCalls.add(tcId);
@@ -481,8 +493,6 @@ export async function* streamAgent(
                 }
               }
 
-              // Tools node: ToolMessage → emit tool-result
-              const msgType = msg?._getType?.() ?? msg?.type;
               if (msgType === "tool" || msgType === "ToolMessage") {
                 const toolCallId: string = msg.tool_call_id ?? "";
                 const toolName = msg.name ?? "unknown";

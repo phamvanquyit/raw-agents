@@ -11,6 +11,7 @@
 
 import type { BaseMessage } from "@langchain/core/messages";
 import type { SSEStreamingApi } from "hono/streaming";
+import { extractAiMessageText, unstreamedTextRemainder } from "./ai-message-text.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,8 +75,8 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
     );
 
     const emittedToolCalls = new Set<string>();
-    // Accumulate streamed tool_call_chunks until updates provides full args
     const pendingToolCalls = new Map<string, { name: string; argsStr: string }>();
+    let streamedThisMessage = "";
 
     const tryParseToolArgs = (argsStr: string): unknown => {
       if (!argsStr) return {};
@@ -84,6 +85,19 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
       } catch {
         return {};
       }
+    };
+
+    const writeTextDelta = async (text: string) => {
+      if (!text) return;
+      streamedThisMessage += text;
+      await stream.writeSSE({
+        data: JSON.stringify({ type: "text-delta", text }),
+      });
+    };
+
+    const flushUnstreamedFromAiMessage = async (msg: { content?: unknown }) => {
+      const rest = unstreamedTextRemainder(extractAiMessageText(msg?.content), streamedThisMessage);
+      if (rest) await writeTextDelta(rest);
     };
 
     for await (const chunk of agentStream) {
@@ -103,9 +117,7 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
           const content = msgChunk?.content;
 
           if (typeof content === "string" && content) {
-            await stream.writeSSE({
-              data: JSON.stringify({ type: "text-delta", text: content }),
-            });
+            await writeTextDelta(content);
           } else if (Array.isArray(content)) {
             for (const block of content) {
               // Claude: {type:"thinking", thinking:"..."}
@@ -140,15 +152,9 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
               }
               // Standard text block
               else if (block.type === "text" && block.text) {
-                await stream.writeSSE({
-                  data: JSON.stringify({ type: "text-delta", text: block.text }),
-                });
-              }
-              // Output text block (Responses API)
-              else if (block.type === "output_text" && block.text) {
-                await stream.writeSSE({
-                  data: JSON.stringify({ type: "text-delta", text: block.text }),
-                });
+                await writeTextDelta(block.text);
+              } else if (block.type === "output_text" && block.text) {
+                await writeTextDelta(block.text);
               }
             }
           }
@@ -193,8 +199,14 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
           const batch = state.messages as BaseMessage[];
 
           for (const msg of batch as any[]) {
-            // Agent node: full tool_calls → first paint or upsert full args
+            const msgType = msg?._getType?.() ?? msg?.type;
+            const isAi = msgType === "ai" || msgType === "AIMessage" || msgType === "AIMessageChunk";
+            if (isAi || (Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0)) {
+              await flushUnstreamedFromAiMessage(msg);
+            }
+
             if (msg?.tool_calls && Array.isArray(msg.tool_calls)) {
+              streamedThisMessage = "";
               for (const tc of msg.tool_calls) {
                 const tcId = tc.id ?? `${tc.name}-${Date.now()}`;
                 emittedToolCalls.add(tcId);
@@ -210,8 +222,6 @@ export async function streamAgentSSE({ agent, messages, maxSteps = 100, stream, 
               }
             }
 
-            // Tools node: ToolMessage → emit tool-result
-            const msgType = msg?._getType?.() ?? msg?.type;
             if (msgType === "tool" || msgType === "ToolMessage") {
               const toolName = msg.name ?? "unknown";
               const raw = msg.content;

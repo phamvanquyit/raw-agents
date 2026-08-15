@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { SSEStreamingApi } from "hono/streaming";
 import { agentConversations, agentMessages, agents, getDb } from "../../../common/db/client.js";
 import { wsHub } from "../../../common/ws/wsHub.js";
-import { patchMessageMetadata, saveMessage, updateConversationStatus } from "../../conversations/conversations.service.js";
+import { appendMessageContent, patchMessageMetadata, saveMessage, updateConversationStatus } from "../../conversations/conversations.service.js";
 import { verifyPublicToken } from "../../public/public.service.js";
 import type { AgentStreamEvent, MessageParam } from "./utils/agentRunner.js";
 import { generateAgent, streamAgent } from "./utils/agentRunner.js";
@@ -126,6 +126,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
   /** True while saving consecutive tool-calls that share one assistant (with tool_calls). */
   let inToolGroup = false;
   const toolMsgIds = new Map<string, string>();
+  let lastAssistantMsgId: string | null = null;
 
   const stillCurrent = () => runRegistry.isCurrent(conversationId, runId);
 
@@ -159,7 +160,6 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
 
       switch (event.type) {
         case "text-delta":
-          inToolGroup = false;
           if (thinkingText) {
             saveMessage({
               agentId: msgAgentId,
@@ -171,11 +171,18 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
             thinkingText = "";
             thinkingStart = 0;
           }
+          if (inToolGroup && lastAssistantMsgId) {
+            appendMessageContent(lastAssistantMsgId, event.text);
+            break;
+          }
+          inToolGroup = false;
+          lastAssistantMsgId = null;
           fullText += event.text;
           break;
 
         case "thinking-delta":
           inToolGroup = false;
+          lastAssistantMsgId = null;
           if (!thinkingStart) {
             if (fullText.trim()) {
               saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
@@ -213,12 +220,14 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
           // OpenAI requires tool messages to follow an assistant with tool_calls.
           // Always persist that assistant (text or empty) before the first tool in a group.
           if (fullText.trim()) {
-            saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
+            const saved = saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: fullText, metadata: null });
+            lastAssistantMsgId = saved.id;
             hasSavedSegments = true;
             fullText = "";
             inToolGroup = true;
           } else if (!inToolGroup) {
-            saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: "", metadata: null });
+            const saved = saveMessage({ agentId: msgAgentId, conversationId, role: "assistant", content: "", metadata: null });
+            lastAssistantMsgId = saved.id;
             hasSavedSegments = true;
             inToolGroup = true;
           }
@@ -240,6 +249,8 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
         }
 
         case "tool-result": {
+          inToolGroup = false;
+          lastAssistantMsgId = null;
           const toolMsgId = toolMsgIds.get(event.toolCallId);
           if (toolMsgId) {
             const resultStr = typeof event.result === "string" ? event.result : JSON.stringify(event.result);
