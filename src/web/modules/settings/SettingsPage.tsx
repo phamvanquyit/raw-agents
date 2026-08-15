@@ -4,6 +4,7 @@ import { PageShell } from "src/components/PageShell";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { useAppDispatch } from "src/store/store";
 
+import { ApiKeysPage } from "./api-keys/ApiKeysPage";
 import type { SettingsTab } from "./common/constants";
 import { DefaultModelsPage } from "./default-models/DefaultModelsPage";
 import { GeneralPage } from "./general/GeneralPage";
@@ -14,6 +15,7 @@ const TAB_COMPONENTS: Record<SettingsTab, React.ComponentType> = {
   general: GeneralPage,
   "default-models": DefaultModelsPage,
   providers: ProvidersPage,
+  "api-keys": ApiKeysPage,
   users: UsersPage,
 };
 
@@ -24,13 +26,14 @@ const TAB_META: Record<SettingsTab, { title: string; description: string }> = {
     description: "Default LLM models used by assistant panels across the workspace",
   },
   providers: { title: "LLM Providers", description: "Configure API keys and models for agents" },
+  "api-keys": { title: "API Keys", description: "Issue keys so external apps can chat with your agents" },
   users: { title: "Users", description: "Manage accounts and roles" },
 };
 
 function useActiveTab(): SettingsTab | null {
   const { pathname } = useLocation();
   const segment = pathname.split("/").filter(Boolean)[1];
-  if (segment === "general" || segment === "default-models" || segment === "providers" || segment === "users") {
+  if (segment === "general" || segment === "default-models" || segment === "providers" || segment === "api-keys" || segment === "users") {
     return segment;
   }
   return null;

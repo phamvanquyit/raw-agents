@@ -471,3 +471,17 @@ export interface JobRun {
   startedAt: Date;
   finishedAt: Date | null;
 }
+
+// ─── API Keys ────────────────────────────────────────────────────────────────
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  agentIds: string[];
+  createdBy: string;
+  createdAt: Date;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+  key?: string;
+}
