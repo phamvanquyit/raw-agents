@@ -196,6 +196,8 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
       let assistantText = "";
       let currentAssistantId = assistantId;
       let needsNewBubble = false;
+      let lastFrozenAssistantId = "";
+      let awaitingToolResult = false;
       const seenToolCallIds = new Set<string>();
       let turnHadVisibleText = false;
 
@@ -204,6 +206,7 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
 
       const finalizeOpenBubble = () => {
         const freezeId = currentAssistantId;
+        lastFrozenAssistantId = freezeId;
         const thinkingSnapshot = thinkingRef.current;
         const duration = thinkingDurationSec(thinkingStartRef.current);
 
@@ -283,11 +286,34 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
               turnHadVisibleText = true;
               if (thinkingRef.current && thinkingStartRef.current) {
                 const duration = thinkingDurationSec(thinkingStartRef.current);
-                const targetId = currentAssistantId;
+                const targetId = currentAssistantId || lastFrozenAssistantId;
                 if (targetId) {
                   setMessages((prev) => prev.map((m) => (m.id === targetId ? { ...m, meta: { ...m.meta, thinkingDuration: duration } } : m)));
                 }
                 thinkingStartRef.current = 0;
+              }
+
+              if (awaitingToolResult && lastFrozenAssistantId) {
+                setMessages((prev) => {
+                  const idx = prev.findIndex((m) => m.id === lastFrozenAssistantId && m.role === "assistant");
+                  if (idx !== -1) {
+                    return prev.map((m, i) => (i === idx ? { ...m, content: m.content + delta } : m));
+                  }
+                  let insertAt = prev.length;
+                  for (let i = prev.length - 1; i >= 0; i--) {
+                    if (prev[i].role === "tool-call") insertAt = i;
+                    else break;
+                  }
+                  const row: ChatAgentMessage = {
+                    id: lastFrozenAssistantId,
+                    role: "assistant",
+                    content: delta,
+                    streaming: false,
+                    timestamp: new Date(),
+                  };
+                  return [...prev.slice(0, insertAt), row, ...prev.slice(insertAt)];
+                });
+                return;
               }
 
               if (needsNewBubble || !currentAssistantId) {
@@ -349,6 +375,7 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
               }
 
               finalizeOpenBubble();
+              awaitingToolResult = true;
               const toolMsg: ChatAgentMessage = {
                 id: nextId("tc"),
                 role: "tool-call",
@@ -363,6 +390,7 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
               onToolActionRef.current?.({ type: "tool-call", toolName: event.toolName, toolLabel: tLabel, input: event.input });
             },
             onToolResult: (event) => {
+              awaitingToolResult = false;
               const rawOutput = event.result;
               const resultStr = typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput);
               setMessages((prev) => {
@@ -380,12 +408,14 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
               onToolActionRef.current?.({ type: "tool-result", toolName: event.toolName, output: rawOutput });
             },
             onDone: () => {
+              awaitingToolResult = false;
               setMessages(applyTurnSummary);
               setGenerating(false);
               thinkingRef.current = "";
               thinkingStartRef.current = 0;
             },
             onError: (error) => {
+              awaitingToolResult = false;
               if (error === "Connection lost") {
                 setMessages(applyTurnSummary);
                 setGenerating(false);

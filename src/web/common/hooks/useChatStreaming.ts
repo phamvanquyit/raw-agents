@@ -263,6 +263,9 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
   const [liveSegId, setLiveSegId] = useState<string | null>(null);
   /** True after tool-call until next thinking/text starts — forces a fresh live bubble */
   const segmentBoundaryRef = useRef(false);
+  const paintedToolIdsRef = useRef(new Set<string>());
+  const lastCommittedAssistantIdRef = useRef<string | null>(null);
+  const awaitingToolResultRef = useRef(false);
   const [activityStatus, setActivityStatus] = useState("Thinking...");
   const [streamError, setStreamError] = useState<string | null>(null);
 
@@ -307,6 +310,9 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
   const clearStreamingState = useCallback(() => {
     resetLiveOverlay();
     segmentBoundaryRef.current = false;
+    paintedToolIdsRef.current.clear();
+    lastCommittedAssistantIdRef.current = null;
+    awaitingToolResultRef.current = false;
     setActivityStatus("Thinking...");
     setStreamError(null);
   }, [resetLiveOverlay]);
@@ -333,8 +339,42 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
     (convId: string): SSECallbacks => ({
       onChunk: (chunk) => {
         setStreamError(null);
+        if (thinkingStartRef.current) {
+          const duration = Math.round((Date.now() - thinkingStartRef.current) / 1000);
+          thinkingDurationRef.current = duration;
+          setThinkingDuration(duration);
+          thinkingStartRef.current = 0;
+        }
+        if (awaitingToolResultRef.current) {
+          const id = lastCommittedAssistantIdRef.current;
+          if (id) {
+            setMessages((prev) => {
+              const idx = prev.findIndex((m) => m.id === id && m.role === "assistant");
+              if (idx !== -1) {
+                return prev.map((m, i) => (i === idx ? { ...m, content: m.content + chunk } : m));
+              }
+              let insertAt = prev.length;
+              for (let i = prev.length - 1; i >= 0; i--) {
+                if (prev[i].role === "tool") insertAt = i;
+                else break;
+              }
+              const row: AgentMessage = {
+                id,
+                agentId: "",
+                conversationId: convId,
+                chatAgentId: null,
+                role: "assistant",
+                content: chunk,
+                metadata: null,
+                createdAt: new Date(),
+              };
+              return [...prev.slice(0, insertAt), row, ...prev.slice(insertAt)];
+            });
+            setActivityStatus("Writing...");
+            return;
+          }
+        }
         ensureLiveSegId();
-        // New segment after tool-call: drop any stale thinking overlay; prior segment already committed locally
         if (segmentBoundaryRef.current) {
           segmentBoundaryRef.current = false;
           thinkingContentRef.current = "";
@@ -349,12 +389,6 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
           setStreamingContent(streamingContentRef.current);
         }
         setActivityStatus("Writing...");
-        if (thinkingStartRef.current) {
-          const duration = Math.round((Date.now() - thinkingStartRef.current) / 1000);
-          thinkingDurationRef.current = duration;
-          setThinkingDuration(duration);
-          thinkingStartRef.current = 0;
-        }
       },
       onThinking: (chunk) => {
         setStreamError(null);
@@ -380,15 +414,23 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
       onToolCall: ({ toolCallId, toolName, toolLabel, toolIcon, input }) => {
         setStreamError(null);
 
-        const live = takeLiveSnapshot();
-        resetLiveOverlay();
-        segmentBoundaryRef.current = true;
+        const alreadyPainted = Boolean(toolCallId && paintedToolIdsRef.current.has(toolCallId));
+        if (toolCallId) paintedToolIdsRef.current.add(toolCallId);
 
-        setMessages((prev) => {
-          const alreadyPainted = Boolean(toolCallId && prev.some((m) => m.role === "tool" && toolCallIdOf(m) === toolCallId));
-          const withSegment = alreadyPainted ? prev : commitLiveSegment(prev, convId, live, "split");
-          return upsertOptimisticTool(withSegment, { toolCallId, toolName, toolLabel, toolIcon, input }, convId);
-        });
+        if (alreadyPainted) {
+          setMessages((prev) => upsertOptimisticTool(prev, { toolCallId, toolName, toolLabel, toolIcon, input }, convId));
+        } else {
+          const live = takeLiveSnapshot();
+          const assistantId = live.assistantId ?? liveSegIdRef.current ?? nextSegId("as");
+          lastCommittedAssistantIdRef.current = assistantId;
+          resetLiveOverlay();
+          segmentBoundaryRef.current = true;
+          awaitingToolResultRef.current = true;
+          setMessages((prev) => {
+            const withSegment = commitLiveSegment(prev, convId, { ...live, assistantId }, "split");
+            return upsertOptimisticTool(withSegment, { toolCallId, toolName, toolLabel, toolIcon, input }, convId);
+          });
+        }
 
         if (isCallAgentToolName(toolName)) {
           const agentName = toolLabel?.replace(/^Call\s+/i, "") ?? "agent";
@@ -398,16 +440,18 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
         }
       },
       onToolResult: ({ toolCallId, toolName, result }) => {
-        // Patch local tool bubble immediately — no /messages refetch mid-stream
+        awaitingToolResultRef.current = false;
         setMessages((prev) => patchOptimisticToolResult(prev, { toolCallId, toolName, result }));
         setActivityStatus("Waiting for model...");
       },
       onDone: async () => {
         const live = takeLiveSnapshot();
-        // Commit first (same id as overlay), then clear overlay — batched, no remount flicker
         setMessages((prev) => commitLiveSegment(prev, convId, live, "combined"));
         resetLiveOverlay();
         segmentBoundaryRef.current = false;
+        paintedToolIdsRef.current.clear();
+        lastCommittedAssistantIdRef.current = null;
+        awaitingToolResultRef.current = false;
         setActivityStatus("Thinking...");
         setStreamError(null);
         await onDoneRef.current?.(convId);
@@ -417,6 +461,9 @@ export function useChatStreaming({ toDisplayMsg, messageFilter, fetchMessages, o
         setMessages((prev) => commitLiveSegment(prev, convId, live, "combined"));
         resetLiveOverlay();
         segmentBoundaryRef.current = false;
+        paintedToolIdsRef.current.clear();
+        lastCommittedAssistantIdRef.current = null;
+        awaitingToolResultRef.current = false;
         setActivityStatus("Thinking...");
         setStreamError(null);
 
