@@ -121,4 +121,25 @@ describe("datatable schema tool", () => {
 
     await tool.invoke({ action: "delete_table", table: "items" });
   });
+
+  test("makeDatatableProjectTool — unique name, locked to project", async () => {
+    const { createProject } = await import("../modules/datatables/datatables.service.js");
+    const { datatableProjectToolName } = await import("../modules/datatables/datatable-tool-id.js");
+    const { makeDatatableProjectTool } = await import("../modules/agents/raw-agent/llm-tools/datatable.tool.js");
+
+    const other = createProject({ name: "OtherLockedProj" });
+    const tool = makeDatatableProjectTool({ id: projectId, name: "SchemaToolProj" });
+    expect(tool.name).toBe(datatableProjectToolName(projectId));
+
+    const schemaRaw = await tool.invoke({ action: "get_schema" });
+    const schema = JSON.parse(String(schemaRaw)) as { ok: boolean; project: { id: string } };
+    expect(schema.ok).toBe(true);
+    expect(schema.project.id).toBe(projectId);
+
+    const leakRaw = await tool.invoke({ action: "get_schema", project: other.id });
+    const leak = JSON.parse(String(leakRaw)) as { ok: boolean; error: string };
+    expect(leak.ok).toBe(false);
+    expect(leak.error).toContain("locked");
+    expect(tool.description).not.toContain("list_projects");
+  });
 });

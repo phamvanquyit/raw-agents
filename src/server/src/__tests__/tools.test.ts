@@ -33,6 +33,7 @@ describe("Tools API", () => {
     expect(builtinIds).toContain("builtin:browser");
     expect(builtinIds).toContain("builtin:fetch_url");
     expect(builtinIds).toContain("builtin:kv_store");
+    expect(builtinIds).not.toContain("builtin:datatable");
     expect(builtinIds).not.toContain("builtin:secrets");
   });
 

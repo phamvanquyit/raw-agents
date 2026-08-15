@@ -137,6 +137,49 @@ describe("Datatables API", () => {
     expect(data.items.every((r) => !("status" in r.data))).toBe(true);
   });
 
+  test("POST /api/agents/:id/tool-assignments — assign datatable project", async () => {
+    const agentRes = await authRequest(app, token, "POST", "/api/agents", { name: "DT Agent" });
+    expect(agentRes.status).toBe(201);
+    const agent = (await agentRes.json()) as { id: string };
+    const toolId = `datatable:${projectId}`;
+    const res = await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, { toolId });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { toolId: string; tool: { name: string; label: string } };
+    expect(data.toolId).toBe(toolId);
+    expect(data.tool.label).toBe("CRM");
+    expect(data.tool.name.startsWith("datatable__")).toBe(true);
+
+    const list = await authRequest(app, token, "GET", `/api/agents/${agent.id}/tool-assignments`);
+    const assignments = (await list.json()) as { toolId: string }[];
+    expect(assignments.some((a) => a.toolId === toolId)).toBe(true);
+  });
+
+  test("POST /api/agents/:id/tool-assignments — project tool replaces legacy builtin:datatable", async () => {
+    const agentRes = await authRequest(app, token, "POST", "/api/agents", { name: "Legacy DT Agent" });
+    expect(agentRes.status).toBe(201);
+    const agent = (await agentRes.json()) as { id: string };
+
+    const legacyRes = await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, { toolId: "builtin:datatable" });
+    expect(legacyRes.status).toBe(201);
+
+    const { resolveAgentTools } = await import("../modules/agents/raw-agent/utils/resolveTools.js");
+    const legacyNames = resolveAgentTools(agent.id, ["builtin:datatable"], "owner").map((t) => t.name);
+    expect(legacyNames).toContain("datatable");
+
+    const projectToolId = `datatable:${projectId}`;
+    const projectRes = await authRequest(app, token, "POST", `/api/agents/${agent.id}/tool-assignments`, { toolId: projectToolId });
+    expect(projectRes.status).toBe(201);
+
+    const list = await authRequest(app, token, "GET", `/api/agents/${agent.id}/tool-assignments`);
+    const ids = ((await list.json()) as { toolId: string }[]).map((a) => a.toolId);
+    expect(ids).toContain(projectToolId);
+    expect(ids).not.toContain("builtin:datatable");
+
+    const nextNames = resolveAgentTools(agent.id, ids, "owner").map((t) => t.name);
+    expect(nextNames).not.toContain("datatable");
+    expect(nextNames.some((n) => n.startsWith("datatable__"))).toBe(true);
+  });
+
   test("DELETE /api/datatables/projects/:id — cascade", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/datatables/projects/${projectId}`);
     expect(res.status).toBe(200);
