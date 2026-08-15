@@ -84,8 +84,17 @@ async function loadSerializedRequest(): Promise<SerializedRequest | null> {
   return JSON.parse(text) as SerializedRequest;
 }
 
+async function loadQuery(): Promise<Record<string, string>> {
+  const path = process.env.SITE_QUERY_PATH;
+  if (path && existsSync(path)) {
+    const text = await Bun.file(path).text();
+    return JSON.parse(text) as Record<string, string>;
+  }
+  return JSON.parse(process.env.SITE_QUERY_JSON || "{}") as Record<string, string>;
+}
+
 async function runGet(runtimeDir: string, treeDir: string) {
-  const query = JSON.parse(process.env.SITE_QUERY_JSON || "{}") as Record<string, string>;
+  const query = await loadQuery();
   const serialized = await loadSerializedRequest();
   const request = buildRequest(query, serialized);
   const rawagents = createSiteRawagentsHttpClient();

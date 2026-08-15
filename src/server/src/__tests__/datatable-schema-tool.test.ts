@@ -122,6 +122,41 @@ describe("datatable schema tool", () => {
     await tool.invoke({ action: "delete_table", table: "items" });
   });
 
+  test("PROJECT_ACTIONS — preserves Vietnamese text on insert query update", async () => {
+    const tool = makeDatatableTool(PROJECT_ACTIONS, { lockedProjectId: projectId });
+    const original = "khoảng 211 nghìn, lạ hơn, ngoại nửa, phân bổ, lý nhỏ, vision png, trung, kênh: khác, các kênh ấy";
+    const updated = `${original} — ${"ảầẫấậ ".repeat(200)}`;
+
+    await tool.invoke({ action: "create_table", name: "vi_notes" });
+    await tool.invoke({ action: "create_column", table: "vi_notes", name: "body", type: "text", required: true });
+
+    const insertedRaw = await tool.invoke({ action: "insert", table: "vi_notes", rows: [{ body: original }] });
+    const inserted = JSON.parse(String(insertedRaw)) as { ok: boolean; rows: { id: string; data: { body: string } }[] };
+    expect(inserted.ok).toBe(true);
+    expect(inserted.rows[0].data.body).toBe(original);
+
+    const queriedRaw = await tool.invoke({ action: "query", table: "vi_notes" });
+    const queried = JSON.parse(String(queriedRaw)) as { ok: boolean; items: { id: string; data: { body: string } }[] };
+    expect(queried.ok).toBe(true);
+    expect(queried.items[0].data.body).toBe(original);
+
+    const updatedRaw = await tool.invoke({
+      action: "update",
+      table: "vi_notes",
+      row_id: inserted.rows[0].id,
+      data: { body: updated },
+    });
+    const updatedRow = JSON.parse(String(updatedRaw)) as { ok: boolean; row: { data: { body: string } } };
+    expect(updatedRow.ok).toBe(true);
+    expect(updatedRow.row.data.body).toBe(updated);
+
+    const againRaw = await tool.invoke({ action: "query", table: "vi_notes" });
+    const again = JSON.parse(String(againRaw)) as { ok: boolean; items: { data: { body: string } }[] };
+    expect(again.items[0].data.body).toBe(updated);
+
+    await tool.invoke({ action: "delete_table", table: "vi_notes" });
+  });
+
   test("makeDatatableProjectTool — unique name, locked to project", async () => {
     const { createProject } = await import("../modules/datatables/datatables.service.js");
     const { datatableProjectToolName } = await import("../modules/datatables/datatable-tool-id.js");

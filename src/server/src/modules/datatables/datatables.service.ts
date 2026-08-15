@@ -566,7 +566,7 @@ export function insertRows(tableId: string, rows: Record<string, unknown>[]) {
       updatedAt: now,
     };
     db.insert(datatableRows).values(entry).run();
-    created.push(entry as DatatableRow);
+    created.push(getRow(entry.id as string) ?? (entry as DatatableRow));
   }
   wsHub.emit("datatables:rows-created", { tableId, rows: created });
   return created;

@@ -28,6 +28,11 @@ describe("secret-crypto", () => {
     expect(decryptSecret(cipher)).toBe(plain);
   });
 
+  test("encrypt → decrypt preserves Vietnamese", () => {
+    const plain = "khoảng 211 nghìn các kênh ấy ảầẫấậ";
+    expect(decryptSecret(encryptSecret(plain))).toBe(plain);
+  });
+
   test("getSecretEncryptionKey is stable within process", () => {
     const a = getSecretEncryptionKey();
     const b = getSecretEncryptionKey();

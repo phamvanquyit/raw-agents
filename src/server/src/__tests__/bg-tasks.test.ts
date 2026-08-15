@@ -37,6 +37,29 @@ describe("background tool soft-wait", () => {
     expect(parsed.result.echo).toBe(1);
   }, 60_000);
 
+  test("preserves Vietnamese in input and large UTF-8 stdout", async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "raw-agents-bg-"));
+    const vi = "khoảng 211 nghìn các kênh ấy lạ hơn ngoại nửa phân bổ";
+    const code = `text = input.get("text", "")
+return {"echo": text, "long": ("ảầẫ " * 20000) + text}`;
+    const out = await executeToolWithSoftWait({
+      toolId: "tool-utf8",
+      toolName: "utf8_echo",
+      code,
+      inputJson: JSON.stringify({ text: vi }),
+      dataDir,
+      softWaitMs: 30_000,
+    });
+    expect(out.status).toBe("completed");
+    if (out.status !== "completed") return;
+    const parsed = JSON.parse(out.payload) as { ok: boolean; result: { echo: string; long: string } };
+    expect(parsed.ok).toBe(true);
+    expect(parsed.result.echo).toBe(vi);
+    expect(parsed.result.long.startsWith("ảầẫ ")).toBe(true);
+    expect(parsed.result.long.endsWith(vi)).toBe(true);
+    expect(parsed.result.long.includes("�")).toBe(false);
+  }, 60_000);
+
   test("exceeds soft-wait detaches then await completes", async () => {
     dataDir = mkdtempSync(join(tmpdir(), "raw-agents-bg-"));
     const code = `import time

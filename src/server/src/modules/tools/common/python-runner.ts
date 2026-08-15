@@ -159,6 +159,59 @@ type SpawnHandle = {
   kill: () => void;
 };
 
+const PYTHON_UTF8_ENV = {
+  PYTHONIOENCODING: "utf-8",
+  PYTHONUTF8: "1",
+} as const;
+
+function inputJsonPathFor(scriptPath: string): string {
+  return scriptPath.replace(/\.py$/, ".input.json");
+}
+
+function writeToolInputJson(scriptPath: string, inputJson: string): string {
+  const inputPath = inputJsonPathFor(scriptPath);
+  writeFileSync(inputPath, inputJson, "utf-8");
+  return inputPath;
+}
+
+function unlinkQuiet(path: string): void {
+  try {
+    unlinkSync(path);
+  } catch {
+    /* ignore */
+  }
+}
+
+function createUtf8Collectors(maxChars: number) {
+  const outDec = new TextDecoder("utf-8");
+  const errDec = new TextDecoder("utf-8");
+  let stdout = "";
+  let stderr = "";
+
+  const push = (decoder: TextDecoder, current: string, chunk: Buffer | string) => {
+    const piece = typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
+    let next = current + piece;
+    if (next.length > maxChars) next = next.slice(-maxChars);
+    return next;
+  };
+
+  return {
+    pushStdout(chunk: Buffer | string) {
+      stdout = push(outDec, stdout, chunk);
+    },
+    pushStderr(chunk: Buffer | string) {
+      stderr = push(errDec, stderr, chunk);
+    },
+    finish() {
+      stdout += outDec.decode();
+      stderr += errDec.decode();
+      if (stdout.length > maxChars) stdout = stdout.slice(-maxChars);
+      if (stderr.length > maxChars) stderr = stderr.slice(-maxChars);
+      return { stdout, stderr };
+    },
+  };
+}
+
 /** Spawn without hard timeout — used for agent soft-wait / background tasks. */
 function spawnCmd(cmd: string, args: string[], cwd: string, env: Record<string, string> = {}): SpawnHandle {
   const child = spawn(cmd, args, {
@@ -167,28 +220,35 @@ function spawnCmd(cmd: string, args: string[], cwd: string, env: Record<string, 
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  let stdout = "";
-  let stderr = "";
   const maxBuf = 5 * 1024 * 1024;
-  child.stdout?.on("data", (chunk: Buffer | string) => {
-    stdout += typeof chunk === "string" ? chunk : chunk.toString("utf8");
-    if (stdout.length > maxBuf) stdout = stdout.slice(-maxBuf);
-  });
-  child.stderr?.on("data", (chunk: Buffer | string) => {
-    stderr += typeof chunk === "string" ? chunk : chunk.toString("utf8");
-    if (stderr.length > maxBuf) stderr = stderr.slice(-maxBuf);
-  });
+  const collectors = createUtf8Collectors(maxBuf);
+  child.stdout?.on("data", (chunk: Buffer | string) => collectors.pushStdout(chunk));
+  child.stderr?.on("data", (chunk: Buffer | string) => collectors.pushStderr(chunk));
 
   let killed = false;
+  let settled = false;
   const done = new Promise<{ success: boolean; stdout: string; stderr: string }>((resolve) => {
+    const settle = (success: boolean, stderrOverride?: string) => {
+      if (settled) return;
+      settled = true;
+      const collected = collectors.finish();
+      resolve({
+        success,
+        stdout: collected.stdout,
+        stderr: stderrOverride ?? collected.stderr,
+      });
+    };
     child.on("error", (err) => {
-      resolve({ success: false, stdout, stderr: stderr || err.message });
+      settle(false, err.message);
     });
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      const collected = collectors.finish();
       resolve({
         success: !killed && code === 0,
-        stdout,
-        stderr: killed ? stderr || "Process cancelled" : stderr,
+        stdout: collected.stdout,
+        stderr: killed ? collected.stderr || "Process cancelled" : collected.stderr,
       });
     });
   });
@@ -381,6 +441,12 @@ function buildScript(userCode: string): string {
 
   return `import sys, os, json, traceback, io
 
+try:
+    sys.__stdout__.reconfigure(encoding="utf-8")
+    sys.__stderr__.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # Capture print() from user code — show as "console" in UI
 _capture = io.StringIO()
 sys.stdout = _capture
@@ -388,8 +454,16 @@ sys.stdout = _capture
 def main(input):
 ${indented}
 
+def _out(obj):
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\\n")
+
 try:
-    _input_raw = os.environ.get("INPUT_JSON", "{}")
+    _input_path = os.environ.get("INPUT_JSON_FILE")
+    if _input_path:
+        with open(_input_path, encoding="utf-8") as _f:
+            _input_raw = _f.read()
+    else:
+        _input_raw = os.environ.get("INPUT_JSON", "{}")
     _input = json.loads(_input_raw)
     _result = main(_input)
 
@@ -400,18 +474,18 @@ try:
     if isinstance(_result, str):
         try:
             _parsed = json.loads(_result)
-            sys.stdout.write(json.dumps({"ok": True, "result": _parsed, "console": _console}) + "\\n")
+            _out({"ok": True, "result": _parsed, "console": _console})
         except Exception:
-            sys.stdout.write(json.dumps({"ok": True, "result": _result, "console": _console}) + "\\n")
+            _out({"ok": True, "result": _result, "console": _console})
     elif _result is None:
-        sys.stdout.write(json.dumps({"ok": True, "result": None, "console": _console}) + "\\n")
+        _out({"ok": True, "result": None, "console": _console})
     else:
-        sys.stdout.write(json.dumps({"ok": True, "result": _result, "console": _console}) + "\\n")
+        _out({"ok": True, "result": _result, "console": _console})
     sys.exit(0)
 except Exception as _e:
     sys.stdout = sys.__stdout__
     _tb = traceback.format_exc()
-    sys.stdout.write(json.dumps({"ok": False, "error": str(_e) + "\\n" + _tb}) + "\\n")
+    _out({"ok": False, "error": str(_e) + "\\n" + _tb})
     sys.exit(1)
 `;
 }
@@ -470,11 +544,8 @@ async function prepareToolRun(toolId: string, code: string, dataDir: string): Pr
 
 function cleanupPrepared(prep: PreparedRun): void {
   prep.proxy.stop();
-  try {
-    unlinkSync(prep.scriptPath);
-  } catch {
-    /* ignore */
-  }
+  unlinkQuiet(prep.scriptPath);
+  unlinkQuiet(inputJsonPathFor(prep.scriptPath));
 }
 
 function formatRunResult(result: { success: boolean; stdout: string; stderr: string }): string {
@@ -530,13 +601,15 @@ export async function executeTool(toolId: string, code: string, inputJson: strin
   if ("errorJson" in prepared) return prepared.errorJson;
 
   try {
+    const inputPath = writeToolInputJson(prepared.scriptPath, inputJson);
     const result = await runCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, {
-      INPUT_JSON: inputJson,
+      INPUT_JSON_FILE: inputPath,
       RAWAGENTS_URL: prepared.proxy.url,
       RAWAGENTS_TOKEN: prepared.proxy.token,
       PYTHONPATH: prepared.sandboxDir,
       PYTHONDONTWRITEBYTECODE: "1",
       PYTHONUNBUFFERED: "1",
+      ...PYTHON_UTF8_ENV,
     });
     return formatRunResult(result);
   } finally {
@@ -568,13 +641,15 @@ export async function executeToolWithSoftWait(opts: ExecuteToolSoftWaitOptions):
     return { status: "completed", payload: prepared.errorJson };
   }
 
+  const inputPath = writeToolInputJson(prepared.scriptPath, opts.inputJson);
   const handle = spawnCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, {
-    INPUT_JSON: opts.inputJson,
+    INPUT_JSON_FILE: inputPath,
     RAWAGENTS_URL: prepared.proxy.url,
     RAWAGENTS_TOKEN: prepared.proxy.token,
     PYTHONPATH: prepared.sandboxDir,
     PYTHONDONTWRITEBYTECODE: "1",
     PYTHONUNBUFFERED: "1",
+    ...PYTHON_UTF8_ENV,
   });
 
   const softTimer = new Promise<"timeout">((resolve) => {

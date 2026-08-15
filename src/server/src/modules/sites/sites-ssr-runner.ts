@@ -143,6 +143,7 @@ export async function runSiteJobInWorker(opts: {
 }): Promise<SiteSsrGetResult | SiteSsrActionResult> {
   const proxy = startRawagentsProxy();
   let requestPath: string | undefined;
+  let queryPath: string | undefined;
 
   try {
     if (opts.request) {
@@ -154,10 +155,12 @@ export async function runSiteJobInWorker(opts: {
       SITE_JOB: opts.job,
       SITE_RUNTIME_DIR: opts.runtimeDir,
       SITE_TREE_DIR: opts.treeDir,
-      SITE_QUERY_JSON: JSON.stringify(opts.query ?? {}),
       RAWAGENTS_URL: proxy.url,
       RAWAGENTS_TOKEN: proxy.token,
     };
+    queryPath = join(tmpdir(), `site-ssr-query-${crypto.randomUUID()}.json`);
+    writeFileSync(queryPath, JSON.stringify(opts.query ?? {}), "utf8");
+    env.SITE_QUERY_PATH = queryPath;
     if (requestPath) env.SITE_REQUEST_PATH = requestPath;
 
     const workerPath = resolveWorkerPath();
@@ -210,6 +213,13 @@ export async function runSiteJobInWorker(opts: {
     if (requestPath) {
       try {
         unlinkSync(requestPath);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (queryPath) {
+      try {
+        unlinkSync(queryPath);
       } catch {
         /* ignore */
       }

@@ -9,7 +9,7 @@ The system wraps your code inside this scaffold automatically:
     def main(input):
         <YOUR CODE IS PLACED HERE — indented 4 spaces>
 
-    _input = json.loads(os.environ["INPUT_JSON"])
+    _input = json.loads(open(os.environ["INPUT_JSON_FILE"], encoding="utf-8").read())
     _result = main(_input)
     # result is JSON-serialized and returned to the UI
 

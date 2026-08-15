@@ -22,16 +22,16 @@ class RawagentsError(Exception):
 def _call(ns, action, args=None):
     if not _URL or not _TOKEN:
         raise RawagentsError("rawagents runtime is not configured")
-    payload = json.dumps({"ns": ns, "action": action, "args": args or {}}).encode()
+    payload = json.dumps({"ns": ns, "action": action, "args": args or {}}, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         _URL.rstrip("/") + "/",
         data=payload,
-        headers={"Content-Type": "application/json", "X-Rawagents-Token": _TOKEN},
+        headers={"Content-Type": "application/json; charset=utf-8", "X-Rawagents-Token": _TOKEN},
         method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode())
+            data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
         raise RawagentsError(str(e)) from e
     if not data.get("ok"):

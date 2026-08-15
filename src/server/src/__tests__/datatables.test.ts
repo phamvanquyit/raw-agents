@@ -129,6 +129,38 @@ describe("Datatables API", () => {
     expect(data.data.status).toBe("inactive");
   });
 
+  test("POST /api/datatables/tables/:id/rows — preserves Vietnamese on insert query update", async () => {
+    const original = "khoảng 211 nghìn, lạ hơn, ngoại nửa, phân bổ, lý nhỏ, vision png, trung, kênh: khác, các kênh ấy";
+    const updated = `${original} — ${"ảầẫấậ ".repeat(200)}`;
+
+    const insertRes = await authRequest(app, token, "POST", `/api/datatables/tables/${tableId}/rows`, {
+      rows: [{ name: original, status: "active", age: 1 }],
+    });
+    expect(insertRes.status).toBe(201);
+    const inserted = (await insertRes.json()) as { id: string; data: { name: string } }[];
+    expect(inserted[0].data.name).toBe(original);
+
+    const queryRes = await authRequest(app, token, "POST", `/api/datatables/tables/${tableId}/rows/query`, {
+      where: { name: original },
+    });
+    expect(queryRes.status).toBe(200);
+    const queried = (await queryRes.json()) as { items: { id: string; data: { name: string } }[] };
+    expect(queried.items[0].data.name).toBe(original);
+
+    const putRes = await authRequest(app, token, "PUT", `/api/datatables/rows/${inserted[0].id}`, {
+      data: { name: updated },
+    });
+    expect(putRes.status).toBe(200);
+    const put = (await putRes.json()) as { data: { name: string } };
+    expect(put.data.name).toBe(updated);
+
+    const againRes = await authRequest(app, token, "POST", `/api/datatables/tables/${tableId}/rows/query`, {
+      where: { name: updated },
+    });
+    const again = (await againRes.json()) as { items: { data: { name: string } }[] };
+    expect(again.items[0].data.name).toBe(updated);
+  });
+
   test("DELETE /api/datatables/columns/:id — strips name from rows", async () => {
     const res = await authRequest(app, token, "DELETE", `/api/datatables/columns/${columnId}`);
     expect(res.status).toBe(200);

@@ -35,6 +35,26 @@ describe("KV Store + Secrets builtin tools", () => {
     expect(missing.ok).toBe(false);
   });
 
+  test("kv_store — preserves Vietnamese on set get update", async () => {
+    const original = "khoảng 211 nghìn các kênh ấy";
+    const updated = `${original} — ${"ảầẫấậ ".repeat(80)}`;
+
+    const setRes = JSON.parse(String(await kvStoreTool.invoke({ action: "set", key: "NOTE", value: original })));
+    expect(setRes.ok).toBe(true);
+    expect(setRes.value).toBe(original);
+
+    const getRes = JSON.parse(String(await kvStoreTool.invoke({ action: "get", key: "NOTE" })));
+    expect(getRes.value).toBe(original);
+
+    const again = JSON.parse(String(await kvStoreTool.invoke({ action: "set", key: "NOTE", value: updated })));
+    expect(again.value).toBe(updated);
+
+    const got = JSON.parse(String(await kvStoreTool.invoke({ action: "get", key: "NOTE" })));
+    expect(got.value).toBe(updated);
+
+    await kvStoreTool.invoke({ action: "delete", key: "NOTE" });
+  });
+
   test("secrets — set / get / list / delete (list hides values)", async () => {
     const setRes = JSON.parse(String(await secretsTool.invoke({ action: "set", key: "api_token", value: "tok_123" })));
     expect(setRes.ok).toBe(true);
@@ -57,5 +77,22 @@ describe("KV Store + Secrets builtin tools", () => {
 
     const delRes = JSON.parse(String(await secretsTool.invoke({ action: "delete", key: "API_TOKEN" })));
     expect(delRes.ok).toBe(true);
+  });
+
+  test("secrets — encrypt decrypt preserves Vietnamese", async () => {
+    const original = "khoảng 211 nghìn các kênh ấy";
+    const updated = `${original} — ${"ảầẫấậ ".repeat(80)}`;
+
+    const setRes = JSON.parse(String(await secretsTool.invoke({ action: "set", key: "VI_SECRET", value: original })));
+    expect(setRes.ok).toBe(true);
+
+    const getRes = JSON.parse(String(await secretsTool.invoke({ action: "get", key: "VI_SECRET" })));
+    expect(getRes.value).toBe(original);
+
+    await secretsTool.invoke({ action: "set", key: "VI_SECRET", value: updated });
+    const after = JSON.parse(String(await secretsTool.invoke({ action: "get", key: "VI_SECRET" })));
+    expect(after.value).toBe(updated);
+
+    await secretsTool.invoke({ action: "delete", key: "VI_SECRET" });
   });
 });

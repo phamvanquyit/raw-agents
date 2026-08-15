@@ -19,11 +19,13 @@ export async function installSiteDeps(siteId: string, tree: SiteTree): Promise<{
 
     let stderr = "";
     let stdout = "";
+    const outDec = new TextDecoder("utf-8");
+    const errDec = new TextDecoder("utf-8");
     child.stdout?.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
+      stdout += outDec.decode(chunk, { stream: true });
     });
     child.stderr?.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
+      stderr += errDec.decode(chunk, { stream: true });
     });
 
     const timer = setTimeout(() => {
@@ -38,6 +40,8 @@ export async function installSiteDeps(siteId: string, tree: SiteTree): Promise<{
 
     child.on("close", (code) => {
       clearTimeout(timer);
+      stdout += outDec.decode();
+      stderr += errDec.decode();
       if (code === 0) {
         resolve({ ok: true });
         return;

@@ -64,6 +64,24 @@ describe("Secrets API", () => {
     expect(map.API_TOKEN).toBe("super-secret-value");
   });
 
+  test("POST /api/secrets — encrypt decrypt preserves Vietnamese", async () => {
+    const original = "khoảng 211 nghìn các kênh ấy";
+    const res = await authRequest(app, token, "POST", "/api/secrets", {
+      key: "VI_SECRET",
+      value: original,
+    });
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as { id: string };
+    expect(loadSecretsMap().VI_SECRET).toBe(original);
+
+    const updated = `${original} — ${"ảầẫấậ ".repeat(80)}`;
+    const put = await authRequest(app, token, "PUT", `/api/secrets/${created.id}`, { value: updated });
+    expect(put.status).toBe(200);
+    expect(loadSecretsMap().VI_SECRET).toBe(updated);
+
+    await authRequest(app, token, "DELETE", `/api/secrets/${created.id}`);
+  });
+
   test("PUT /api/secrets/:id — rotate value", async () => {
     const res = await authRequest(app, token, "PUT", `/api/secrets/${secretId}`, {
       value: "rotated-secret",

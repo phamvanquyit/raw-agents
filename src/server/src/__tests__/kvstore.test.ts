@@ -54,6 +54,25 @@ describe("KV Store API", () => {
     expect(data.value).toBe("https://api2.example.com");
   });
 
+  test("PUT /api/kvstore/:id — preserves Vietnamese", async () => {
+    const original = "khoảng 211 nghìn các kênh ấy";
+    const createRes = await authRequest(app, token, "POST", "/api/kvstore", {
+      key: "NOTE",
+      value: original,
+    });
+    expect(createRes.status).toBe(201);
+    const created = (await createRes.json()) as { id: string; value: string };
+    expect(created.value).toBe(original);
+
+    const updated = `${original} — ${"ảầẫấậ ".repeat(80)}`;
+    const putRes = await authRequest(app, token, "PUT", `/api/kvstore/${created.id}`, { value: updated });
+    expect(putRes.status).toBe(200);
+    const put = (await putRes.json()) as { value: string };
+    expect(put.value).toBe(updated);
+
+    await authRequest(app, token, "DELETE", `/api/kvstore/${created.id}`);
+  });
+
   test("POST /api/kvstore — invalid key", async () => {
     const res = await authRequest(app, token, "POST", "/api/kvstore", {
       key: "bad-key",
