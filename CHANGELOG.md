@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] - 2026-08-15
+
+### Added
+- Settings → API Keys: issue keys scoped to selected agents (plaintext shown once; revoke or delete)
+- External agent chat API: `GET /api/v1/agents`, `POST /api/v1/chat` (SSE or JSON), and `POST /api/v1/chat/stop` with a Bearer API key
+- Assign datatable access per project on the agent flow (one locked tool per project)
+
+### Changed
+- All-projects builtin `datatable` is no longer listed in the tools catalog; existing assignments keep working until a project tool is enabled
+
+### Fixed
+- Agent flow and memory graph canvases fill the panel and drop the dotted background
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- SQLite migration `0044_api_keys` applies on startup
+- Agents still on `builtin:datatable` keep all-project access; enable a Datatables project in the flow to switch to per-project tools
+
 ## [0.21.0] - 2026-08-12
 
 ### Added
@@ -412,6 +430,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.22.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.2...v0.21.0
 [0.20.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.1...v0.20.2
 [0.20.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.0...v0.20.1
