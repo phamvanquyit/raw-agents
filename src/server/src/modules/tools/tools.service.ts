@@ -89,6 +89,7 @@ const ALWAYS_ON_TOOL_NAMES = new Set([
   "edit_code",
   "run_current_script",
   "update_prompt",
+  "datatable",
 ]);
 
 /** Virtual AgentTool objects built from the tool registry */

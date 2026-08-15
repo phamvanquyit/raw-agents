@@ -14,6 +14,8 @@ import {
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { BUILTIN_DATATABLE_TOOL_ID, datatableProjectToolName, parseDatatableProjectAssignmentId } from "../datatables/datatable-tool-id.js";
+import { getProject } from "../datatables/datatables.service.js";
 import { buildMcpLangGraphName, parseMcpToolId } from "../mcp-servers/mcp-tool-id.js";
 import { getBuiltinTool } from "../tools/tools.service.js";
 
@@ -266,8 +268,8 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
         toolId: r.toolId,
         createdAt: r.createdAt,
         tool: {
-          name: builtin?.name ?? r.toolId,
-          label: builtin?.label ?? r.toolId,
+          name: builtin?.name ?? (r.toolId === BUILTIN_DATATABLE_TOOL_ID ? "datatable" : r.toolId),
+          label: builtin?.label ?? (r.toolId === BUILTIN_DATATABLE_TOOL_ID ? "Datatable" : r.toolId),
           description: builtin?.description ?? "",
         },
       };
@@ -291,6 +293,22 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
       };
     }
 
+    const datatableProjectId = parseDatatableProjectAssignmentId(r.toolId);
+    if (datatableProjectId) {
+      const project = getProject(datatableProjectId);
+      return {
+        id: r.id,
+        agentId: r.agentId,
+        toolId: r.toolId,
+        createdAt: r.createdAt,
+        tool: {
+          name: datatableProjectToolName(datatableProjectId),
+          label: project?.name ?? "Datatable",
+          description: project ? `Read and write tables in datatable project "${project.name}".` : "",
+        },
+      };
+    }
+
     return {
       id: r.id,
       agentId: r.agentId,
@@ -308,12 +326,14 @@ export function listAssignments(agentId: string): AssignmentWithTool[] {
 /** Replace all tool assignments for an agent. */
 export function setAssignments(agentId: string, items: NewAssignmentInput[]): AssignmentWithTool[] {
   const db = getDb();
+  const hasDatatableProject = items.some((item) => parseDatatableProjectAssignmentId(item.toolId));
+  const nextItems = hasDatatableProject ? items.filter((item) => item.toolId !== BUILTIN_DATATABLE_TOOL_ID) : items;
 
   // Delete existing
   db.delete(agentToolAssignments).where(eq(agentToolAssignments.agentId, agentId)).run();
 
   // Insert new
-  for (const item of items) {
+  for (const item of nextItems) {
     db.insert(agentToolAssignments)
       .values({
         id: crypto.randomUUID(),
@@ -327,6 +347,13 @@ export function setAssignments(agentId: string, items: NewAssignmentInput[]): As
   const result = listAssignments(agentId);
   wsHub.emit("agents:tools-updated", { agentId, assignments: result });
   return result;
+}
+
+function dropLegacyDatatableAssignment(agentId: string): void {
+  getDb()
+    .delete(agentToolAssignments)
+    .where(and(eq(agentToolAssignments.agentId, agentId), eq(agentToolAssignments.toolId, BUILTIN_DATATABLE_TOOL_ID)))
+    .run();
 }
 
 /** Add a single tool assignment (upsert: if already assigned, update it). */
@@ -352,6 +379,10 @@ export function addAssignment(agentId: string, input: NewAssignmentInput): Assig
         createdAt: new Date(),
       })
       .run();
+  }
+
+  if (parseDatatableProjectAssignmentId(input.toolId)) {
+    dropLegacyDatatableAssignment(agentId);
   }
 
   const result = listAssignments(agentId);

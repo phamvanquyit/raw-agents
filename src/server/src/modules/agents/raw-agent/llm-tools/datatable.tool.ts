@@ -3,6 +3,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import { COLUMN_TYPES } from "../../../../common/db/client.js";
 import { HttpException } from "../../../../common/exceptions/http.exception.js";
+import { datatableProjectToolName } from "../../../datatables/datatable-tool-id.js";
 import {
   createColumn,
   createTable,
@@ -22,9 +23,12 @@ import {
 } from "../../../datatables/datatables.service.js";
 
 export const DATA_ACTIONS = ["list_projects", "get_schema", "query", "insert", "update", "delete"] as const;
+/** Row CRUD for a user-agent tool locked to one datatable project. */
+export const PROJECT_DATA_ACTIONS = ["get_schema", "query", "insert", "update", "delete"] as const;
 export const SCHEMA_ACTIONS = ["get_schema", "create_table", "update_table", "delete_table", "create_column", "update_column", "delete_column"] as const;
 /** Schema + row CRUD for a locked project (datatable agent). */
 export const PROJECT_ACTIONS = [...SCHEMA_ACTIONS, "query", "insert", "update", "delete"] as const;
+
 const ALL_ACTIONS = [
   "list_projects",
   "get_schema",
@@ -60,6 +64,9 @@ const DESCRIPTIONS: Record<DtAction, string> = {
 export type MakeDatatableToolOptions = {
   /** When set, all ops are scoped to this project; `project` arg is optional. */
   lockedProjectId?: string;
+  lockedProjectName?: string;
+  /** LangGraph tool name (default: datatable). */
+  name?: string;
 };
 
 function availableProjectsPayload() {
@@ -77,15 +84,33 @@ function summarizeTable(t: { id: string; name: string }) {
 export function makeDatatableTool(actions: readonly DtAction[] = DATA_ACTIONS, options: MakeDatatableToolOptions = {}): StructuredToolInterface {
   const allowed = actions.length > 0 ? actions : DATA_ACTIONS;
   const lockedProjectId = options.lockedProjectId?.trim() || undefined;
-  const lockedHint = lockedProjectId ? `\nThis tool is locked to project id \`${lockedProjectId}\`. Omit \`project\` or pass that id.` : "";
+  const lockedProjectName = options.lockedProjectName?.trim() || undefined;
+  const toolName = options.name?.trim() || "datatable";
+  const lockedLabel = lockedProjectName ? `"${lockedProjectName}"` : lockedProjectId ? `"${lockedProjectId}"` : "";
+  const lockedHint = lockedProjectId
+    ? `\nThis tool is locked to datatable project ${lockedLabel} (id \`${lockedProjectId}\`). Omit \`project\` or pass that id.`
+    : "";
 
-  const description = `Read and write workspace datatables (projects → tables → columns → rows).
+  const description = lockedProjectId
+    ? `Read and write tables in datatable project ${lockedLabel}.
 
 Discovery flow:
-1. ${lockedProjectId ? "get_schema (project is locked)" : "list_projects → get_schema(project)"}
+1. get_schema — tables + columns in this project
+2. mutate rows with table id or name from get_schema
+
+Pass table/column as **id** (preferred) or **name**.${lockedHint}
+
+Available actions:
+${allowed.map((a) => `- ${DESCRIPTIONS[a]}`).join("\n")}
+
+where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contains": "ann"}}`
+    : `Read and write workspace datatables (projects → tables → columns → rows).
+
+Discovery flow:
+1. list_projects → get_schema(project)
 2. mutate with ids from get_schema when possible
 
-Pass project/table/column as **id** (preferred) or **name**.${lockedHint}
+Pass project/table/column as **id** (preferred) or **name**.
 
 Available actions:
 ${allowed.map((a) => `- ${DESCRIPTIONS[a]}`).join("\n")}
@@ -176,6 +201,10 @@ where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contain
         };
 
         if (action === "list_projects") {
+          if (lockedProjectId) {
+            const p = resolveProject(lockedProjectId);
+            return JSON.stringify({ ok: true, projects: p ? [{ id: p.id, name: p.name }] : [] });
+          }
           return JSON.stringify({ ok: true, projects: availableProjectsPayload() });
         }
 
@@ -377,7 +406,7 @@ where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contain
       }
     },
     {
-      name: "datatable",
+      name: toolName,
       description,
       schema: z.object({
         action: z.enum(allowed as unknown as [string, ...string[]]).describe("Operation to perform"),
@@ -402,6 +431,14 @@ where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contain
       }),
     },
   );
+}
+
+export function makeDatatableProjectTool(project: { id: string; name: string }): StructuredToolInterface {
+  return makeDatatableTool(PROJECT_DATA_ACTIONS, {
+    lockedProjectId: project.id,
+    lockedProjectName: project.name,
+    name: datatableProjectToolName(project.id),
+  });
 }
 
 export const datatableTool = makeDatatableTool();

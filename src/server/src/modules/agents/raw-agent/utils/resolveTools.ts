@@ -5,6 +5,7 @@
  *   - Builtin tools (directly imported)
  *   - Custom tools (from DB agent_tools table, Python sandbox)
  *   - MCP tools (from mcp_servers.tools catalog via virtual assignment ids)
+ *   - Datatable: legacy builtin:datatable (all projects) or datatable:{projectId} (locked)
  *   - Always-on: memory
  *   - call_agent__* tools (one per callableAgentIds target, top-level only)
  */
@@ -14,6 +15,13 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { type McpCatalogTool, agentTools, agents, getDb, mcpServers, toolFolders } from "../../../../common/db/client.js";
+import {
+  BUILTIN_DATATABLE_TOOL_ID,
+  isDatatableProjectToolName,
+  parseDatatableProjectAssignmentId,
+  parseDatatableProjectToolTargetId,
+} from "../../../datatables/datatable-tool-id.js";
+import { getProject } from "../../../datatables/datatables.service.js";
 import { callMcpTool } from "../../../mcp-servers/mcp-client.js";
 import { buildMcpLangGraphName, parseMcpToolId } from "../../../mcp-servers/mcp-tool-id.js";
 import { runToolWithSoftWait } from "../../../tools/tools.service.js";
@@ -22,7 +30,7 @@ import { browserTool } from "../../../../common/ai/agent-tools/browser.tool.js";
 import { fetchUrlTool } from "../../../../common/ai/agent-tools/fetch-url.tool.js";
 import { makeBackgroundTasksTool } from "../llm-tools/background-tasks.tool.js";
 import { type CallAgentTarget, isCallAgentToolName, makeCallAgentTools, parseCallAgentToolTargetId } from "../llm-tools/call-agent.tool.js";
-import { datatableTool } from "../llm-tools/datatable.tool.js";
+import { datatableTool, makeDatatableProjectTool } from "../llm-tools/datatable.tool.js";
 import { getCurrentTimeTool } from "../llm-tools/get-current-time.tool.js";
 import { kvStoreTool } from "../llm-tools/kv-store.tool.js";
 import { makeMemoryTool } from "../llm-tools/memory.tool.js";
@@ -35,7 +43,6 @@ const STATIC_BUILTINS: Record<string, StructuredToolInterface> = {
   browser: browserTool,
   fetch_url: fetchUrlTool,
   kv_store: kvStoreTool,
-  datatable: datatableTool,
 };
 
 export function formatToolName(name: string): string {
@@ -49,6 +56,9 @@ export function formatToolName(name: string): string {
 export function getToolLabel(toolName: string): string {
   if (isCallAgentToolName(toolName)) {
     return getCallAgentLabel({ agent_id: parseCallAgentToolTargetId(toolName) });
+  }
+  if (isDatatableProjectToolName(toolName)) {
+    return getDatatableProjectLabel(parseDatatableProjectToolTargetId(toolName));
   }
 
   const KNOWN_LABELS: Record<string, string> = {
@@ -119,6 +129,17 @@ export function getCallAgentLabel(args: unknown): string {
     /* ignore */
   }
   return "Call Agent";
+}
+
+function getDatatableProjectLabel(projectId: string | null): string {
+  if (!projectId) return "Datatable";
+  try {
+    const project = getProject(projectId);
+    if (project?.name) return `Datatable · ${project.name}`;
+  } catch {
+    /* ignore */
+  }
+  return "Datatable";
 }
 
 function buildZodSchema(parameters: object): z.ZodObject<Record<string, z.ZodType>> {
@@ -269,15 +290,27 @@ export function resolveAgentTools(
 ): StructuredToolInterface[] {
   const db = getDb();
   const tools: StructuredToolInterface[] = [];
+  const hasDatatableProject = enabledToolIds.some((id) => parseDatatableProjectAssignmentId(id));
 
   for (const toolId of enabledToolIds) {
     if (toolId.startsWith("builtin:")) {
       const name = toolId.slice("builtin:".length);
       // call_agent is no longer a single assignable builtin — injected via callableAgents below
       if (name === "call_agent") continue;
+      if (toolId === BUILTIN_DATATABLE_TOOL_ID) {
+        if (!hasDatatableProject) tools.push(datatableTool);
+        continue;
+      }
       if (name in STATIC_BUILTINS) {
         tools.push(STATIC_BUILTINS[name]);
       }
+      continue;
+    }
+
+    const datatableProjectId = parseDatatableProjectAssignmentId(toolId);
+    if (datatableProjectId) {
+      const project = getProject(datatableProjectId);
+      if (project) tools.push(makeDatatableProjectTool(project));
       continue;
     }
 
