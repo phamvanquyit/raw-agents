@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.1] - 2026-08-15
+
+### Fixed
+- Chat replies no longer drop the last few characters of a sentence when a tool call starts
+- Vietnamese and other UTF-8 text stay intact through Python tools, datatables, KV, secrets, and site SSR
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+
 ## [0.22.0] - 2026-08-15
 
 ### Added
@@ -430,6 +439,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.22.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.2...v0.21.0
 [0.20.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.20.1...v0.20.2
