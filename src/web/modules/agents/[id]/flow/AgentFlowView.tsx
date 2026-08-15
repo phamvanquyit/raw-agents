@@ -7,7 +7,7 @@
 //   • Call Agents — single card; popover toggles agents grouped by team
 //     Connected agents fan out as child nodes to the right of Call Agents
 
-import { Background, BackgroundVariant, type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
+import { type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -798,11 +798,8 @@ function AgentFlowInner({
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex-1 agent-detail-flow">
+    <div className="h-full min-h-0 w-full agent-detail-flow">
       <style>{`
-        .agent-detail-flow .react-flow__renderer { background: var(--card) !important }
-        .agent-detail-flow .react-flow__background pattern line { stroke: rgba(255,255,255,0.03) !important }
-        .agent-detail-flow .react-flow__background pattern circle { fill: rgba(255,255,255,0.06) !important }
         .agent-detail-flow .react-flow__edge-path { stroke-width: 2 }
         .agent-detail-flow .react-flow__edge.animated .react-flow__edge-path { stroke-dasharray: 6 4; animation: agentFlowDash 1.2s linear infinite }
         .agent-detail-flow .react-flow__edge { pointer-events: none }
@@ -828,9 +825,8 @@ function AgentFlowInner({
         elementsSelectable={true}
         edgesFocusable={false}
         deleteKeyCode={null}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-      </ReactFlow>
+        className="!bg-card"
+      />
     </div>
   );
 }
@@ -839,8 +835,10 @@ function AgentFlowInner({
 
 export function AgentFlowView(props: AgentFlowViewProps) {
   return (
-    <ReactFlowProvider>
-      <AgentFlowInner {...props} />
-    </ReactFlowProvider>
+    <div className="h-full min-h-0 w-full">
+      <ReactFlowProvider>
+        <AgentFlowInner {...props} />
+      </ReactFlowProvider>
+    </div>
   );
 }

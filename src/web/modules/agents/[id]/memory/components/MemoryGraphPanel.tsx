@@ -1,5 +1,5 @@
 import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
-import { Background, BackgroundVariant, type Node, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from "@xyflow/react";
+import { type Node, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Empty, Input, Modal, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
@@ -195,9 +195,7 @@ function MemoryFlowCanvas({
           elementsSelectable
           proOptions={{ hideAttribution: true }}
           className="h-full w-full !bg-transparent"
-        >
-          <Background variant={BackgroundVariant.Dots} gap={28} size={1.6} color="color-mix(in oklab, var(--color-foreground) 14%, transparent)" />
-        </ReactFlow>
+        />
       </div>
 
       <Modal
