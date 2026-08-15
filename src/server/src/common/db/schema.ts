@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // ─── Agents ───────────────────────────────────────────────────────────────────
 
@@ -567,3 +567,36 @@ export const agentSkillAssignments = sqliteTable("agent_skill_assignments", {
 
 export type AgentSkillAssignment = typeof agentSkillAssignments.$inferSelect;
 export type NewAgentSkillAssignment = typeof agentSkillAssignments.$inferInsert;
+
+// ─── API Keys ─────────────────────────────────────────────────────────────────
+
+export const apiKeys = sqliteTable("api_keys", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  keyPrefix: text("key_prefix").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+  revokedAt: integer("revoked_at", { mode: "timestamp" }),
+});
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
+
+export const apiKeyAgents = sqliteTable(
+  "api_key_agents",
+  {
+    apiKeyId: text("api_key_id")
+      .notNull()
+      .references(() => apiKeys.id, { onDelete: "cascade" }),
+    agentId: text("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.apiKeyId, t.agentId] })],
+);
+
+export type ApiKeyAgent = typeof apiKeyAgents.$inferSelect;
