@@ -84,6 +84,7 @@ export async function streamChatSSE(body: ChatStreamInput, stream: SSEStreamingA
     history,
     ownerId: conv?.ownerId ?? "user",
     isGuest: conv?.trigger === "public",
+    enableMemory: conv?.trigger !== "api",
     abortSignal: abort.signal,
     runId,
   });
@@ -102,6 +103,7 @@ interface BackgroundRunInput {
   history: MessageParam[];
   ownerId: string;
   isGuest: boolean;
+  enableMemory: boolean;
   abortSignal: AbortSignal;
   runId: symbol;
 }
@@ -111,7 +113,7 @@ const RUN_STALL_MS = 5 * 60_000;
 const RUN_STALL_CHECK_MS = 30_000;
 
 async function runChatBackground(input: BackgroundRunInput): Promise<{ text: string; failed: boolean }> {
-  const { agentId, conversationId, msgAgentId, message, history, ownerId, isGuest, abortSignal, runId } = input;
+  const { agentId, conversationId, msgAgentId, message, history, ownerId, isGuest, enableMemory, abortSignal, runId } = input;
   const db = getDb();
 
   let fullText = "";
@@ -150,6 +152,7 @@ async function runChatBackground(input: BackgroundRunInput): Promise<{ text: str
       ownerId,
       isGuest,
       conversationId,
+      enableMemory,
     })) {
       // Superseded by a newer run — stop mutating DB / registry
       if (!stillCurrent()) break;
@@ -429,6 +432,7 @@ export async function runAgentConversation(opts: {
     history: hist,
     ownerId,
     isGuest,
+    enableMemory: true,
     abortSignal: abort.signal,
     runId,
   });

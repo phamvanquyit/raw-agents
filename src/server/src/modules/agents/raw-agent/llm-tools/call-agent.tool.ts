@@ -47,6 +47,7 @@ export type MakeCallAgentToolsOptions = {
   isGuest?: boolean;
   abortSignal?: AbortSignal;
   conversationId?: string | null;
+  enableMemory?: boolean;
 };
 
 async function runSubAgent(opts: {
@@ -58,6 +59,7 @@ async function runSubAgent(opts: {
   isGuest: boolean;
   abortSignal?: AbortSignal;
   conversationId?: string | null;
+  enableMemory?: boolean;
 }): Promise<{ success: boolean; agent_id: string; response: string | null; error: string | null }> {
   const baseMessage = opts.context ? `${opts.message}\n\n---\n**Additional context:**\n${opts.context}` : opts.message;
 
@@ -102,6 +104,7 @@ ${baseMessage}`;
         isGuest: opts.isGuest,
         abortSignal: timeoutAbort.signal,
         conversationId: opts.conversationId,
+        enableMemory: opts.enableMemory,
       });
       return { success: true, agent_id: opts.targetId, response: result.text, error: null };
     } finally {
@@ -125,7 +128,7 @@ ${baseMessage}`;
  * Schema is only message/context — target agent is bound in the closure.
  */
 export function makeCallAgentTools(options: MakeCallAgentToolsOptions): StructuredToolInterface[] {
-  const { callerAgentId, targets, ownerId, isGuest = false, abortSignal, conversationId } = options;
+  const { callerAgentId, targets, ownerId, isGuest = false, abortSignal, conversationId, enableMemory } = options;
 
   return targets.map((target) => {
     const toolName = callAgentToolName(target.id);
@@ -152,6 +155,7 @@ export function makeCallAgentTools(options: MakeCallAgentToolsOptions): Structur
           isGuest,
           abortSignal,
           conversationId,
+          enableMemory,
         });
         return JSON.stringify(result);
       },

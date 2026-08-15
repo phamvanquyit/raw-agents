@@ -131,7 +131,7 @@ export function clearSiteAccessTokenCookieHeader(slug: string): string {
  */
 export async function resolveAuth(c: Context, next: Next) {
   const token = readAccessToken(c);
-  if (token) {
+  if (token && !token.startsWith("ra_")) {
     try {
       const payload = await verifyToken(token);
       // Verify user still exists and is active

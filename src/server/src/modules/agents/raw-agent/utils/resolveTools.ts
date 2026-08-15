@@ -253,6 +253,7 @@ export type ResolveAgentToolsOptions = {
   abortSignal?: AbortSignal;
   /** Parent conversation — attached to nested call_agent usage rows. */
   conversationId?: string | null;
+  enableMemory?: boolean;
 };
 
 /**
@@ -321,11 +322,14 @@ export function resolveAgentTools(
         isGuest,
         abortSignal: options.abortSignal,
         conversationId: options.conversationId ?? null,
+        enableMemory: options.enableMemory,
       }),
     );
   }
 
-  tools.push(makeMemoryTool(agentId, ownerId, isGuest, { conversationId: options.conversationId ?? null }));
+  if (options.enableMemory !== false) {
+    tools.push(makeMemoryTool(agentId, ownerId, isGuest, { conversationId: options.conversationId ?? null }));
+  }
   tools.push(makeReadSkillTool(agentId));
   tools.push(makeBackgroundTasksTool({ agentId, conversationId: options.conversationId ?? null }));
 

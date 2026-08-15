@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { type AgentConversation, type NewAgentConversation, type NewAgentMessage, agentConversations, agentMessages, getDb } from "../../common/db/client.js";
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException, ForbiddenException } from "../../common/exceptions/http.exception.js";
@@ -9,11 +9,12 @@ import { runRegistry } from "../agents/raw-agent/utils/run-registry.js";
 const STALE_MS = 15 * 60_000;
 
 export function listConversations(ownerId: string, query: RawQuery = {}) {
-  // Build static WHERE: owner + exclude "public" trigger, optionally filter by agentId
+  // Build static WHERE: owner + exclude public/api triggers, optionally filter by agentId
   const agentId = query.agentId;
+  const hiddenTriggers = notInArray(agentConversations.trigger, ["public", "api"]);
   const staticWhere = agentId
-    ? and(eq(agentConversations.ownerId, ownerId), eq(agentConversations.agentId, agentId), ne(agentConversations.trigger, "public"))
-    : and(eq(agentConversations.ownerId, ownerId), ne(agentConversations.trigger, "public"));
+    ? and(eq(agentConversations.ownerId, ownerId), eq(agentConversations.agentId, agentId), hiddenTriggers)
+    : and(eq(agentConversations.ownerId, ownerId), hiddenTriggers);
 
   // Remove agentId from query so listQuery doesn't re-apply it as a column filter
   const { agentId: _, ...cleanQuery } = query;

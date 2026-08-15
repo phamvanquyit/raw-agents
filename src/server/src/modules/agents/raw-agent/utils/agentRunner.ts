@@ -208,6 +208,7 @@ export async function generateAgent(
     ownerId?: string;
     isGuest?: boolean;
     conversationId?: string | null;
+    enableMemory?: boolean;
   } = {},
 ): Promise<AgentResult> {
   const db = getDb();
@@ -238,6 +239,7 @@ export async function generateAgent(
         allowCallAgent,
         abortSignal: options.abortSignal,
         conversationId: options.conversationId ?? null,
+        enableMemory: options.enableMemory,
       }),
     ),
   ]);
@@ -285,6 +287,7 @@ export async function* streamAgent(
     ownerId?: string;
     isGuest?: boolean;
     conversationId?: string | null;
+    enableMemory?: boolean;
   } = {},
 ): AsyncGenerator<AgentStreamEvent> {
   const db = getDb();
@@ -324,6 +327,7 @@ export async function* streamAgent(
           allowCallAgent: true,
           abortSignal: options.abortSignal,
           conversationId: options.conversationId ?? null,
+          enableMemory: options.enableMemory,
         }),
       ),
     ]);

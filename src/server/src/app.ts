@@ -34,8 +34,10 @@ import teamsRoute from "./modules/teams/teams.route.js";
 import toolFoldersRoute from "./modules/tool-folders/tool-folders.route.js";
 import toolsRoute from "./modules/tools/tools.route.js";
 
+import apiKeysRoute from "./modules/api-keys/api-keys.route.js";
 import authRoute from "./modules/auth/auth.route.js";
 import usersRoute from "./modules/users/users.route.js";
+import v1Route from "./modules/v1/v1.route.js";
 
 const APP_VERSION = rootPkg.version;
 
@@ -135,6 +137,9 @@ export function createApp(): Hono {
   app.route("/api/stats", statsRoute);
 
   app.route("/api/users", usersRoute);
+
+  app.route("/api/api-keys", apiKeysRoute);
+  app.route("/api/v1", v1Route);
 
   app.route("/api/public", publicRoute);
 
