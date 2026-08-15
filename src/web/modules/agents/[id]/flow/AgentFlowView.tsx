@@ -1,6 +1,7 @@
 // ─── Agent Flow View ──────────────────────────────────────────────────────────
 // React Flow canvas with current agent at center. To the right:
-//   • Tools — single card; popover toggles tools grouped by folder
+//   • Tools — single card; popover toggles tools grouped by folder,
+//     plus a nested Datatables group (one switch per project)
 //     Connected tools fan out as leaves: folder icon + name → tool icon + name
 //   • MCP Servers — single card; popover toggles tools grouped by server
 //     Connected tools fan out as leaves: server icon + name → tool icon + name
@@ -61,6 +62,7 @@ const SECTION_GAP = 28; // min vertical gap between packed sections
 const TOOL_EDGE_COLOR = "var(--edge-tool)";
 const MCP_EDGE_COLOR = "var(--edge-mcp)";
 const SKILL_EDGE_COLOR = "var(--edge-skill)";
+const DATATABLE_EDGE_COLOR = "var(--edge-datatable)";
 const AGENT_EDGE_COLOR = "var(--edge-call-agent)";
 const PUBLISH_EDGE_COLOR = "var(--edge-call-agent)";
 
@@ -84,6 +86,7 @@ interface AgentFlowViewProps {
   allTools: AgentTool[];
   allSkills: Skill[];
   mcpServers: McpServer[];
+  datatableProjects: { id: string; name: string }[];
   toolAssignments: AgentToolAssignment[];
   skillAssignments: AgentSkillAssignment[];
   callableAgentIds: string[];
@@ -120,6 +123,7 @@ function AgentFlowInner({
   allTools,
   allSkills,
   mcpServers,
+  datatableProjects,
   toolAssignments,
   skillAssignments,
   callableAgentIds,
@@ -165,7 +169,7 @@ function AgentFlowInner({
   );
 
   const toolGroups = useMemo((): ToolFolderGroup[] => {
-    const activeTools = allTools.filter((t) => t.isActive !== false && t.name !== "call_agent");
+    const activeTools = allTools.filter((t) => t.isActive !== false && t.name !== "call_agent" && t.name !== "datatable" && t.id !== "builtin:datatable");
     const builtin: { id: string; label: string; connected: boolean; sortOrder: number }[] = [];
     const byFolder = new Map<string | null, { id: string; label: string; connected: boolean; sortOrder: number }[]>();
     const folderMeta = new Map(toolFolders.map((f) => [f.id, f]));
@@ -194,6 +198,24 @@ function AgentFlowInner({
       groups.push({ id: "__builtin__", name: "Builtin Tools", tools: sortTools(builtin) });
     }
 
+    const hasLegacyAllDatatables = assignedToolIds.has("builtin:datatable") && ![...assignedToolIds].some((id) => id.startsWith("datatable:"));
+
+    const datatableTools = [...datatableProjects]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((p) => ({
+        id: `datatable:${p.id}`,
+        label: p.name,
+        connected: assignedToolIds.has(`datatable:${p.id}`),
+      }));
+    if (datatableTools.length > 0 || hasLegacyAllDatatables) {
+      groups.push({
+        id: "__datatables__",
+        name: "Datatables",
+        note: hasLegacyAllDatatables ? "All projects. Enable one to switch to per-project access." : undefined,
+        tools: datatableTools,
+      });
+    }
+
     const folderGroups = [...byFolder.entries()]
       .map(([fid, items]) => ({
         id: fid,
@@ -211,7 +233,7 @@ function AgentFlowInner({
 
     groups.push(...folderGroups);
     return groups;
-  }, [allTools, toolFolders, assignedToolIds]);
+  }, [allTools, toolFolders, assignedToolIds, datatableProjects]);
 
   const callAgentTeams = useMemo((): CallAgentTeamGroup[] => {
     const otherAgents = agents.filter((a) => a.id !== agent.id).sort((a, b) => a.name.localeCompare(b.name));
@@ -271,7 +293,10 @@ function AgentFlowInner({
 
     // ── Connected children (needed for auto layout) ─────────────────────────
 
-    const connectedTools = toolGroups.flatMap((g) => {
+    const hasLegacyAllDatatables = assignedToolIds.has("builtin:datatable") && ![...assignedToolIds].some((id) => id.startsWith("datatable:"));
+
+    const connectedFromGroups = toolGroups.flatMap((g) => {
+      const isDatatable = g.id === "__datatables__";
       const isFolder = g.id !== null && g.id !== "__builtin__";
       return g.tools
         .filter((t) => t.connected)
@@ -280,8 +305,27 @@ function AgentFlowInner({
           label: t.label,
           folder: isFolder ? g.name : undefined,
           connected: t.connected,
+          accent: (isDatatable ? "datatable" : "tool") as "datatable" | "tool",
         }));
     });
+
+    const legacyDatatableLeaf = hasLegacyAllDatatables
+      ? [
+          {
+            id: "builtin:datatable",
+            label: "All projects",
+            folder: "Datatables",
+            connected: true,
+            accent: "datatable" as const,
+          },
+        ]
+      : [];
+
+    const folderStart = connectedFromGroups.findIndex((t) => t.folder && t.accent !== "datatable");
+    const connectedTools =
+      folderStart === -1
+        ? [...connectedFromGroups, ...legacyDatatableLeaf]
+        : [...connectedFromGroups.slice(0, folderStart), ...legacyDatatableLeaf, ...connectedFromGroups.slice(folderStart)];
 
     // Servers with ≥1 connected tool, flattened to leaves
     const connectedMcpBranches = mcpGroups
@@ -436,7 +480,7 @@ function AgentFlowInner({
               label: tool.label,
               folder: tool.folder,
               width: childWidth,
-              accent: "tool",
+              accent: tool.accent,
             },
           };
           result.push(leaf);
@@ -617,7 +661,10 @@ function AgentFlowInner({
     return ids;
   }, [mcpServers]);
 
-  const localAssignedToolIds = useMemo(() => toolAssignments.map((a) => a.toolId).filter((id) => !mcpToolIds.has(id)), [toolAssignments, mcpToolIds]);
+  const localAssignedToolIds = useMemo(() => {
+    const hasDatatableProject = toolAssignments.some((a) => a.toolId.startsWith("datatable:"));
+    return toolAssignments.map((a) => a.toolId).filter((id) => !mcpToolIds.has(id) && (id !== "builtin:datatable" || !hasDatatableProject));
+  }, [toolAssignments, mcpToolIds]);
 
   const mcpServerConnectedIds = useMemo(() => {
     const byServer = new Map<string, string[]>();
@@ -662,6 +709,7 @@ function AgentFlowInner({
     });
 
     for (const toolId of localAssignedToolIds) {
+      const isDatatable = toolId.startsWith("datatable:");
       result.push({
         id: `edge-tool-child-${toolId}`,
         source: "tools",
@@ -672,7 +720,7 @@ function AgentFlowInner({
         selectable: false,
         deletable: false,
         focusable: false,
-        style: { stroke: TOOL_EDGE_COLOR, strokeWidth: 0.5, opacity: 0.45 },
+        style: { stroke: isDatatable ? DATATABLE_EDGE_COLOR : TOOL_EDGE_COLOR, strokeWidth: 0.5, opacity: 0.45 },
       });
     }
 

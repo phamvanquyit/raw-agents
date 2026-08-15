@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { Agent, AgentListItem, AgentSkillAssignment, AgentTool, AgentToolAssignment, McpServer, Skill } from "src/common/types";
+import { fetchDatatableProjects } from "src/modules/datatables/common/datatableProjectsSlice";
 import { fetchMcpServers } from "src/modules/mcp-servers/common/mcpServersSlice";
 import { fetchSkills } from "src/modules/skills/common/skillsSlice";
 import { fetchTeams } from "src/modules/teams/common/teamsSlice";
@@ -78,6 +79,7 @@ export default function AgentDetailPage() {
   const allTools = useAppSelector((s) => s.tools.items) as AgentTool[];
   const allSkills = useAppSelector((s) => s.skills.items) as Skill[];
   const mcpServers = useAppSelector((s) => s.mcpServers.items) as McpServer[];
+  const datatableProjects = useAppSelector((s) => s.datatableProjects.items);
   const teams = useAppSelector((s) => s.teams.teams);
   const toolFolders = useAppSelector((s) => s.toolFolders.folders);
 
@@ -135,6 +137,7 @@ export default function AgentDetailPage() {
     dispatch(fetchSkills());
     dispatch(fetchToolFolders());
     dispatch(fetchMcpServers());
+    dispatch(fetchDatatableProjects());
     dispatch(fetchTeams());
   }, [id, isEditor, dispatch]);
 
@@ -177,7 +180,13 @@ export default function AgentDetailPage() {
     (toolId: string) => {
       if (!id) return;
       apiAddAssignment(id, toolId).then((newAssignment) => {
-        setToolAssignments((prev) => [...prev, newAssignment]);
+        setToolAssignments((prev) => {
+          const merged = prev.some((a) => a.toolId === newAssignment.toolId) ? prev : [...prev, newAssignment];
+          if (toolId.startsWith("datatable:")) {
+            return merged.filter((a) => a.toolId !== "builtin:datatable");
+          }
+          return merged;
+        });
       });
     },
     [id],
@@ -339,6 +348,7 @@ export default function AgentDetailPage() {
                   allTools={allTools}
                   allSkills={allSkills}
                   mcpServers={mcpServers}
+                  datatableProjects={datatableProjects}
                   toolAssignments={toolAssignments}
                   skillAssignments={skillAssignments}
                   callableAgentIds={callableAgentIds}

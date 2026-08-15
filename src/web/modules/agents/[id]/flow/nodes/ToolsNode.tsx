@@ -1,10 +1,11 @@
 // ─── Tools Node ───────────────────────────────────────────────────────────────
-// Single card node. Click opens a popover listing builtin tools + custom tools
-// grouped by folder (tree lines), each with a small Switch.
+// Single card node. Click opens a popover listing builtin tools, datatable
+// projects (nested group), and custom tools grouped by folder (tree lines).
 // Connected leaves: folder icon + name → tool icon + name (built in AgentFlowView).
 
 import Programming from "@solar-icons/react/it/Programming";
 import CloseCircle from "@solar-icons/react/ui/CloseCircle";
+import Database from "@solar-icons/react/ui/Database";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Popover, Switch } from "antd";
 import { useMemo, useState } from "react";
@@ -17,9 +18,10 @@ export type ToolToggleItem = {
 };
 
 export type ToolFolderGroup = {
-  id: string | null; // null = ungrouped; "__builtin__" = builtins
+  id: string | null; // null = ungrouped; "__builtin__" = builtins; "__datatables__" = projects
   name: string;
   tools: ToolToggleItem[];
+  note?: string;
 };
 
 export type ToolsNodeData = {
@@ -133,35 +135,45 @@ export function ToolsNode({ data }: NodeProps<ToolsNodeType>) {
               {totalCount === 0 ? (
                 <div className="px-3.5 py-6 text-[12px] text-muted-foreground text-center">No tools available</div>
               ) : (
-                data.groups.map((group) => (
-                  <div key={group.id ?? group.name} className="w-full pb-1.5">
-                    <div className="px-3.5 pt-2.5 pb-2 pl-5.5">
-                      <span className="whitespace-nowrap text-[10px] font-bold uppercase text-muted-foreground">{group.name}</span>
-                    </div>
+                data.groups.map((group) => {
+                  const isDatatables = group.id === "__datatables__";
+                  return (
+                    <div key={group.id ?? group.name} className="w-full pb-1.5">
+                      <div className="flex items-center gap-1.5 px-3.5 pt-2.5 pb-2 pl-5.5">
+                        {isDatatables && <Database weight="BoldDuotone" width={11} height={11} className="block shrink-0 text-edge-datatable" />}
+                        <span
+                          className={cn("whitespace-nowrap text-[10px] font-bold uppercase", isDatatables ? "text-edge-datatable" : "text-muted-foreground")}
+                        >
+                          {group.name}
+                        </span>
+                      </div>
 
-                    <div className="w-full px-3.5">
-                      {group.tools.map((tool, index) => {
-                        const isLast = index === group.tools.length - 1;
-                        return (
-                          <button
-                            key={tool.id}
-                            type="button"
-                            className="nodrag nopan flex w-full cursor-pointer items-stretch border-0 bg-transparent p-0 text-left font-[inherit] hover:bg-muted/80 transition-colors"
-                            onClick={() => data.onToggleTool(tool.id, !tool.connected)}
-                            aria-pressed={tool.connected}
-                            aria-label={`Toggle ${tool.label}`}
-                          >
-                            <TreeGuide isLast={isLast} />
-                            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 py-2 pl-2.5 pr-0.5">
-                              <div className="whitespace-nowrap text-[13px] font-medium text-foreground">{tool.label}</div>
-                              <Switch size="small" className="shrink-0 pointer-events-none" checked={tool.connected} />
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {group.note && <div className="px-3.5 pb-1.5 pl-5.5 text-[11px] leading-snug text-muted-foreground">{group.note}</div>}
+
+                      <div className="w-full px-3.5">
+                        {group.tools.map((tool, index) => {
+                          const isLast = index === group.tools.length - 1;
+                          return (
+                            <button
+                              key={tool.id}
+                              type="button"
+                              className="nodrag nopan flex w-full cursor-pointer items-stretch border-0 bg-transparent p-0 text-left font-[inherit] hover:bg-muted/80 transition-colors"
+                              onClick={() => data.onToggleTool(tool.id, !tool.connected)}
+                              aria-pressed={tool.connected}
+                              aria-label={`Toggle ${tool.label}`}
+                            >
+                              <TreeGuide isLast={isLast} />
+                              <div className="flex min-w-0 flex-1 items-center justify-between gap-3 py-2 pl-2.5 pr-0.5">
+                                <div className="whitespace-nowrap text-[13px] font-medium text-foreground">{tool.label}</div>
+                                <Switch size="small" className="shrink-0 pointer-events-none" checked={tool.connected} />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

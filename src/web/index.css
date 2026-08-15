@@ -50,6 +50,7 @@
   --edge-mcp: var(--chart-1);
   --edge-tool: var(--chart-3);
   --edge-skill: var(--chart-4);
+  --edge-datatable: var(--chart-5);
   --scrollbar-size: 6px;
   --scrollbar-thumb: color-mix(in oklab, #f0f0f0 14%, transparent);
   --scrollbar-thumb-hover: color-mix(in oklab, #f0f0f0 22%, transparent);
@@ -104,6 +105,7 @@
   --color-edge-mcp: var(--edge-mcp);
   --color-edge-tool: var(--edge-tool);
   --color-edge-skill: var(--edge-skill);
+  --color-edge-datatable: var(--edge-datatable);
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-brand-text: var(--brand-text);
