@@ -6,6 +6,7 @@ import { useSearchParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
 import { stopAgentChat, useAgentRunner } from "src/common/hooks/useAgent";
 import type { AgentMessage } from "src/common/types";
+import { BackgroundTasksBar } from "src/components/chat/_components/BackgroundTasksBar";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 
@@ -383,7 +384,7 @@ export function ChatPage() {
         </>
       )}
 
-      <div className="relative flex flex-col flex-1 min-w-0 h-full bg-popover">
+      <div className="@container relative flex flex-col flex-1 min-w-0 h-full bg-popover">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-48"
           style={{
@@ -419,10 +420,10 @@ export function ChatPage() {
             <span className="text-[12px] text-muted-foreground animate-pulse">Loading...</span>
           </div>
         ) : (
-          <div className={["relative flex-1 min-h-0 flex flex-col", !sidebarOpen ? "pt-10" : ""].join(" ")}>
+          <div className={["relative flex-1 min-h-0 flex flex-col", !sidebarOpen ? "@max-[900px]:pt-10" : ""].join(" ")}>
             <MessageList
               messages={liveMessages}
-              generating={showGenerating && !streamingContent && !thinkingContent}
+              generating={showGenerating}
               activityStatus={isServerRunning && !running ? "Processing..." : activityStatus}
               assistantLabel={agent.name}
               emptyStateContent={<ChatEmptyState agent={agent} onStarter={(text) => void handleSend(text)} disabled={showGenerating} />}
@@ -446,20 +447,22 @@ export function ChatPage() {
         {!loading && (
           <div className="relative shrink-0 w-full max-w-[760px] mx-auto">
             <div className="pointer-events-none absolute -top-6 left-0 right-0 h-6 bg-gradient-to-t from-popover to-transparent" />
-            <InputArea
-              generating={showGenerating}
-              placeholder={`Message ${agent.name}...`}
-              onSend={(text) => void handleSend(text)}
-              onCancel={handleCancel}
-              providerId={selectedProviderId ?? agent.aiProvider ?? undefined}
-              model={aiModel || agent.aiModel || undefined}
-              onModelChange={(pid, m) => {
-                onProviderChange(pid);
-                setAiModel(m);
-                void dispatch(updateAgent({ id: agent.id, aiProvider: pid, aiModel: m }));
-              }}
-              focusSignal={activeConversationId}
-            />
+            <BackgroundTasksBar conversationId={activeConversationId}>
+              <InputArea
+                generating={showGenerating}
+                placeholder={`Message ${agent.name}...`}
+                onSend={(text) => void handleSend(text)}
+                onCancel={handleCancel}
+                providerId={selectedProviderId ?? agent.aiProvider ?? undefined}
+                model={aiModel || agent.aiModel || undefined}
+                onModelChange={(pid, m) => {
+                  onProviderChange(pid);
+                  setAiModel(m);
+                  void dispatch(updateAgent({ id: agent.id, aiProvider: pid, aiModel: m }));
+                }}
+                focusSignal={activeConversationId}
+              />
+            </BackgroundTasksBar>
           </div>
         )}
       </div>

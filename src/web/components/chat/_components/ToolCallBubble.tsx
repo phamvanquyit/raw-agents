@@ -1,5 +1,4 @@
 import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
-import Restart from "@solar-icons/react/arrows/Restart";
 import Programming from "@solar-icons/react/it/Programming";
 import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import { useState } from "react";
@@ -9,7 +8,10 @@ import { ToolIcon } from "src/modules/tools/components/ToolIcon";
 import { useAppSelector } from "src/store/store";
 import type { ChatAgentMessage } from "../common/types";
 import { formatToolName, prettyJson } from "../common/utils";
+import { parseBgTaskRef } from "../hooks/useConversationBgTasks";
+import { RunningSpinner } from "./RunningSpinner";
 import { resolveToolUI } from "./tool-uis";
+import { BackgroundTaskToolUI } from "./tool-uis/BackgroundTaskToolUI";
 
 function ToolStatusIcon({ hasError, open, toolIcon }: { hasError: boolean; open: boolean; toolIcon?: string | null }) {
   return (
@@ -50,51 +52,39 @@ function ToolCallCard({ msg }: { msg: ChatAgentMessage }) {
 
   if (isPending) {
     return (
-      <div className="mb-1.5 overflow-hidden rounded-lg border border-border-subtle">
-        <div className="flex w-full items-center gap-2 bg-muted/30 px-3 py-1.5">
-          {running ? (
-            <Restart size={12} className="shrink-0 animate-spin text-muted-foreground" />
-          ) : (
-            <ToolIcon
-              icon={toolIcon}
-              size={13}
-              className="shrink-0 text-muted-foreground"
-              fallback={<Programming size={13} className="text-muted-foreground" />}
-            />
-          )}
-          <span className="flex-1 truncate text-left text-[12px] font-medium text-muted-foreground">{label}</span>
-        </div>
+      <div className="mb-0.5 flex w-full items-center gap-2 py-1">
+        {running ? (
+          <RunningSpinner />
+        ) : (
+          <ToolIcon
+            icon={toolIcon}
+            size={13}
+            className="shrink-0 text-muted-foreground"
+            fallback={<Programming size={13} className="text-muted-foreground" />}
+          />
+        )}
+        <span className="flex-1 truncate text-left text-[12px] font-medium text-muted-foreground">{label}</span>
       </div>
     );
   }
 
   return (
-    <div className="mb-1.5 overflow-hidden rounded-lg border border-border-subtle">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="group flex w-full cursor-pointer items-center gap-2 bg-muted/30 px-3 py-1.5 outline-none transition-colors hover:bg-muted/45"
-      >
+    <div className="mb-0.5">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="group flex w-full cursor-pointer items-center gap-2 py-1 outline-none">
         <ToolStatusIcon hasError={hasError} open={open} toolIcon={toolIcon} />
         <span className="flex-1 truncate text-left text-[12px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">{label}</span>
       </button>
 
       <RenderIf condition={open}>
-        <div className="border-t border-border-subtle font-mono text-[11px]">
+        <div className="mt-0.5 overflow-hidden rounded-lg border border-border-subtle font-mono text-[11px]">
           <RenderIf condition={hasInput}>
-            <div className="border-b border-border-subtle/60 px-3 py-2">
-              <span className="text-2xs font-sans font-semibold uppercase tracking-widest text-muted-foreground">input</span>
-              <pre className="m-0 mt-1 max-h-27.5 overflow-y-auto break-all whitespace-pre-wrap font-normal leading-[1.65] text-muted-foreground">
-                {prettyJson(msg.toolInput)}
-              </pre>
-            </div>
-          </RenderIf>
-          <div className="px-3 py-2">
-            <span className="text-2xs font-sans font-semibold uppercase tracking-widest text-muted-foreground">output</span>
-            <pre className="m-0 mt-1 max-h-75 overflow-y-auto break-all whitespace-pre-wrap font-normal leading-[1.65] text-muted-foreground">
-              {hasOutput ? prettyJson(msg.toolOutput) : "Tool execution failed"}
+            <pre className="m-0 max-h-27.5 overflow-y-auto bg-transparent px-3 py-2 break-all whitespace-pre-wrap font-normal leading-[1.65] text-muted-foreground">
+              {prettyJson(msg.toolInput)}
             </pre>
-          </div>
+          </RenderIf>
+          <pre className="m-0 max-h-75 overflow-y-auto bg-muted/50 px-3 py-2 break-all whitespace-pre-wrap font-normal leading-[1.65] text-muted-foreground">
+            {hasOutput ? prettyJson(msg.toolOutput) : "Tool execution failed"}
+          </pre>
         </div>
       </RenderIf>
     </div>
@@ -150,6 +140,9 @@ export function ToolCallBubble({
   const CustomUI = resolveToolUI(msg.toolName);
   if (CustomUI) {
     return <CustomUI msg={msg} assistantLabel={assistantLabel} assistantColor={assistantColor} showAvatar={showAvatar} />;
+  }
+  if (parseBgTaskRef(msg.toolOutput)) {
+    return <BackgroundTaskToolUI msg={msg} assistantLabel={assistantLabel} assistantColor={assistantColor} showAvatar={showAvatar} />;
   }
 
   const color = assistantColor ?? "var(--primary)";

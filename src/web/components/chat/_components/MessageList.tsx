@@ -116,7 +116,21 @@ export function MessageList({
   const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
   const lastIsAgent = lastMsg ? isAgentRole(lastMsg.role) : false;
   const hasActiveThinking = lastMsg?.role === "assistant" && Boolean(lastMsg.meta?.thinking) && lastMsg.meta?.thinkingDuration == null;
-  const showFooter = generating && !hasActiveThinking;
+  const isLiveText = activityStatus === "Writing..." || (lastMsg?.role === "assistant" && Boolean(lastMsg.streaming) && Boolean(lastMsg.content));
+  const contentFingerprint = messages.reduce((n, m) => n + (m.role === "assistant" ? m.content.length : 0), 0);
+
+  const [streamIdle, setStreamIdle] = useState(true);
+  useEffect(() => {
+    if (!generating || !isLiveText) {
+      setStreamIdle(true);
+      return;
+    }
+    setStreamIdle(false);
+    const id = window.setTimeout(() => setStreamIdle(true), 600);
+    return () => window.clearTimeout(id);
+  }, [generating, isLiveText, contentFingerprint]);
+
+  const showFooter = generating && !hasActiveThinking && (!isLiveText || streamIdle);
 
   const localScrollRef = useRef<HTMLDivElement | null>(null);
   const setScrollRef = useCallback(
@@ -204,17 +218,8 @@ export function MessageList({
                   </div>
                 </RenderIf>
                 <div className="px-4 pb-0.5">
-                  <div className="flex gap-1.5 items-center h-5">
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        className="w-1.5 h-1.5 rounded-full bg-primary/50 inline-block"
-                        style={{
-                          animation: `ca-dot-bounce 1.1s ease-in-out ${i * 0.18}s infinite`,
-                        }}
-                      />
-                    ))}
-                    <span className="text-[10px] text-muted-foreground italic ml-1">{statusLabel}</span>
+                  <div className="flex items-center h-5">
+                    <span className="text-[10px] italic ca-status-shimmer">{statusLabel}</span>
                   </div>
                 </div>
               </div>

@@ -79,6 +79,7 @@ export type WsEventType =
   | "sites:created"
   | "sites:updated"
   | "sites:deleted"
+  | "bg-tasks:updated"
   | "ping"
   | "client:id";
 

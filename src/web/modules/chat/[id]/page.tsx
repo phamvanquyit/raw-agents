@@ -466,7 +466,7 @@ export default function PublicChatPage() {
         </>
       )}
 
-      <div className="relative flex flex-col flex-1 min-w-0 h-full bg-popover">
+      <div className="@container relative flex flex-col flex-1 min-w-0 h-full bg-popover">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-48"
           style={{
@@ -497,10 +497,10 @@ export default function PublicChatPage() {
           </div>
         )}
 
-        <div className={["relative flex-1 min-h-0 flex flex-col", !sidebarOpen ? "pt-10" : ""].join(" ")}>
+        <div className={["relative flex-1 min-h-0 flex flex-col", !sidebarOpen ? "@max-[900px]:pt-10" : ""].join(" ")}>
           <MessageList
             messages={liveMessages}
-            generating={running && !streamingContent && !thinkingContent}
+            generating={running}
             activityStatus={activityStatus}
             assistantLabel={agent.name}
             emptyStateContent={<ChatEmptyState agent={agent} onStarter={(text) => void handleSend(text)} disabled={running} />}
