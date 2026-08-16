@@ -52,6 +52,7 @@ Allowed types: text | number | boolean | datetime | select | json
   • update_column — table + column (+ name/type/options/required)
   • delete_column — table + column
   • query — table + optional where / order_by / limit / offset
+    order_by: [{"key": "created_at", "dir": "desc"}] or a column name from schema. Always pass it when listing/ranking.
   • insert — table + rows (array of objects keyed by column name)
   • update — table + row_id + data (partial object)
   • delete — table + row_ids
@@ -72,6 +73,7 @@ Row values live under each item's \`data\` field in query results: { id, data, c
 ✅ Prefer create_table then create_column(s) for new tables
 ✅ When renaming columns, use update_column (row keys are renamed automatically)
 ✅ Use where filters on query instead of fetching everything when possible
+✅ Pass order_by on query when sort matters (newest: [{"key":"created_at","dir":"desc"}])
 </hard_rules>
 
 <current_schema>

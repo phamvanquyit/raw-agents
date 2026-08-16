@@ -79,6 +79,7 @@ def get_schema(project):
     return _call("datatable", "get_schema", {"project": project})
 
 def query(project, table, where=None, order_by=None, limit=50, offset=0):
+    """Query rows. order_by=[{"key": "created_at", "dir": "desc"}]; key is a column or created_at/updated_at."""
     return _call("datatable", "query", {
         "project": project,
         "table": table,

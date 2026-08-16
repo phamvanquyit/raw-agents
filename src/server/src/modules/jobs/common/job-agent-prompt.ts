@@ -64,6 +64,7 @@ rawagents.datatable — project/table accept id (preferred) or name:
   await rawagents.datatable.list_projects()
   await rawagents.datatable.get_schema(project)
   await rawagents.datatable.query(project, table, { where?, order_by?, limit?, offset? })
+    // order_by: [{ key: "created_at", dir: "desc" }] or a schema column. Not camelCase orderBy.
   await rawagents.datatable.insert(project, table, rows)
   await rawagents.datatable.update(project, table, row_id, data)
   await rawagents.datatable.delete(project, table, row_ids)

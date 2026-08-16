@@ -48,7 +48,8 @@ export type DtAction = (typeof ALL_ACTIONS)[number];
 const DESCRIPTIONS: Record<DtAction, string> = {
   list_projects: "**list_projects**: List all datatable projects (`id` + `name`). Prefer using returned `id` in later calls.",
   get_schema: "**get_schema**: Full project schema — all tables + columns. Requires `project` (id preferred, or name) unless the tool is project-locked.",
-  query: "**query**: Query rows with optional `where`, `order_by`, `limit`, `offset`. Requires `project` and `table` (id or name from get_schema).",
+  query:
+    '**query**: Query rows. Optional `where`, `order_by`, `limit`, `offset`. Requires `project` and `table`. Pass `order_by` whenever sort matters — e.g. `[{"key":"created_at","dir":"desc"}]` (newest) or a column from get_schema. Param is `order_by`, not `orderBy`.',
   insert: "**insert**: Insert rows. Requires `project`, `table`, and `rows` (array of objects).",
   update: "**update**: Update a row. Requires `project`, `table`, `row_id`, and `data`.",
   delete: "**delete**: Delete rows. Requires `project`, `table`, and `row_ids`.",
@@ -91,6 +92,10 @@ export function makeDatatableTool(actions: readonly DtAction[] = DATA_ACTIONS, o
     ? `\nThis tool is locked to datatable project ${lockedLabel} (id \`${lockedProjectId}\`). Omit \`project\` or pass that id.`
     : "";
 
+  const queryHints = `where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contains": "ann"}}
+order_by examples: [{"key": "created_at", "dir": "desc"}] or [{"key": "<column>", "dir": "asc"}]
+  key = column name from get_schema, or created_at / updated_at (row timestamps). dir: "asc"|"desc" (default desc). Use order_by on query when listing, ranking, or fetching newest/oldest rows.`;
+
   const description = lockedProjectId
     ? `Read and write tables in datatable project ${lockedLabel}.
 
@@ -103,7 +108,7 @@ Pass table/column as **id** (preferred) or **name**.${lockedHint}
 Available actions:
 ${allowed.map((a) => `- ${DESCRIPTIONS[a]}`).join("\n")}
 
-where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contains": "ann"}}`
+${queryHints}`
     : `Read and write workspace datatables (projects → tables → columns → rows).
 
 Discovery flow:
@@ -115,7 +120,7 @@ Pass project/table/column as **id** (preferred) or **name**.
 Available actions:
 ${allowed.map((a) => `- ${DESCRIPTIONS[a]}`).join("\n")}
 
-where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contains": "ann"}}`;
+${queryHints}`;
 
   return tool(
     async ({
@@ -421,7 +426,7 @@ where examples: {"status": "active"} or {"age": {"$gte": 18}, "name": {"$contain
         order_by: z
           .array(z.object({ key: z.string(), dir: z.enum(["asc", "desc"]).optional() }))
           .optional()
-          .describe("Sort order"),
+          .describe('Sort as [{key, dir}]. key = schema column, or "created_at"/"updated_at". Example: [{"key":"created_at","dir":"desc"}]'),
         limit: z.number().optional().describe("Max rows (default 50)"),
         offset: z.number().optional().describe("Offset for pagination"),
         rows: z.array(z.record(z.string(), z.any())).optional().describe("Rows to insert"),
@@ -447,7 +452,7 @@ export const TOOL_DEF = {
   toolName: "datatable",
   toolLabel: "Datatable",
   description:
-    "Query and mutate workspace datatables. Discovery: list_projects → get_schema(project) for full tables+columns. Prefer ids. Supports where filters on query.",
+    "Query and mutate workspace datatables. Discovery: list_projects → get_schema(project). Prefer ids. Query supports where + order_by ([{key, dir}], e.g. created_at desc).",
   parameters: {
     type: "object",
     properties: {
@@ -457,6 +462,7 @@ export const TOOL_DEF = {
       where: { type: "object", additionalProperties: true },
       order_by: {
         type: "array",
+        description: 'Sort as [{key, dir}]. key = schema column or created_at/updated_at. Example: [{"key":"created_at","dir":"desc"}]',
         items: {
           type: "object",
           properties: { key: { type: "string" }, dir: { type: "string", enum: ["asc", "desc"] } },

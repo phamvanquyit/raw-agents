@@ -65,7 +65,10 @@ rawagents.datatable — projects → tables → rows:
     {"age": {"$gte": 18}, "name": {"$contains": "ann"}}
     {"tags": {"$contains": "vip"}, "active": {"$exists": true}}
     Operators: $eq, $neq, $gt, $gte, $lt, $lte, $in, $nin, $contains, $exists
-  order_by example: [{"key": "created_at", "dir": "desc"}]
+  order_by: list of {key, dir}. Always pass when sort matters.
+    [{"key": "created_at", "dir": "desc"}]         # newest first (row timestamp)
+    [{"key": "name", "dir": "asc"}]                # schema column
+    key = column from get_schema, or created_at / updated_at. Param is order_by, not orderBy.
 
   IMPORTANT:
   ✅ Discover with list_projects → get_schema(project_id) before insert/update

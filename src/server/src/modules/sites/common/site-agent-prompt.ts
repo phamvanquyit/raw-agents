@@ -111,6 +111,7 @@ handle() receives rawagents (in-process):
   rawagents.datatable.list_projects()
   rawagents.datatable.get_schema(project)
   rawagents.datatable.query({ project, table, where?, order_by?, limit?, offset? })
+    // order_by: [{ key: "created_at", dir: "desc" }] or a schema column. Not camelCase orderBy.
   rawagents.datatable.insert({ project, table, rows })
   rawagents.datatable.update({ project, table, row_id, data })
   rawagents.datatable.delete({ project, table, row_ids })

@@ -139,16 +139,29 @@ export function buildWhereSql(where: Record<string, unknown> | null | undefined,
   return { sql: ` AND ${parts.join(" AND ")}`, params };
 }
 
+const ROW_META_ORDER: Record<string, string> = {
+  created_at: "created_at",
+  updated_at: "updated_at",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+};
+
 export function buildOrderBySql(orderBy: OrderByItem[] | null | undefined, columns: DatatableColumn[]): string {
   if (!orderBy?.length) return " ORDER BY created_at DESC";
   const colMap = new Map(columns.map((c) => [c.name, c]));
   const parts: string[] = [];
   for (const item of orderBy) {
-    if (!item?.key || !colMap.has(item.key)) {
-      throw new BadRequestException(`Invalid order_by key: "${item?.key}"`);
-    }
+    const key = item?.key;
     const dir = item.dir === "asc" ? "ASC" : "DESC";
-    parts.push(`${extractExpr(item.key)} ${dir}`);
+    const metaCol = key ? ROW_META_ORDER[key] : undefined;
+    if (metaCol) {
+      parts.push(`${metaCol} ${dir}`);
+      continue;
+    }
+    if (!key || !colMap.has(key)) {
+      throw new BadRequestException(`Invalid order_by key: "${key}"`);
+    }
+    parts.push(`${extractExpr(key)} ${dir}`);
   }
   return ` ORDER BY ${parts.join(", ")}`;
 }
