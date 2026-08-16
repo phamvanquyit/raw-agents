@@ -18,11 +18,10 @@ import { useAppDispatch, useAppSelector } from "src/store/store";
 import type { ToolActionEvent } from "./components/CodingAgentPanel";
 
 import { deleteTool, fetchTools, updateTool } from "../common/toolsSlice";
-import { injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams, parseParamsFromCode } from "../common/utils";
+import { injectMetaIntoCode, injectParamsIntoCode, parseMetaFromCode, parseParams } from "../common/utils";
 
 import { CodingAgentPanel } from "./components/CodingAgentPanel";
 import { EditToolHeader } from "./components/EditToolHeader";
-import { EditorStatusRail } from "./components/EditorStatusRail";
 import { RunPanel, type RunPanelHandle } from "./components/RunPanel";
 import { ValidationBanner } from "./components/ValidationBanner";
 
@@ -120,7 +119,6 @@ export default function EditToolPage() {
 
   // ── Annotation validation ──
   const codeMeta = useMemo(() => parseMetaFromCode(localCode), [localCode]);
-  const codeParams = useMemo(() => parseParamsFromCode(localCode), [localCode]);
   const hasReturn = useMemo(() => /\breturn\b/.test(localCode), [localCode]);
   const codeValidationErrors = useMemo(() => {
     const errors: string[] = [];
@@ -376,8 +374,6 @@ export default function EditToolPage() {
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left: Editor (top) + RunPanel (bottom) */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden relative bg-background">
-          <EditorStatusRail name={codeMeta.label} description={codeMeta.description} params={codeParams} hasReturn={hasReturn} />
-
           {showValidationError && (saveError || hasValidationErrors) && (
             <ValidationBanner
               errors={saveError ? [saveError] : codeValidationErrors}
