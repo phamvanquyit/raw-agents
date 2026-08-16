@@ -103,11 +103,16 @@ export default function AgentDetailPage() {
   const [aiModel, setAiModel] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [publicPassword, setPublicPassword] = useState("");
+  const [editorReadyId, setEditorReadyId] = useState<string | null>(null);
+  const editorReady = editorReadyId === id;
+  const loadedEditorIdRef = useRef<string | null>(null);
 
   // Detail GET is the source of truth for the open agent
   useEffect(() => {
     if (!id) return;
     setAgent(null);
+    setToolAssignments([]);
+    setSkillAssignments([]);
     dispatch(fetchOneAgent(id))
       .unwrap()
       .then((ag: Agent) => {
@@ -127,18 +132,41 @@ export default function AgentDetailPage() {
       .catch(() => {});
   }, [id, dispatch]);
 
-  // Editor-only catalog + assignments (list endpoints — not the open agent)
+  // Editor-only catalog + assignments — mount the flow only after this id is loaded
   useEffect(() => {
     if (!id || !isEditor) return;
-    dispatch(fetchAgents());
-    fetchAssignments(id).then(setToolAssignments);
-    fetchSkillAssignments(id).then(setSkillAssignments);
-    dispatch(fetchTools());
-    dispatch(fetchSkills());
-    dispatch(fetchToolFolders());
-    dispatch(fetchMcpServers());
-    dispatch(fetchDatatableProjects());
-    dispatch(fetchTeams());
+    if (loadedEditorIdRef.current === id) {
+      setEditorReadyId(id);
+      return;
+    }
+
+    let cancelled = false;
+    setToolAssignments([]);
+    setSkillAssignments([]);
+
+    void Promise.all([
+      fetchAssignments(id).then((rows) => {
+        if (!cancelled) setToolAssignments(rows);
+      }),
+      fetchSkillAssignments(id).then((rows) => {
+        if (!cancelled) setSkillAssignments(rows);
+      }),
+      dispatch(fetchAgents()),
+      dispatch(fetchTools()),
+      dispatch(fetchSkills()),
+      dispatch(fetchToolFolders()),
+      dispatch(fetchMcpServers()),
+      dispatch(fetchDatatableProjects()),
+      dispatch(fetchTeams()),
+    ]).finally(() => {
+      if (cancelled) return;
+      loadedEditorIdRef.current = id;
+      setEditorReadyId(id);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, isEditor, dispatch]);
 
   // WS / mutations may upsert a full agent into the list store — merge into detail state
@@ -332,49 +360,58 @@ export default function AgentDetailPage() {
         <AgentDetailHeader id={id} agent={agent} avatar={avatar} onDelete={handleDelete} />
 
         <div className="flex flex-1 min-h-0 overflow-hidden bg-card">
-          <Routes>
-            <Route index element={<ChatPage />} />
-            <Route path="chat" element={<Navigate to={`/agents/${id}`} replace />} />
-            <Route path="instruct" element={<PromptPage />} />
-            <Route path="memory" element={<MemoryPage />} />
-            <Route
-              path="editor"
-              element={
-                <AgentFlowView
-                  agent={agent}
-                  agents={agents}
-                  teams={teams}
-                  toolFolders={toolFolders}
-                  allTools={allTools}
-                  allSkills={allSkills}
-                  mcpServers={mcpServers}
-                  datatableProjects={datatableProjects}
-                  toolAssignments={toolAssignments}
-                  skillAssignments={skillAssignments}
-                  callableAgentIds={callableAgentIds}
-                  onRemoveToolAssignment={handleRemoveToolAssignment}
-                  onAddToolAssignment={handleAddToolAssignment}
-                  onRemoveSkillAssignment={handleRemoveSkillAssignment}
-                  onAddSkillAssignment={handleAddSkillAssignment}
-                  onToggleCallableAgent={handleToggleCallableAgent}
-                  selectedProviderId={selectedProviderId}
-                  aiModel={aiModel}
-                  systemPrompt={systemPrompt}
-                  name={name}
-                  description={description}
-                  avatar={avatar}
-                  onModelChange={handleFlowModelChange}
-                  onNameChange={handleFlowNameChange}
-                  onDescriptionChange={handleFlowDescriptionChange}
-                  onAvatarChange={handleFlowAvatarChange}
-                  isPublic={isPublic}
-                  onTogglePublish={handleTogglePublish}
-                  publicPassword={publicPassword}
-                  onSavePassword={handleSavePassword}
-                />
-              }
-            />
-          </Routes>
+          <div className="relative h-full min-h-0 min-w-0 flex-1">
+            <Routes>
+              <Route index element={<ChatPage />} />
+              <Route path="chat" element={<Navigate to={`/agents/${id}`} replace />} />
+              <Route path="instruct" element={<PromptPage />} />
+              <Route path="memory" element={<MemoryPage />} />
+              <Route
+                path="editor"
+                element={
+                  editorReady ? (
+                    <AgentFlowView
+                      key={id}
+                      agent={agent}
+                      agents={agents}
+                      teams={teams}
+                      toolFolders={toolFolders}
+                      allTools={allTools}
+                      allSkills={allSkills}
+                      mcpServers={mcpServers}
+                      datatableProjects={datatableProjects}
+                      toolAssignments={toolAssignments}
+                      skillAssignments={skillAssignments}
+                      callableAgentIds={callableAgentIds}
+                      onRemoveToolAssignment={handleRemoveToolAssignment}
+                      onAddToolAssignment={handleAddToolAssignment}
+                      onRemoveSkillAssignment={handleRemoveSkillAssignment}
+                      onAddSkillAssignment={handleAddSkillAssignment}
+                      onToggleCallableAgent={handleToggleCallableAgent}
+                      selectedProviderId={selectedProviderId}
+                      aiModel={aiModel}
+                      systemPrompt={systemPrompt}
+                      name={name}
+                      description={description}
+                      avatar={avatar}
+                      onModelChange={handleFlowModelChange}
+                      onNameChange={handleFlowNameChange}
+                      onDescriptionChange={handleFlowDescriptionChange}
+                      onAvatarChange={handleFlowAvatarChange}
+                      isPublic={isPublic}
+                      onTogglePublish={handleTogglePublish}
+                      publicPassword={publicPassword}
+                      onSavePassword={handleSavePassword}
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="text-sm text-muted-foreground">Loading editor…</div>
+                    </div>
+                  )
+                }
+              />
+            </Routes>
+          </div>
         </div>
       </div>
     </AgentDetailCtx.Provider>

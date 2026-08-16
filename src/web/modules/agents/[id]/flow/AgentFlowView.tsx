@@ -8,9 +8,9 @@
 //   • Call Agents — single card; popover toggles agents grouped by team
 //     Connected agents fan out as child nodes to the right of Call Agents
 
-import { type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider } from "@xyflow/react";
+import { type Connection, type Edge, type Node, ReactFlow, ReactFlowProvider, useNodesInitialized, useReactFlow, useStore } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Agent, AgentListItem, AgentSkillAssignment, AgentTeam, AgentTool, AgentToolAssignment, McpServer, Skill, ToolFolder } from "src/common/types";
 import { CountedEdge } from "./edges/CountedEdge";
@@ -56,6 +56,30 @@ const TOOL_FANOUT_H = 16; // compact tool leaf height (icon + label)
 const TOOL_CHILD_CHROME = 44; // group icon + tool icon + gaps for connected tool cards
 const AGENT_CHILD_CHROME = 30; // avatar + gap for callable agent leaves
 const SECTION_GAP = 28; // min vertical gap between packed sections
+const FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1.2 } as const;
+
+function useFitViewWhenReady() {
+  const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
+  const paneReady = useStore((s) => s.width > 0 && s.height > 0);
+  const fitted = useRef(false);
+
+  useEffect(() => {
+    if (fitted.current || !nodesInitialized || !paneReady) return;
+
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        fitView({ ...FIT_VIEW_OPTIONS, duration: 0 });
+        fitted.current = true;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [nodesInitialized, paneReady, fitView]);
+}
 
 // ─── Edge Colors ─────────────────────────────────────────────────────────────
 
@@ -148,6 +172,7 @@ function AgentFlowInner({
   onSavePassword,
 }: AgentFlowViewProps) {
   const navigate = useNavigate();
+  useFitViewWhenReady();
   const assignedToolIds = useMemo(() => new Set(toolAssignments.map((a) => a.toolId)), [toolAssignments]);
   const assignedSkillIds = useMemo(() => new Set(skillAssignments.map((a) => a.skillId)), [skillAssignments]);
   const callableSet = useMemo(() => new Set(callableAgentIds), [callableAgentIds]);
@@ -862,8 +887,6 @@ function AgentFlowInner({
         edgeTypes={edgeTypes}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
-        fitView
-        fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
         minZoom={0.3}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
