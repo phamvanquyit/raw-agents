@@ -120,6 +120,16 @@ describe("Datatables API", () => {
     expect(data.items[1].data.name).toBe("Ann");
   });
 
+  test("POST /api/datatables/tables/:id/rows/query — order_by created_at", async () => {
+    const res = await authRequest(app, token, "POST", `/api/datatables/tables/${tableId}/rows/query`, {
+      order_by: [{ key: "created_at", dir: "desc" }],
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { items: unknown[]; total: number };
+    expect(data.total).toBe(3);
+    expect(data.items).toHaveLength(3);
+  });
+
   test("PUT /api/datatables/rows/:id — update", async () => {
     const res = await authRequest(app, token, "PUT", `/api/datatables/rows/${rowId}`, {
       data: { status: "inactive" },

@@ -98,7 +98,12 @@ describe("datatable schema tool", () => {
     expect(inserted.ok).toBe(true);
     expect(inserted.rows).toHaveLength(2);
 
-    const queriedRaw = await tool.invoke({ action: "query", table: "items", where: { title: "alpha" } });
+    const queriedRaw = await tool.invoke({
+      action: "query",
+      table: "items",
+      where: { title: "alpha" },
+      order_by: [{ key: "title", dir: "asc" }],
+    });
     const queried = JSON.parse(String(queriedRaw)) as { ok: boolean; items: { id: string; data: { title: string } }[]; total: number };
     expect(queried.ok).toBe(true);
     expect(queried.total).toBe(1);
@@ -176,5 +181,11 @@ describe("datatable schema tool", () => {
     expect(leak.ok).toBe(false);
     expect(leak.error).toContain("locked");
     expect(tool.description).not.toContain("list_projects");
+  });
+
+  test("query description teaches order_by format", () => {
+    const tool = makeDatatableTool(PROJECT_ACTIONS, { lockedProjectId: projectId });
+    expect(tool.description).toContain("order_by");
+    expect(tool.description).toContain('{"key": "created_at", "dir": "desc"}');
   });
 });
