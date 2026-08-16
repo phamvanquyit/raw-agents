@@ -3,6 +3,8 @@
  * Restart clears all entries; orphan OS processes are not re-attached.
  */
 
+import { wsHub } from "../../../common/ws/wsHub.js";
+
 export type BgTaskStatus = "running" | "completed" | "failed" | "cancelled";
 
 export type BgTaskSnapshot = {
@@ -23,7 +25,11 @@ export type BgTaskSnapshot = {
 type BgTaskInternal = BgTaskSnapshot & {
   kill: () => void;
   waiters: Array<(snap: BgTaskSnapshot) => void>;
+  logTimer?: ReturnType<typeof setTimeout>;
 };
+
+const CONSOLE_MAX_CHARS = 256 * 1024;
+const LOG_EMIT_MS = 200;
 
 const COMPLETED_TTL_MS = 10 * 60_000;
 const DEFAULT_AWAIT_MS = 60_000;
@@ -40,7 +46,7 @@ class BgTaskRegistry {
     kill: () => void;
   }): string {
     const taskId = `bg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    this.tasks.set(taskId, {
+    const task: BgTaskInternal = {
       taskId,
       toolId: opts.toolId,
       toolName: opts.toolName,
@@ -51,7 +57,9 @@ class BgTaskRegistry {
       pid: opts.pid,
       kill: opts.kill,
       waiters: [],
-    });
+    };
+    this.tasks.set(taskId, task);
+    this.emitChanged(task);
     return taskId;
   }
 
@@ -72,10 +80,26 @@ class BgTaskRegistry {
     return items.sort((a, b) => b.startedAt - a.startedAt);
   }
 
+  appendLog(taskId: string, chunk: string): void {
+    const t = this.tasks.get(taskId);
+    if (!t || t.status !== "running" || !chunk) return;
+    t.console = `${t.console ?? ""}${chunk}`;
+    if (t.console.length > CONSOLE_MAX_CHARS) t.console = t.console.slice(-CONSOLE_MAX_CHARS);
+    if (t.logTimer) return;
+    t.logTimer = setTimeout(() => {
+      t.logTimer = undefined;
+      this.emitChanged(t);
+    }, LOG_EMIT_MS);
+  }
+
   /** Mark finished from process exit. No-op if already cancelled. */
   finish(taskId: string, outcome: { ok: boolean; result?: unknown; error?: string; console?: string }): void {
     const t = this.tasks.get(taskId);
     if (!t) return;
+    if (t.logTimer) {
+      clearTimeout(t.logTimer);
+      t.logTimer = undefined;
+    }
     if (t.status === "cancelled") {
       this.notify(t);
       this.scheduleCleanup(taskId);
@@ -87,6 +111,7 @@ class BgTaskRegistry {
     else t.error = outcome.error ?? "Task failed";
     if (outcome.console) t.console = outcome.console;
     this.notify(t);
+    this.emitChanged(t);
     this.scheduleCleanup(taskId);
   }
 
@@ -94,6 +119,10 @@ class BgTaskRegistry {
     const t = this.tasks.get(taskId);
     if (!t) return null;
     if (t.status !== "running") return this.toPublic(t);
+    if (t.logTimer) {
+      clearTimeout(t.logTimer);
+      t.logTimer = undefined;
+    }
     try {
       t.kill();
     } catch {
@@ -103,6 +132,7 @@ class BgTaskRegistry {
     t.finishedAt = Date.now();
     t.error = "Cancelled";
     this.notify(t);
+    this.emitChanged(t);
     this.scheduleCleanup(taskId);
     return this.toPublic(t);
   }
@@ -150,6 +180,10 @@ class BgTaskRegistry {
       }
     }
     this.tasks.clear();
+  }
+
+  private emitChanged(t: BgTaskInternal): void {
+    wsHub.emit("bg-tasks:updated", this.toPublic(t));
   }
 
   private toPublic(t: BgTaskInternal): BgTaskSnapshot {

@@ -3,6 +3,7 @@ import { streamSSE } from "hono/streaming";
 import { BadRequestException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
 import { streamChatSSE } from "../agents/raw-agent/raw-agent.service.js";
 import { relayRunToSSE, runRegistry } from "../agents/raw-agent/utils/run-registry.js";
+import { cancelConversationBgTask, getConversationBgTask, listConversationBgTasks } from "../tools/tools.service.js";
 import {
   createConversation,
   createMessage,
@@ -73,6 +74,33 @@ app.get("/:id/messages", (c) => {
   const user = requireUser(c);
   requireOwnedConversation(c.req.param("id"), user.id);
   return c.json(listMessages(c.req.param("id")));
+});
+
+// GET /api/conversations/:id/bg-tasks
+app.get("/:id/bg-tasks", (c) => {
+  const user = requireUser(c);
+  requireOwnedConversation(c.req.param("id"), user.id);
+  return c.json({ items: listConversationBgTasks(c.req.param("id")) });
+});
+
+// GET /api/conversations/:id/bg-tasks/:taskId
+app.get("/:id/bg-tasks/:taskId", (c) => {
+  const user = requireUser(c);
+  const conversationId = c.req.param("id");
+  requireOwnedConversation(conversationId, user.id);
+  const task = getConversationBgTask(conversationId, c.req.param("taskId"));
+  if (!task) throw new BadRequestException("Task not found");
+  return c.json(task);
+});
+
+// POST /api/conversations/:id/bg-tasks/:taskId/cancel
+app.post("/:id/bg-tasks/:taskId/cancel", (c) => {
+  const user = requireUser(c);
+  const conversationId = c.req.param("id");
+  requireOwnedConversation(conversationId, user.id);
+  const task = cancelConversationBgTask(conversationId, c.req.param("taskId"));
+  if (!task) throw new BadRequestException("Task not found");
+  return c.json(task);
 });
 
 // POST /api/conversations/:id/messages

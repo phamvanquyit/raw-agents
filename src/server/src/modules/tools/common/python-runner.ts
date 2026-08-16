@@ -213,7 +213,7 @@ function createUtf8Collectors(maxChars: number) {
 }
 
 /** Spawn without hard timeout — used for agent soft-wait / background tasks. */
-function spawnCmd(cmd: string, args: string[], cwd: string, env: Record<string, string> = {}): SpawnHandle {
+function spawnCmd(cmd: string, args: string[], cwd: string, env: Record<string, string> = {}, onStderr?: (chunk: string) => void): SpawnHandle {
   const child = spawn(cmd, args, {
     cwd,
     env: { ...process.env, ...env },
@@ -222,8 +222,14 @@ function spawnCmd(cmd: string, args: string[], cwd: string, env: Record<string, 
 
   const maxBuf = 5 * 1024 * 1024;
   const collectors = createUtf8Collectors(maxBuf);
+  const liveDec = new TextDecoder("utf-8");
   child.stdout?.on("data", (chunk: Buffer | string) => collectors.pushStdout(chunk));
-  child.stderr?.on("data", (chunk: Buffer | string) => collectors.pushStderr(chunk));
+  child.stderr?.on("data", (chunk: Buffer | string) => {
+    collectors.pushStderr(chunk);
+    if (!onStderr) return;
+    const piece = typeof chunk === "string" ? chunk : liveDec.decode(chunk, { stream: true });
+    if (piece) onStderr(piece);
+  });
 
   let killed = false;
   let settled = false;
@@ -447,9 +453,27 @@ try:
 except Exception:
     pass
 
-# Capture print() from user code — show as "console" in UI
+# Capture print() from user code — show as "console" in UI, tee to stderr for live logs
 _capture = io.StringIO()
-sys.stdout = _capture
+
+class _Tee:
+    def write(self, s):
+        if not isinstance(s, str):
+            s = str(s)
+        _capture.write(s)
+        try:
+            sys.__stderr__.write(s)
+            sys.__stderr__.flush()
+        except Exception:
+            pass
+        return len(s)
+    def flush(self):
+        try:
+            sys.__stderr__.flush()
+        except Exception:
+            pass
+
+sys.stdout = _Tee()
 
 def main(input):
 ${indented}
@@ -596,21 +620,26 @@ function parseOutcomeFromResultJson(resultStr: string): { ok: boolean; result?: 
   }
 }
 
+function pythonRunEnv(prepared: PreparedRun, inputPath: string): Record<string, string> {
+  return {
+    INPUT_JSON_FILE: inputPath,
+    RAWAGENTS_URL: prepared.proxy.url,
+    RAWAGENTS_TOKEN: prepared.proxy.token,
+    PYTHONPATH: prepared.sandboxDir,
+    PYTHONDONTWRITEBYTECODE: "1",
+    PYTHONUNBUFFERED: "1",
+    ...PYTHON_UTF8_ENV,
+  };
+}
+
 export async function executeTool(toolId: string, code: string, inputJson: string, dataDir: string): Promise<string> {
   const prepared = await prepareToolRun(toolId, code, dataDir);
   if ("errorJson" in prepared) return prepared.errorJson;
 
   try {
     const inputPath = writeToolInputJson(prepared.scriptPath, inputJson);
-    const result = await runCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, {
-      INPUT_JSON_FILE: inputPath,
-      RAWAGENTS_URL: prepared.proxy.url,
-      RAWAGENTS_TOKEN: prepared.proxy.token,
-      PYTHONPATH: prepared.sandboxDir,
-      PYTHONDONTWRITEBYTECODE: "1",
-      PYTHONUNBUFFERED: "1",
-      ...PYTHON_UTF8_ENV,
-    });
+    const handle = spawnCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, pythonRunEnv(prepared, inputPath));
+    const result = await handle.done;
     return formatRunResult(result);
   } finally {
     cleanupPrepared(prepared);
@@ -642,14 +671,11 @@ export async function executeToolWithSoftWait(opts: ExecuteToolSoftWaitOptions):
   }
 
   const inputPath = writeToolInputJson(prepared.scriptPath, opts.inputJson);
-  const handle = spawnCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, {
-    INPUT_JSON_FILE: inputPath,
-    RAWAGENTS_URL: prepared.proxy.url,
-    RAWAGENTS_TOKEN: prepared.proxy.token,
-    PYTHONPATH: prepared.sandboxDir,
-    PYTHONDONTWRITEBYTECODE: "1",
-    PYTHONUNBUFFERED: "1",
-    ...PYTHON_UTF8_ENV,
+  let attachedTaskId: string | null = null;
+  let pendingLog = "";
+  const handle = spawnCmd(prepared.venvPython, [prepared.scriptPath], prepared.sandboxDir, pythonRunEnv(prepared, inputPath), (chunk) => {
+    if (attachedTaskId) bgTaskRegistry.appendLog(attachedTaskId, chunk);
+    else pendingLog += chunk;
   });
 
   const softTimer = new Promise<"timeout">((resolve) => {
@@ -671,6 +697,8 @@ export async function executeToolWithSoftWait(opts: ExecuteToolSoftWaitOptions):
     pid: handle.pid,
     kill: handle.kill,
   });
+  attachedTaskId = taskId;
+  if (pendingLog) bgTaskRegistry.appendLog(taskId, pendingLog);
 
   void handle.done.then((r) => {
     const payload = formatRunResult(r);

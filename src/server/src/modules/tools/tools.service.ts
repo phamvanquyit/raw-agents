@@ -77,6 +77,7 @@ import { type NewAgentTool, agentToolAssignments, agentTools, getDb } from "../.
 import { type RawQuery, listQuery } from "../../common/db/list-query.util.js";
 import { getDataDir } from "../../common/utils/data-dir.js";
 import { wsHub } from "../../common/ws/wsHub.js";
+import { type BgTaskSnapshot, bgTaskRegistry } from "./common/bg-task-registry.js";
 import { type SoftWaitExecuteResult, executeTool, executeToolWithSoftWait } from "./common/python-runner.js";
 
 /** Core tools that are always-on and shouldn't appear in user-facing tool lists */
@@ -299,4 +300,49 @@ export async function runDraftCode(id: string, inputJson = "{}") {
   if (!draftCode) return null;
   const resultStr = await executeTool(id, draftCode, inputJson, getDataDir());
   return resultStr;
+}
+
+export type BgTaskClient = Pick<BgTaskSnapshot, "taskId" | "toolId" | "toolName" | "conversationId" | "startedAt" | "finishedAt" | "error" | "console"> & {
+  status: BgTaskSnapshot["status"] | "expired";
+};
+
+function toBgTaskClient(t: BgTaskSnapshot, includeConsole = false): BgTaskClient {
+  return {
+    taskId: t.taskId,
+    toolId: t.toolId,
+    toolName: t.toolName,
+    conversationId: t.conversationId,
+    status: t.status,
+    startedAt: t.startedAt,
+    finishedAt: t.finishedAt,
+    error: t.error,
+    ...(includeConsole ? { console: t.console } : {}),
+  };
+}
+
+function belongsToConversation(task: BgTaskSnapshot, conversationId: string): boolean {
+  return !task.conversationId || task.conversationId === conversationId;
+}
+
+export function listConversationBgTasks(conversationId: string): BgTaskClient[] {
+  return bgTaskRegistry
+    .list({ conversationId })
+    .filter((t) => t.status === "running")
+    .map((t) => toBgTaskClient(t));
+}
+
+export function getConversationBgTask(conversationId: string, taskId: string): BgTaskClient | null {
+  const existing = bgTaskRegistry.get(taskId);
+  if (!existing) {
+    return { taskId, toolId: "", toolName: "", status: "expired", startedAt: 0 };
+  }
+  if (!belongsToConversation(existing, conversationId)) return null;
+  return toBgTaskClient(existing, true);
+}
+
+export function cancelConversationBgTask(conversationId: string, taskId: string): BgTaskClient | null {
+  const existing = bgTaskRegistry.get(taskId);
+  if (!existing || !belongsToConversation(existing, conversationId)) return null;
+  const cancelled = bgTaskRegistry.cancel(taskId);
+  return cancelled ? toBgTaskClient(cancelled, true) : null;
 }
