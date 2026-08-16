@@ -1,4 +1,3 @@
-import Restart from "@solar-icons/react/arrows/Restart";
 import Cpu from "@solar-icons/react/devices/Cpu";
 import Notes from "@solar-icons/react/notes/Notes";
 import Bookmark from "@solar-icons/react/school/Bookmark";
@@ -8,6 +7,7 @@ import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
 import type { ReactNode } from "react";
 import RenderIf from "src/components/RenderIf";
 import { useAppSelector } from "src/store/store";
+import { RunningSpinner } from "../RunningSpinner";
 import type { ToolUIProps } from "./types";
 
 type MemoryAction = "upsert_node" | "update_node" | "forget_node" | "link" | "unlink" | "search" | "neighbors" | "list" | string;
@@ -97,7 +97,7 @@ function actionVerb(action: MemoryAction | undefined, running: boolean, failed: 
 
 function actionIcon(action: MemoryAction | undefined, failed: boolean, running: boolean): ReactNode {
   if (failed) return <DangerCircle size={13} className="text-destructive shrink-0" />;
-  if (running) return <Restart size={12} className="animate-spin text-muted-foreground shrink-0" />;
+  if (running) return <RunningSpinner />;
   switch (action) {
     case "upsert_node":
     case "update_node":
@@ -189,10 +189,10 @@ export function UserMemoryToolUI({ msg, assistantLabel = "Assistant", assistantC
       </RenderIf>
 
       <div className="px-4 pb-1">
-        <div className="rounded-lg border border-border-subtle overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30">
+        <div>
+          <div className="flex items-center gap-2 py-1">
             {actionIcon(action, failed, running)}
-            <span className="text-[12px] font-medium text-muted-foreground truncate min-w-0">
+            <span className="min-w-0 truncate text-[12px] font-medium text-muted-foreground">
               {actionVerb(action, running, failed)}
               <RenderIf condition={!!summaryExtra}>{() => <span className="text-tertiary-foreground"> · {summaryExtra}</span>}</RenderIf>
             </span>
@@ -200,14 +200,14 @@ export function UserMemoryToolUI({ msg, assistantLabel = "Assistant", assistantC
 
           <RenderIf condition={failed && !!(output?.error || msg.toolError)}>
             {() => (
-              <div className="border-t border-border-subtle px-3 py-2">
-                <p className="m-0 text-[11px] text-destructive leading-[1.45]">{output?.error ?? "Tool execution failed"}</p>
+              <div className="mt-0.5 overflow-hidden rounded-lg border border-border-subtle px-3 py-2">
+                <p className="m-0 text-[11px] leading-[1.45] text-destructive">{output?.error ?? "Tool execution failed"}</p>
               </div>
             )}
           </RenderIf>
 
           <RenderIf condition={showBody}>
-            <div className="border-t border-border-subtle px-3 py-2.5 flex flex-col gap-2">
+            <div className="mt-0.5 flex flex-col gap-2 overflow-hidden rounded-lg border border-border-subtle px-3 py-2">
               <RenderIf condition={nodes.length > 0}>
                 <div className="flex flex-wrap gap-1.5">
                   {nodes.map((node, i) => (

@@ -1,8 +1,8 @@
-import Restart from "@solar-icons/react/arrows/Restart";
 import CodeSquare from "@solar-icons/react/it/CodeSquare";
 import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import RenderIf from "src/components/RenderIf";
 import { useAppSelector } from "src/store/store";
+import { RunningSpinner } from "../RunningSpinner";
 import type { ToolUIProps } from "./types";
 
 type SchemaInput = { names?: string[] };
@@ -66,20 +66,18 @@ export function GetToolSchemaToolUI({ msg, assistantLabel = "Assistant", assista
       </RenderIf>
 
       <div className="px-4 pb-1">
-        <div className="rounded-lg border border-border-subtle overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30">
-            {hasError ? (
-              <DangerCircle size={13} className="text-destructive shrink-0" />
-            ) : running ? (
-              <Restart size={12} className="animate-spin text-muted-foreground shrink-0" />
-            ) : (
-              <CodeSquare size={13} className="text-muted-foreground shrink-0" />
-            )}
-            <span className="text-[12px] font-medium text-muted-foreground truncate min-w-0">
-              {verb}
-              <RenderIf condition={!!namesLabel}>{() => <span className="text-tertiary-foreground font-mono"> · {namesLabel}</span>}</RenderIf>
-            </span>
-          </div>
+        <div className="flex items-center gap-2 py-1">
+          {hasError ? (
+            <DangerCircle size={13} className="text-destructive shrink-0" />
+          ) : running ? (
+            <RunningSpinner />
+          ) : (
+            <CodeSquare size={13} className="text-muted-foreground shrink-0" />
+          )}
+          <span className="text-[12px] font-medium text-muted-foreground truncate min-w-0">
+            {verb}
+            <RenderIf condition={!!namesLabel}>{() => <span className="text-tertiary-foreground font-mono"> · {namesLabel}</span>}</RenderIf>
+          </span>
         </div>
       </div>
     </div>

@@ -1,6 +1,5 @@
-import MagicStick from "@solar-icons/react/ui/MagicStick";
+import Stars from "@solar-icons/react/icons/weather/Stars";
 import { useRef } from "react";
-
 import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
@@ -22,7 +21,7 @@ export function PromptAgentPanel({ providerId, model, streamUrl, onModelChange }
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
-        <MagicStick size={13} className="shrink-0 text-brand-soft" />
+        <Stars size={13} className="shrink-0 text-brand-soft" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Refine</span>
       </div>
 

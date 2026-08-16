@@ -1,5 +1,4 @@
 import AltArrowDown from "@solar-icons/react/arrows/AltArrowDown";
-import Restart from "@solar-icons/react/arrows/Restart";
 import Global from "@solar-icons/react/map/Global";
 import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import { useState } from "react";
@@ -7,6 +6,7 @@ import RenderIf from "src/components/RenderIf";
 import { cn } from "src/lib/utils";
 import { useAppSelector } from "src/store/store";
 import { prettyJson } from "../../common/utils";
+import { RunningSpinner } from "../RunningSpinner";
 import type { ToolUIProps } from "./types";
 
 type BrowserAction = {
@@ -109,11 +109,11 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
       </RenderIf>
 
       <div className="px-4 pb-1">
-        <div className="rounded-lg border border-border-subtle overflow-hidden">
+        <div>
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="group w-full flex items-center gap-2 px-3 py-1.5 cursor-pointer outline-none border-0 bg-muted/30 hover:bg-muted/45 transition-colors text-left"
+            className="group flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent py-1 text-left outline-none"
           >
             <span className="relative size-4 shrink-0">
               <span
@@ -122,7 +122,7 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                 {failed ? (
                   <DangerCircle size={13} className="text-destructive" />
                 ) : running ? (
-                  <Restart size={12} className="animate-spin text-muted-foreground" />
+                  <RunningSpinner />
                 ) : (
                   <Global size={13} className="text-muted-foreground" />
                 )}
@@ -136,12 +136,12 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                 <AltArrowDown size={12} className={cn("transition-transform duration-150", open && "rotate-180")} />
               </span>
             </span>
-            <span className="text-[11px] text-tertiary-foreground truncate font-mono min-w-0 flex-1">{url}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-tertiary-foreground">{url}</span>
           </button>
 
           <RenderIf condition={open}>
-            <div className="border-t border-border-subtle px-3 py-2">
-              <div className="relative flex flex-col">
+            <div className="mt-0.5 overflow-hidden rounded-lg border border-border-subtle py-2">
+              <div className="relative flex flex-col px-3">
                 {actions.map((action, i) => {
                   const result = output?.results?.find((r) => r.index === i);
                   const summary = actionSummary(action);
@@ -151,14 +151,14 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                   const stepPending = result == null && running && i === 0;
 
                   return (
-                    <div key={`${action.action}-${i}`} className="relative flex gap-2.5 min-w-0">
-                      <div className="relative flex w-3 shrink-0 self-stretch justify-center">
+                    <div key={`${action.action}-${i}`} className="relative flex min-w-0 gap-2.5">
+                      <div className="relative flex w-3 shrink-0 justify-center self-stretch">
                         <RenderIf condition={!isLast}>
                           <span className="absolute top-2.5 bottom-0 w-px bg-border" />
                         </RenderIf>
                         <span
                           className={cn(
-                            "relative z-10 mt-1 size-1.5 rounded-full ring-2 ring-card shrink-0",
+                            "relative z-10 mt-1 size-1.5 shrink-0 rounded-full ring-2 ring-popover",
                             stepFailed && "bg-muted-foreground",
                             stepOk && "bg-muted-foreground/70",
                             stepPending && "bg-muted-foreground animate-pulse",
@@ -167,13 +167,13 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
                         />
                       </div>
                       <div className={cn("min-w-0 flex-1 pb-2.5", isLast && "pb-0")}>
-                        <div className="flex items-baseline gap-1.5 min-w-0">
-                          <span className="text-[10px] font-mono text-muted-foreground shrink-0 tabular-nums">{i + 1}</span>
-                          <span className="text-[11px] text-foreground shrink-0">{action.action}</span>
-                          <RenderIf condition={!!summary}>{() => <span className="text-[11px] text-tertiary-foreground truncate">{summary}</span>}</RenderIf>
+                        <div className="flex min-w-0 items-baseline gap-1.5">
+                          <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">{i + 1}</span>
+                          <span className="shrink-0 text-[11px] text-foreground">{action.action}</span>
+                          <RenderIf condition={!!summary}>{() => <span className="truncate text-[11px] text-tertiary-foreground">{summary}</span>}</RenderIf>
                         </div>
                         <RenderIf condition={!!result?.error}>
-                          {() => <p className="text-[10px] text-destructive m-0 mt-0.5 truncate">{result?.error}</p>}
+                          {() => <p className="m-0 mt-0.5 truncate text-[10px] text-destructive">{result?.error}</p>}
                         </RenderIf>
                       </div>
                     </div>
@@ -182,10 +182,10 @@ export function BrowserToolUI({ msg, assistantLabel = "Assistant", assistantColo
               </div>
 
               <RenderIf condition={!!output?.error || hasError}>
-                <p className="text-[11px] text-destructive m-0 mt-1.5">{output?.error ?? "Tool execution failed"}</p>
+                <p className="m-0 mt-1.5 px-3 text-[11px] text-destructive">{output?.error ?? "Tool execution failed"}</p>
               </RenderIf>
               <RenderIf condition={hasOutput}>
-                <pre className="m-0 mt-1.5 whitespace-pre-wrap break-all text-[10px] text-tertiary-foreground leading-[1.5] max-h-40 overflow-y-auto font-mono">
+                <pre className="m-0 mt-1.5 max-h-40 overflow-y-auto px-3 font-mono text-[10px] leading-[1.5] break-all whitespace-pre-wrap text-tertiary-foreground">
                   {prettyJson(msg.toolOutput)}
                 </pre>
               </RenderIf>

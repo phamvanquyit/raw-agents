@@ -33,7 +33,9 @@ export function MessageUser({ msg }: MessageUserProps) {
             className="relative overflow-hidden transition-[max-height] duration-300 ease-in-out"
             style={{ maxHeight: isExpanded || !isOverflow ? "none" : `${MAX_HEIGHT}px` }}
           >
-            <span className="text-sm text-foreground whitespace-pre-wrap wrap-break-word">{msg.content}</span>
+            <span className="font-[family-name:var(--font-family-chat)] text-[14px] leading-[1.75] text-[#ebebeb] whitespace-pre-wrap wrap-break-word">
+              {msg.content}
+            </span>
             {/* Gradient fade overlay */}
             {isOverflow && !isExpanded && (
               <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface to-transparent pointer-events-none" />

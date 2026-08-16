@@ -114,8 +114,8 @@ export function CallAgentToolUI({ msg, assistantLabel = "Assistant" }: ToolUIPro
   const calleeSeed = calledAgentId ? `agent:${calledAgentId}` : `agent:${calleeName}`;
 
   return (
-    <div className="mt-1 px-4 py-1 animate-[fadeIn_0.28s_ease-out_both]">
-      <div className="rounded-lg border border-border bg-card/60 px-3 py-3 flex flex-col gap-3.5">
+    <div className="mt-1 animate-[fadeIn_0.28s_ease-out_both] px-4 py-1">
+      <div className="flex flex-col gap-3.5">
         <AgentTurn name={callerName} avatarSeed={callerSeed} align="end">
           <div className="rounded-2xl rounded-tr-sm bg-primary/10 border border-primary/15 px-3 py-2 text-left">
             <p className="text-[12px] text-foreground leading-[1.55] m-0 whitespace-pre-wrap">{requestMessage || "(no message)"}</p>
@@ -141,7 +141,7 @@ export function CallAgentToolUI({ msg, assistantLabel = "Assistant" }: ToolUIPro
                   <div
                     className={cn(
                       markdownRootClass,
-                      "text-[12px] leading-[1.55] [&_h1]:text-[14px] [&_h2]:text-[13px] [&_h3]:text-[12px] [&_p]:text-[12px] [&_li]:text-[12px] [&_td]:text-[11px] [&_th]:text-[11px] [&_code]:text-[11px] [&_p]:m-0 [&_p+p]:mt-2",
+                      "text-[12px] leading-[1.55] text-foreground [&_h1]:text-[14px] [&_h2]:text-[13px] [&_h3]:text-[12px] [&_p]:text-[12px] [&_li]:text-[12px] [&_td]:text-[11px] [&_th]:text-[11px] [&_code]:text-[11px] [&_p]:m-0 [&_p]:mb-0 [&_p+p]:mt-2",
                     )}
                   >
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>

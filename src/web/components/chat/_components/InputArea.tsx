@@ -29,6 +29,7 @@ interface InputAreaProps {
   focusSignal?: string | null;
   /** Redirect bare keypresses into this input when focus is elsewhere (default true) */
   enableTypeToFocus?: boolean;
+  className?: string;
 }
 
 function isEditableTarget(el: EventTarget | null): boolean {
@@ -55,6 +56,7 @@ export function InputArea({
   hideConfig,
   focusSignal,
   enableTypeToFocus = true,
+  className,
 }: InputAreaProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<TextAreaRef>(null);
@@ -127,6 +129,7 @@ export function InputArea({
       className={cn(
         "shrink-0 mx-2 mb-3 pt-1 rounded-xl border overflow-hidden flex flex-col",
         noModel ? "bg-muted/50 border-border" : "bg-muted border-border",
+        className,
       )}
     >
       <ConfigProvider theme={borderlessInputTheme}>
@@ -143,11 +146,11 @@ export function InputArea({
           classNames={{
             root: "bg-transparent shadow-none",
             textarea: cn(
-              "px-3 pt-3 pb-2 text-[14px] leading-relaxed transition-none",
+              "px-3 pt-3 pb-2 text-[14px] leading-[1.75] font-[family-name:var(--font-family-chat)] transition-none",
               "outline-none focus:outline-none focus-visible:!outline-none focus-visible:!outline-offset-0",
               noModel
                 ? "text-muted-foreground cursor-not-allowed placeholder:text-border-hover"
-                : "text-foreground placeholder:text-muted-foreground placeholder:font-normal",
+                : "text-[#ebebeb] placeholder:text-muted-foreground placeholder:font-normal",
             ),
           }}
         />
@@ -192,11 +195,11 @@ export function InputArea({
             type="button"
             onClick={onCancel}
             title="Stop"
-            className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all duration-100"
+            className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0 cursor-pointer hover:bg-primary/90 active:scale-95 transition-all duration-100"
           >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <title>Stop</title>
-              <rect x="1" y="1" width="7" height="7" rx="1.5" fill="currentColor" />
+              <rect x="1.5" y="1.5" width="9" height="9" rx="2" fill="currentColor" />
             </svg>
           </button>
         </RenderIf>

@@ -36,11 +36,11 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="relative my-3 rounded-lg overflow-hidden group">
+    <div className="relative my-4 overflow-hidden rounded-lg border border-border group">
       <button
         type="button"
         onClick={handleCopy}
-        className="absolute top-1.5 right-1.5 z-10 w-6 h-6 flex items-center justify-center rounded-md bg-card/80 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-opacity cursor-pointer opacity-0 group-hover:opacity-100"
+        className="absolute top-1 right-1 z-10 w-6 h-6 flex items-center justify-center rounded-md bg-card/80 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-opacity cursor-pointer opacity-0 group-hover:opacity-100"
         title={copied ? "Copied" : "Copy as Markdown"}
       >
         {copied ? <ClipboardCheck size={12} /> : <Clipboard size={12} />}
@@ -50,10 +50,15 @@ export function MarkdownTable({ children }: { children: ReactNode }) {
         <table
           ref={tableRef}
           className={
-            "min-w-full text-[14px] border-collapse whitespace-nowrap " +
+            "min-w-full border-separate border-spacing-0 text-[14px] whitespace-nowrap " +
             "[&_th]:bg-foreground/[0.07] [&_th]:text-foreground [&_th]:font-semibold " +
-            "[&_th]:px-3 [&_th]:py-[7px] [&_th]:border [&_th]:border-border [&_th]:text-left " +
-            "[&_td]:px-3 [&_td]:py-1.5 [&_td]:border [&_td]:border-border [&_td]:text-foreground"
+            "[&_th]:px-2 [&_th]:py-1 [&_th]:text-left " +
+            "[&_th]:border-r [&_th]:border-b [&_th]:border-border " +
+            "[&_th:last-child]:border-r-0 " +
+            "[&_td]:px-2 [&_td]:py-1 [&_td]:text-foreground " +
+            "[&_td]:border-r [&_td]:border-b [&_td]:border-border " +
+            "[&_td:last-child]:border-r-0 " +
+            "[&_tbody_tr:last-child_td]:border-b-0"
           }
         >
           {children}

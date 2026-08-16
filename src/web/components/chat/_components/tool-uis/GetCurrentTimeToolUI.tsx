@@ -1,8 +1,8 @@
-import Restart from "@solar-icons/react/arrows/Restart";
 import ClockCircle from "@solar-icons/react/time/ClockCircle";
 import DangerCircle from "@solar-icons/react/ui/DangerCircle";
 import RenderIf from "src/components/RenderIf";
 import { useAppSelector } from "src/store/store";
+import { RunningSpinner } from "../RunningSpinner";
 import type { ToolUIProps } from "./types";
 
 type TimeResult = {
@@ -65,19 +65,17 @@ export function GetCurrentTimeToolUI({ msg, assistantLabel = "Assistant", assist
       </RenderIf>
 
       <div className="px-4 pb-1">
-        <div className="rounded-lg border border-border-subtle overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30">
-            {hasError ? (
-              <DangerCircle size={13} className="text-destructive shrink-0" />
-            ) : running ? (
-              <Restart size={12} className="animate-spin text-muted-foreground shrink-0" />
-            ) : (
-              <ClockCircle size={13} className="text-muted-foreground shrink-0" />
-            )}
-            <span className="text-[12px] font-medium text-muted-foreground truncate tabular-nums">
-              {hasError ? "Failed to get time" : running ? "Getting time…" : label}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 py-1">
+          {hasError ? (
+            <DangerCircle size={13} className="text-destructive shrink-0" />
+          ) : running ? (
+            <RunningSpinner />
+          ) : (
+            <ClockCircle size={13} className="text-muted-foreground shrink-0" />
+          )}
+          <span className="text-[12px] font-medium text-muted-foreground truncate tabular-nums">
+            {hasError ? "Failed to get time" : running ? "Getting time…" : label}
+          </span>
         </div>
       </div>
     </div>
