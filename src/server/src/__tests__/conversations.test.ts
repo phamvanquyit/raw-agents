@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Hono } from "hono";
+import { bgTaskRegistry } from "../modules/tools/common/bg-task-registry.js";
 import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
 
 describe("Conversations API", () => {
@@ -197,5 +198,97 @@ describe("Conversations API", () => {
     expect((await authRequest(app, memberToken, "PUT", `/api/conversations/${adminConv.id}`, { title: "Hacked" })).status).toBe(403);
     expect((await authRequest(app, memberToken, "DELETE", `/api/conversations/${adminConv.id}`)).status).toBe(403);
     expect((await authRequest(app, memberToken, "GET", `/api/conversations/${adminConv.id}/messages`)).status).toBe(403);
+  });
+
+  test("GET /api/conversations/:id/bg-tasks — empty list", async () => {
+    const created = await authRequest(app, token, "POST", "/api/conversations", {
+      agentId,
+      title: "Bg tasks chat",
+    });
+    const conv = (await created.json()) as { id: string };
+    const res = await authRequest(app, token, "GET", `/api/conversations/${conv.id}/bg-tasks`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { items: unknown[] };
+    expect(data.items).toEqual([]);
+  });
+
+  test("POST /api/conversations/:id/bg-tasks/:taskId/cancel — not found", async () => {
+    const created = await authRequest(app, token, "POST", "/api/conversations", {
+      agentId,
+      title: "Bg cancel missing",
+    });
+    const conv = (await created.json()) as { id: string };
+    const res = await authRequest(app, token, "POST", `/api/conversations/${conv.id}/bg-tasks/missing/cancel`);
+    expect(res.status).toBe(400);
+  });
+
+  test("GET/POST /api/conversations/:id/bg-tasks — list running then cancel", async () => {
+    const created = await authRequest(app, token, "POST", "/api/conversations", {
+      agentId,
+      title: "Bg cancel running",
+    });
+    const conv = (await created.json()) as { id: string };
+    const taskId = bgTaskRegistry.register({
+      toolId: "tool-1",
+      toolName: "slow_tool",
+      conversationId: conv.id,
+      kill: () => {},
+    });
+    try {
+      const listRes = await authRequest(app, token, "GET", `/api/conversations/${conv.id}/bg-tasks`);
+      expect(listRes.status).toBe(200);
+      const list = (await listRes.json()) as { items: { taskId: string; toolName: string }[] };
+      expect(list.items.some((t) => t.taskId === taskId && t.toolName === "slow_tool")).toBe(true);
+
+      const cancelRes = await authRequest(app, token, "POST", `/api/conversations/${conv.id}/bg-tasks/${taskId}/cancel`, {});
+      expect(cancelRes.status).toBe(200);
+      const cancelled = (await cancelRes.json()) as { status: string; taskId: string };
+      expect(cancelled.taskId).toBe(taskId);
+      expect(cancelled.status).toBe("cancelled");
+
+      const after = await authRequest(app, token, "GET", `/api/conversations/${conv.id}/bg-tasks`);
+      const afterData = (await after.json()) as { items: { taskId: string }[] };
+      expect(afterData.items.some((t) => t.taskId === taskId)).toBe(false);
+    } finally {
+      bgTaskRegistry._reset();
+    }
+  });
+
+  test("GET /api/conversations/:id/bg-tasks/:taskId — returns console", async () => {
+    const created = await authRequest(app, token, "POST", "/api/conversations", {
+      agentId,
+      title: "Bg task detail",
+    });
+    const conv = (await created.json()) as { id: string };
+    const taskId = bgTaskRegistry.register({
+      toolId: "tool-1",
+      toolName: "slow_tool",
+      conversationId: conv.id,
+      kill: () => {},
+    });
+    bgTaskRegistry.appendLog(taskId, "hello from tool\n");
+    try {
+      const res = await authRequest(app, token, "GET", `/api/conversations/${conv.id}/bg-tasks/${taskId}`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { taskId: string; console?: string; status: string };
+      expect(data.taskId).toBe(taskId);
+      expect(data.status).toBe("running");
+      expect(data.console).toContain("hello from tool");
+    } finally {
+      bgTaskRegistry._reset();
+    }
+  });
+
+  test("GET /api/conversations/:id/bg-tasks/:taskId — expired when missing", async () => {
+    const created = await authRequest(app, token, "POST", "/api/conversations", {
+      agentId,
+      title: "Bg task missing",
+    });
+    const conv = (await created.json()) as { id: string };
+    const res = await authRequest(app, token, "GET", `/api/conversations/${conv.id}/bg-tasks/missing`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { taskId: string; status: string };
+    expect(data.taskId).toBe("missing");
+    expect(data.status).toBe("expired");
   });
 });

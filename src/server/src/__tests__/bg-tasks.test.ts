@@ -107,4 +107,33 @@ return {"done": True}`;
     const snap = await bgTaskRegistry.await(out.taskId, 5_000);
     expect(snap.status).toBe("cancelled");
   }, 60_000);
+
+  test("detached task streams print() into console", async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "raw-agents-bg-"));
+    const code = `print("line-one", flush=True)
+import time
+time.sleep(1.2)
+print("line-two", flush=True)
+return {"done": True}`;
+    const out = await executeToolWithSoftWait({
+      toolId: "tool-logs",
+      toolName: "log_sleep",
+      code,
+      inputJson: "{}",
+      dataDir,
+      softWaitMs: 200,
+      conversationId: "conv-logs",
+    });
+    expect(out.status).toBe("running");
+    if (out.status !== "running") return;
+
+    await new Promise((r) => setTimeout(r, 400));
+    const mid = bgTaskRegistry.get(out.taskId);
+    expect(mid?.console ?? "").toContain("line-one");
+
+    const finished = await bgTaskRegistry.await(out.taskId, 15_000);
+    expect(finished.status).toBe("completed");
+    expect(finished.console ?? "").toContain("line-one");
+    expect(finished.console ?? "").toContain("line-two");
+  }, 60_000);
 });
