@@ -302,11 +302,14 @@ export async function runDraftCode(id: string, inputJson = "{}") {
   return resultStr;
 }
 
-export type BgTaskClient = Pick<BgTaskSnapshot, "taskId" | "toolId" | "toolName" | "conversationId" | "startedAt" | "finishedAt" | "error" | "console"> & {
+export type BgTaskClient = Pick<
+  BgTaskSnapshot,
+  "taskId" | "toolId" | "toolName" | "conversationId" | "startedAt" | "finishedAt" | "error" | "console" | "result"
+> & {
   status: BgTaskSnapshot["status"] | "expired";
 };
 
-function toBgTaskClient(t: BgTaskSnapshot, includeConsole = false): BgTaskClient {
+function toBgTaskClient(t: BgTaskSnapshot, extras: { console?: boolean; result?: boolean } = {}): BgTaskClient {
   return {
     taskId: t.taskId,
     toolId: t.toolId,
@@ -316,7 +319,8 @@ function toBgTaskClient(t: BgTaskSnapshot, includeConsole = false): BgTaskClient
     startedAt: t.startedAt,
     finishedAt: t.finishedAt,
     error: t.error,
-    ...(includeConsole ? { console: t.console } : {}),
+    ...(extras.console ? { console: t.console } : {}),
+    ...(extras.result && t.result !== undefined ? { result: t.result } : {}),
   };
 }
 
@@ -337,12 +341,12 @@ export function getConversationBgTask(conversationId: string, taskId: string): B
     return { taskId, toolId: "", toolName: "", status: "expired", startedAt: 0 };
   }
   if (!belongsToConversation(existing, conversationId)) return null;
-  return toBgTaskClient(existing, true);
+  return toBgTaskClient(existing, { console: true, result: true });
 }
 
 export function cancelConversationBgTask(conversationId: string, taskId: string): BgTaskClient | null {
   const existing = bgTaskRegistry.get(taskId);
   if (!existing || !belongsToConversation(existing, conversationId)) return null;
   const cancelled = bgTaskRegistry.cancel(taskId);
-  return cancelled ? toBgTaskClient(cancelled, true) : null;
+  return cancelled ? toBgTaskClient(cancelled, { console: true, result: true }) : null;
 }
