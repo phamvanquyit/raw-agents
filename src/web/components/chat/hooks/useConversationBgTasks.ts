@@ -12,6 +12,7 @@ export type ConversationBgTask = {
   finishedAt?: number;
   error?: string;
   console?: string;
+  result?: unknown;
 };
 
 export function parseBgTaskRef(output: unknown): { taskId: string; toolName?: string } | null {
