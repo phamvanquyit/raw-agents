@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.3] - 2026-08-18
+
+### Added
+- Nested `call_agent` runs that exceed two minutes detach into background tasks, with elapsed time and Stop in chat
+
+### Changed
+- Specialist calls no longer hard-timeout after five minutes; use `background_tasks` (await/get/cancel) instead of re-calling
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+
 ## [0.23.2] - 2026-08-16
 
 ### Added
@@ -470,6 +481,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.23.3]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.2...v0.23.3
 [0.23.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.1...v0.23.2
 [0.23.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.0...v0.23.1
 [0.23.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.22.1...v0.23.0
