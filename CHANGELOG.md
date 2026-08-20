@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.1] - 2026-08-20
+
+### Added
+- Shared public chats and published sites get a generated Open Graph card (name and description) for Slack, iMessage, and similar previews
+
+### Changed
+- Password gates for public chat and sites use a shared unlock screen
+- Public chat empty state hides model/tool labels; the composer focuses on open
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image (`@resvg/resvg-js` + Inter fonts for OG PNGs)
+
 ## [0.24.0] - 2026-08-20
 
 ### Added
@@ -497,6 +509,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.24.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.3...v0.24.0
 [0.23.3]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.2...v0.23.3
 [0.23.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.1...v0.23.2

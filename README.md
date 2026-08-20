@@ -23,7 +23,7 @@ Self-hosted AI agents with a web UI — extend them with Python/JS tools & MCP, 
 - 📄 **Sites** — AI-assisted React sites (`app.tsx` / `backend.ts` / `styles.css`) with draft/publish, per-file review, TypeScript/JSON diagnostics, live HTML preview, list thumbnails from preview, and optional public password links
 - ⏰ **Jobs** — Cron-scheduled Bun/TypeScript scripts with admin UI, AI editor, and `rawagents.agents` to call workspace agents
 - 💬 **Real-time Chat** — Live streaming chat with agents; refresh (F5) resumes an in-progress reply
-- 🔗 **Public Sharing** — Share agents via public links with optional password protection; Open Graph previews for shared chat links
+- 🔗 **Public Sharing** — Share agents via public links with optional password protection; Open Graph previews for shared chat and site links
 - 🔑 **API Keys** — Settings keys scoped to selected agents; Bearer auth for `/api/v1/agents` and `/api/v1/chat`
 
 ## Installation
