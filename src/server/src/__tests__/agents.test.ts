@@ -125,6 +125,66 @@ describe("Agents API", () => {
     expect(res.status).toBe(400);
   });
 
+  // ── Reorder / sortOrder ───────────────────────────────────────────────
+
+  test("POST /api/agents — assigns sortOrder", async () => {
+    const res = await authRequest(app, token, "POST", "/api/agents", { name: "Sort Agent" });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { sortOrder: number };
+    expect(typeof data.sortOrder).toBe("number");
+  });
+
+  test("PUT /api/agents/reorder — reorder agents in a team", async () => {
+    const teamRes = await authRequest(app, token, "POST", "/api/teams", { name: "Sort Team" });
+    const team = (await teamRes.json()) as { id: string };
+
+    const aRes = await authRequest(app, token, "POST", "/api/agents", { name: "Reorder A", teamId: team.id });
+    const bRes = await authRequest(app, token, "POST", "/api/agents", { name: "Reorder B", teamId: team.id });
+    const a = (await aRes.json()) as { id: string; sortOrder: number };
+    const b = (await bRes.json()) as { id: string; sortOrder: number };
+    expect(b.sortOrder).toBeLessThan(a.sortOrder);
+
+    const reorderRes = await authRequest(app, token, "PUT", "/api/agents/reorder", {
+      teamId: team.id,
+      agentIds: [a.id, b.id],
+    });
+    expect(reorderRes.status).toBe(200);
+
+    const getA = (await (await authRequest(app, token, "GET", `/api/agents/${a.id}`)).json()) as {
+      sortOrder: number;
+      teamId: string;
+    };
+    const getB = (await (await authRequest(app, token, "GET", `/api/agents/${b.id}`)).json()) as {
+      sortOrder: number;
+      teamId: string;
+    };
+    expect(getA.sortOrder).toBe(0);
+    expect(getB.sortOrder).toBe(1);
+    expect(getA.teamId).toBe(team.id);
+    expect(getB.teamId).toBe(team.id);
+  });
+
+  test("PUT /api/agents/reorder — move agent to ungrouped", async () => {
+    const teamRes = await authRequest(app, token, "POST", "/api/teams", { name: "Move Out" });
+    const team = (await teamRes.json()) as { id: string };
+
+    const createRes = await authRequest(app, token, "POST", "/api/agents", { name: "Move Ungrouped", teamId: team.id });
+    const agent = (await createRes.json()) as { id: string };
+
+    const reorderRes = await authRequest(app, token, "PUT", "/api/agents/reorder", {
+      teamId: null,
+      agentIds: [agent.id],
+    });
+    expect(reorderRes.status).toBe(200);
+
+    const updated = (await (await authRequest(app, token, "GET", `/api/agents/${agent.id}`)).json()) as {
+      teamId: string | null;
+      sortOrder: number;
+    };
+    expect(updated.teamId).toBeNull();
+    expect(updated.sortOrder).toBe(0);
+  });
+
   // ── Tool Assignments ──────────────────────────────────────────────────
 
   test("GET /api/agents/:id/tool-assignments — empty initially", async () => {
