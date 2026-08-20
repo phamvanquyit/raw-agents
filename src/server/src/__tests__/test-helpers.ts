@@ -36,6 +36,7 @@ function createTestDb() {
       ai_model TEXT,
       callable_agent_ids TEXT NOT NULL DEFAULT '[]',
       team_id TEXT REFERENCES agent_teams(id) ON DELETE SET NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
       created_by TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())

@@ -25,6 +25,8 @@ export const agents = sqliteTable("agents", {
   teamId: text("team_id").references(() => agentTeams.id, {
     onDelete: "set null",
   }),
+  /** Display order within a team (or ungrouped) */
+  sortOrder: integer("sort_order").notNull().default(0),
   /** Which user created this agent */
   createdBy: text("created_by"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
