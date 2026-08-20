@@ -1,10 +1,10 @@
 import AddCircle from "@solar-icons/react/ui/AddCircle";
 import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
-import { Button } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AgentListItem } from "src/common/types";
 import { PageShell } from "src/components/PageShell";
+import { RawButton } from "src/components/RawButton";
 import { fetchAgents } from "src/modules/agents/common/agentsSlice";
 import { AgentsBoard } from "src/modules/agents/components/AgentsBoard";
 import { NewAgentDialog } from "src/modules/agents/components/NewAgentDialog";
@@ -26,33 +26,6 @@ export default function AgentsPage() {
     dispatch(fetchAgents());
     dispatch(fetchTeams());
   }, [dispatch]);
-
-  const sortedAgents = useMemo(() => {
-    return [...agents].sort((a, b) => {
-      const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return db - da;
-    });
-  }, [agents]);
-
-  const { teamAgents, ungroupedAgents } = useMemo(() => {
-    const teamMap = new Map<string, AgentListItem[]>();
-    for (const team of teams) {
-      teamMap.set(team.id, []);
-    }
-
-    const ungrouped: AgentListItem[] = [];
-
-    for (const agent of sortedAgents) {
-      if (agent.teamId && teamMap.has(agent.teamId)) {
-        teamMap.get(agent.teamId)?.push(agent);
-      } else {
-        ungrouped.push(agent);
-      }
-    }
-
-    return { teamAgents: teamMap, ungroupedAgents: ungrouped };
-  }, [sortedAgents, teams]);
 
   const handleNavigate = (id: string) => {
     navigate(`/agents/${id}`);
@@ -76,19 +49,19 @@ export default function AgentsPage() {
           </div>
           <div className="flex items-center gap-2">
             <NewTeamDialog>
-              <Button type="default" icon={<UsersGroupTwoRounded width={16} height={16} />}>
+              <RawButton type="default" icon={<UsersGroupTwoRounded width={16} height={16} />}>
                 New Team
-              </Button>
+              </RawButton>
             </NewTeamDialog>
             <NewAgentDialog>
-              <Button type="primary" icon={<AddCircle width={16} height={16} />}>
+              <RawButton type="primary" icon={<AddCircle width={16} height={16} />}>
                 New Agent
-              </Button>
+              </RawButton>
             </NewAgentDialog>
           </div>
         </div>
 
-        <AgentsBoard teams={teams} ungroupedAgents={ungroupedAgents} teamAgents={teamAgents} onNavigate={handleNavigate} onEditTeam={handleOpenEditTeam} />
+        <AgentsBoard teams={teams} agents={agents} onNavigate={handleNavigate} onEditTeam={handleOpenEditTeam} />
       </PageShell>
 
       <TeamDialog open={!!editingTeam} onClose={handleCloseTeamDialog} team={editingTeam} />

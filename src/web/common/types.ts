@@ -16,6 +16,7 @@ export interface AgentListItem {
   aiProvider: string | null;
   aiModel: string | null;
   teamId: string | null;
+  sortOrder: number;
   createdBy: string | null;
   creatorName: string | null;
   toolCount: number;

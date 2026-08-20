@@ -1,14 +1,15 @@
 import Global from "@solar-icons/react/map/Global";
 import Clipboard from "@solar-icons/react/notes/Clipboard";
 import MenuDots from "@solar-icons/react/ui/MenuDots";
+import TrashBinTrash from "@solar-icons/react/ui/TrashBinTrash";
 import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
-import { Dropdown, message } from "antd";
+import { Dropdown, Modal, message } from "antd";
 import type { MenuProps } from "antd";
 import { useMemo, useState } from "react";
 import type { Agent, AgentListItem } from "src/common/types";
 import RenderIf from "src/components/RenderIf";
 import { UserAvatar } from "src/components/UserAvatar";
-import { cloneAgent, updateAgent } from "src/modules/agents/common/agentsSlice";
+import { cloneAgent, deleteAgent, updateAgent } from "src/modules/agents/common/agentsSlice";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 
@@ -20,9 +21,10 @@ function modelLabel(aiModel: string | null): string {
 export interface AgentCardProps {
   agent: AgentListItem;
   onOpen: () => void;
+  dragging?: boolean;
 }
 
-export function AgentCard({ agent, onOpen }: AgentCardProps) {
+export function AgentCard({ agent, onOpen, dragging }: AgentCardProps) {
   const dispatch = useAppDispatch();
   const teams = useAppSelector((s) => s.teams.teams) as TeamWithMembers[];
   const [menuOpen, setMenuOpen] = useState(false);
@@ -93,6 +95,34 @@ export function AgentCard({ agent, onOpen }: AgentCardProps) {
         ),
         children: teamChildren,
       },
+      { type: "divider" },
+      {
+        key: "delete",
+        danger: true,
+        label: (
+          <div className="flex items-center gap-2">
+            <TrashBinTrash width={14} height={14} />
+            Delete
+          </div>
+        ),
+        onClick: () => {
+          Modal.confirm({
+            title: `Delete "${agent.name}"?`,
+            content: "This action cannot be undone. All conversations and tasks will be lost.",
+            okText: "Delete",
+            okType: "danger",
+            cancelText: "Cancel",
+            onOk: async () => {
+              try {
+                await dispatch(deleteAgent(agent.id)).unwrap();
+                message.success(`Deleted "${agent.name}"`);
+              } catch (err: any) {
+                message.error(err?.message ?? "Failed to delete agent");
+              }
+            },
+          });
+        },
+      },
     );
 
     return items;
@@ -102,14 +132,17 @@ export function AgentCard({ agent, onOpen }: AgentCardProps) {
     <div
       role="button"
       tabIndex={0}
-      onClick={onOpen}
+      onClick={dragging ? undefined : onOpen}
       onKeyDown={(e) => {
+        if (dragging) return;
         if (e.key === "Enter" || e.key === "") {
           e.preventDefault();
           onOpen();
         }
       }}
-      className="group relative flex min-h-56 flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl border border-border-subtle bg-card px-6 py-10 text-center transition-[border-color,background-color] duration-200 hover:border-brand/35 hover:bg-secondary cursor-pointer"
+      className={`group relative flex min-h-56 flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl border border-border-subtle bg-card px-6 py-10 text-center transition-[border-color,background-color,box-shadow] duration-200 hover:border-brand/35 hover:bg-secondary cursor-grab active:cursor-grabbing ${
+        dragging ? "cursor-grabbing shadow-xl ring-1 ring-brand/35" : ""
+      }`}
     >
       <RenderIf condition={agent.isPublic}>
         <span title="Published" className="absolute left-2 top-2 z-10 flex size-7 items-center justify-center rounded-md bg-success/15 text-success">
@@ -117,7 +150,12 @@ export function AgentCard({ agent, onOpen }: AgentCardProps) {
         </span>
       </RenderIf>
 
-      <div className="absolute right-2 top-2 z-10" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <div
+        className="absolute right-2 top-2 z-10"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <Dropdown trigger={["click"]} placement="bottomRight" open={menuOpen} onOpenChange={setMenuOpen} menu={{ items: menuItems, style: { minWidth: 160 } }}>
           <button
             type="button"

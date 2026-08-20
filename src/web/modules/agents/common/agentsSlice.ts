@@ -21,6 +21,20 @@ const initialState: IAgentsState = {
   filter: {},
 };
 
+function applyAgentColumnOrder(items: AgentListItem[], teamId: string | null, agentIds: string[]): AgentListItem[] {
+  const order = new Map(agentIds.map((id, i) => [id, i]));
+  return items.map((agent) => {
+    const idx = order.get(agent.id);
+    if (idx === undefined) return agent;
+    return { ...agent, teamId, sortOrder: idx };
+  });
+}
+
+export const reorderAgents = createAsyncThunk("agents/reorder", async ({ teamId, agentIds }: { teamId: string | null; agentIds: string[] }) => {
+  await apiClient.put("/api/agents/reorder", { teamId, agentIds });
+  return { teamId, agentIds };
+});
+
 // ─── Extra actions ────────────────────────────────────────────────────────────
 
 export const cloneAgent = createAsyncThunk("agents/clone", async (id: string, { rejectWithValue }) => {
@@ -37,6 +51,11 @@ const { actions: _actions, reducer: agentsReducer } = new BaseReducer<IAgentsSta
   name: "agents",
   basePath: "/api/agents",
   initialState,
+  extraActions: {
+    reorderAgentsLocal(state: IAgentsState, { payload }: { payload: { teamId: string | null; agentIds: string[] } }) {
+      state.items = applyAgentColumnOrder(state.items as AgentListItem[], payload.teamId, payload.agentIds);
+    },
+  },
   extraReducers: (builder) => {
     builder.addCase(cloneAgent.fulfilled, (state, action) => {
       const info = action.payload as Agent;
@@ -46,6 +65,9 @@ const { actions: _actions, reducer: agentsReducer } = new BaseReducer<IAgentsSta
       } else {
         state.items.unshift(info);
       }
+    });
+    builder.addCase(reorderAgents.fulfilled, (state, action) => {
+      state.items = applyAgentColumnOrder(state.items as AgentListItem[], action.payload.teamId, action.payload.agentIds);
     });
   },
 }).createSlice();
@@ -59,6 +81,7 @@ export const {
   updateFilter: updateAgentsFilter,
   upsertLocal: upsertAgentLocal,
   removeLocal: removeAgentLocal,
+  reorderAgentsLocal,
 } = _actions as any;
 
 export { agentsReducer };

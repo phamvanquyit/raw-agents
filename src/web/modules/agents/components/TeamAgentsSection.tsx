@@ -1,8 +1,10 @@
+import { useDroppable } from "@dnd-kit/core";
 import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
 import AddCircle from "@solar-icons/react/ui/AddCircle";
 import UsersGroupTwoRounded from "@solar-icons/react/users/UsersGroupTwoRounded";
-import { Button } from "antd";
+import { cn } from "src/common/lib/cn";
 import type { AgentListItem } from "src/common/types";
+import { RawButton } from "src/components/RawButton";
 import RenderIf from "src/components/RenderIf";
 import type { TeamWithMembers } from "src/modules/teams/common/teamsSlice";
 import { AgentCardGrid } from "./AgentCardGrid";
@@ -17,8 +19,13 @@ interface TeamAgentsSectionProps {
 }
 
 export function TeamAgentsSection({ team, agents, onNavigate, onEditTeam }: TeamAgentsSectionProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: team.id,
+    data: { type: "team", teamId: team.id },
+  });
+
   return (
-    <section className="group/team">
+    <section ref={setNodeRef} className={cn("group/team rounded-2xl transition-colors", isOver && "bg-muted/35 ring-1 ring-border/80")}>
       <AgentsSectionHeader
         icon={
           <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -29,7 +36,7 @@ export function TeamAgentsSection({ team, agents, onNavigate, onEditTeam }: Team
         actions={
           <div className="flex items-center gap-0.5">
             <NewAgentDialog defaultTeamId={team.id}>
-              <Button
+              <RawButton
                 type="text"
                 size="small"
                 className="!px-1.5 opacity-0 transition-opacity duration-150 group-hover/team:opacity-100"
@@ -37,7 +44,7 @@ export function TeamAgentsSection({ team, agents, onNavigate, onEditTeam }: Team
                 icon={<AddCircle width={15} height={15} />}
               />
             </NewAgentDialog>
-            <Button
+            <RawButton
               type="text"
               size="small"
               onClick={() => onEditTeam(team)}
@@ -51,9 +58,7 @@ export function TeamAgentsSection({ team, agents, onNavigate, onEditTeam }: Team
 
       <RenderIf
         condition={agents.length > 0}
-        fallback={
-          <p className="m-0 rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No agents in this team yet</p>
-        }
+        fallback={<p className="m-0 rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Drop agents here</p>}
       >
         <AgentCardGrid agents={agents} onNavigate={onNavigate} />
       </RenderIf>

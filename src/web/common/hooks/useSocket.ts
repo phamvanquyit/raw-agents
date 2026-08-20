@@ -8,7 +8,7 @@
 import { useEffect } from "react";
 import { getAuthToken } from "src/common/api";
 import type { Agent, AgentConversation, AgentTool, KvStoreEntry, McpServer, SecretEntry, Skill } from "src/common/types";
-import { removeAgentLocal, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
+import { removeAgentLocal, reorderAgentsLocal, upsertAgentLocal } from "src/modules/agents/common/agentsSlice";
 import { removeConversationLocal, upsertConversationLocal } from "src/modules/chat/common/chatSlice";
 import { removeKvEntryLocal, upsertKvEntryLocal } from "src/modules/kvstore/common/kvStoreSlice";
 import { removeMcpServerLocal, upsertMcpServerLocal } from "src/modules/mcp-servers/common/mcpServersSlice";
@@ -35,6 +35,11 @@ function handleEvent(event: WsEvent) {
     }
     case "agents:deleted": {
       store.dispatch(removeAgentLocal((payload as { id: string }).id));
+      break;
+    }
+    case "agents:reordered": {
+      const { teamId, agentIds } = payload as { teamId: string | null; agentIds: string[] };
+      store.dispatch(reorderAgentsLocal({ teamId, agentIds }));
       break;
     }
 

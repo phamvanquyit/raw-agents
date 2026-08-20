@@ -26,6 +26,7 @@ export type WsEventType =
   | "agents:created"
   | "agents:updated"
   | "agents:deleted"
+  | "agents:reordered"
   | "agents:tools-updated"
   | "agents:skills-updated"
   | "conversations:created"
