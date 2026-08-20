@@ -335,6 +335,80 @@ export default function App() {
 
     await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
   }, 180_000);
+
+  test("collectSiteEditorDiagnostics reports TS and JSON errors from draft files", async () => {
+    const { collectSiteEditorDiagnostics } = await import("../modules/sites/common/site-editor-diagnostics.js");
+    const { removeSiteDir, writeScaffold, writeSourceFile } = await import("../modules/sites/sites-fs.js");
+    const id = "diag-draft-site";
+    writeScaffold(id, "diag-draft");
+    try {
+      expect(collectSiteEditorDiagnostics(id)).toEqual([]);
+
+      writeSourceFile(id, "draft", "app.tsx", "export default function App() {\n  return <div>{missingIdent}</div>;\n}\n");
+      const tsErrors = collectSiteEditorDiagnostics(id);
+      expect(tsErrors.some((d) => d.file === "app.tsx" && /missingIdent/.test(d.message))).toBe(true);
+
+      writeSourceFile(id, "draft", "package.json", '{ "name": "broken", ');
+      const jsonErrors = collectSiteEditorDiagnostics(id);
+      expect(jsonErrors.some((d) => d.file === "package.json")).toBe(true);
+    } finally {
+      removeSiteDir(id);
+    }
+  });
+
+  test("POST /api/sites/:id/approve — single file leaves other draft changes", async () => {
+    const createRes = await authRequest(app, token, "POST", "/api/sites", {
+      name: "Partial",
+      slug: "partial-approve",
+    });
+    expect(createRes.status).toBe(201);
+    const site = (await createRes.json()) as { id: string };
+
+    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/app.tsx`, {
+      content: "export default function App() { return <div>OnlyApp</div>; }\n",
+      tree: "draft",
+    });
+    await authRequest(app, token, "PUT", `/api/sites/${site.id}/files/styles.css`, {
+      content: ".only-css { color: red; }\n",
+      tree: "draft",
+    });
+
+    const badFile = await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, { file: "secret.txt" });
+    expect(badFile.status).toBe(400);
+
+    const approveRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/approve`, { file: "app.tsx" });
+    expect(approveRes.status).toBe(200);
+    const approved = (await approveRes.json()) as { draftDirty: boolean };
+    expect(approved.draftDirty).toBe(true);
+
+    const prodFilesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files?tree=prod`);
+    const prodFiles = (await prodFilesRes.json()) as { files: Record<string, string> };
+    expect(prodFiles.files["app.tsx"]).toContain("OnlyApp");
+    expect(prodFiles.files["styles.css"]).not.toContain("only-css");
+
+    const discardRes = await authRequest(app, token, "POST", `/api/sites/${site.id}/discard`, { file: "styles.css" });
+    expect(discardRes.status).toBe(200);
+    const discarded = (await discardRes.json()) as { draftDirty: boolean };
+    expect(discarded.draftDirty).toBe(false);
+
+    const draftFilesRes = await authRequest(app, token, "GET", `/api/sites/${site.id}/files`);
+    const draftFiles = (await draftFilesRes.json()) as { files: Record<string, string> };
+    expect(draftFiles.files["styles.css"]).not.toContain("only-css");
+    expect(draftFiles.files["app.tsx"]).toContain("OnlyApp");
+
+    await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
+  }, 180_000);
+
+  test("POST /api/sites — Vietnamese slug keeps letters after stripping diacritics", async () => {
+    const res = await authRequest(app, token, "POST", "/api/sites", {
+      name: "Công cụ tin tức",
+      slug: "Công cụ tin tức",
+    });
+    expect(res.status).toBe(201);
+    const site = (await res.json()) as { id: string; slug: string };
+    expect(site.slug).toBe("cong-cu-tin-tuc");
+    await authRequest(app, token, "DELETE", `/api/sites/${site.id}`);
+  });
 });
 
 describe("normalizeSiteFormActions + rewriteRequestToSitePath", () => {

@@ -289,4 +289,24 @@ describe("Tools API", () => {
     expect(updated.folderId).toBeNull();
     expect(updated.sortOrder).toBe(0);
   });
+
+  test("PUT /api/tools/:id — Vietnamese @name keeps letters after stripping diacritics", async () => {
+    const createRes = await authRequest(app, token, "POST", "/api/tools", {
+      name: "placeholder_vn_tool",
+      label: "Placeholder",
+      description: "x",
+      parameters: { type: "object", properties: {}, required: [] },
+      codeContent: "",
+    });
+    expect(createRes.status).toBe(201);
+    const tool = (await createRes.json()) as { id: string };
+
+    const res = await authRequest(app, token, "PUT", `/api/tools/${tool.id}`, {
+      codeContent: "# @name Công cụ tìm kiếm\n# @description Search helper\nreturn {'ok': True}",
+    });
+    expect(res.status).toBe(200);
+    const updated = (await res.json()) as { name: string; label: string };
+    expect(updated.label).toBe("Công cụ tìm kiếm");
+    expect(updated.name).toBe("cong_cu_tim_kiem");
+  });
 });
