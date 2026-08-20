@@ -23,6 +23,7 @@ import jobsRoute from "./modules/jobs/jobs.route.js";
 import kvstoreRoute from "./modules/kvstore/kvstore.route.js";
 import providersRoute from "./modules/llm-providers/llm-providers.route.js";
 import mcpServersRoute from "./modules/mcp-servers/mcp-servers.route.js";
+import ogRoute from "./modules/og/og.route.js";
 import publicRoute from "./modules/public/public.route.js";
 import secretsRoute from "./modules/secrets/secrets.route.js";
 import settingsRoute from "./modules/settings/settings.route.js";
@@ -142,6 +143,7 @@ export function createApp(): Hono {
   app.route("/api/v1", v1Route);
 
   app.route("/api/public", publicRoute);
+  app.route("/api/og", ogRoute);
 
   // ── Public site documents (real HTML + assets — before SPA fallback) ───────
   app.get("/public/sites/:slug", async (c) => {

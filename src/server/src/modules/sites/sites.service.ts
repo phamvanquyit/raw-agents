@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { getDb, sites } from "../../common/db/client.js";
 import { listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
+import { requestOrigin } from "../../common/spa-html.js";
 import { slugify } from "../../common/utils/slug.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 import { resolveSiteSelection } from "./common/resolve-selection.js";
@@ -481,13 +482,14 @@ export async function renderPublicSiteDocument(slug: string, request: Request, a
   if (!site.isPublished) throw new NotFoundException("Site not found");
   ensureReactSiteSources(site.id, site.slug);
   const requiresPassword = siteRequiresPassword(site);
+  const origin = requestOrigin(request) || undefined;
   const allowed = await hasSitePublicAccess(site, access);
   if (!allowed) {
     const url = new URL(request.url);
     const error = url.searchParams.get("e") ? "Incorrect password" : undefined;
     return {
       kind: "unlock" as const,
-      html: buildSiteUnlockHtml({ title: site.name, slug: site.slug, error }),
+      html: buildSiteUnlockHtml({ title: site.name, slug: site.slug, error, origin }),
       requiresPassword: true,
     };
   }
@@ -499,6 +501,7 @@ export async function renderPublicSiteDocument(slug: string, request: Request, a
       apiBase: `/api/public/sites/${site.slug}`,
       slug: site.slug,
       assetBase: `/public/sites/${site.slug}/assets`,
+      origin,
     }),
     requiresPassword,
   };

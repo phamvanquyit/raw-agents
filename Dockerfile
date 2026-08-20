@@ -81,6 +81,9 @@ COPY --from=builder /app/src/server/dist ./src/server/dist
 # SQL migrations: bundled index.js resolves via import.meta.url → …/dist/migrations
 COPY --from=builder /app/src/server/src/common/db/migrations ./src/server/dist/migrations
 
+# OG fonts: bundled index.js resolves via import.meta.dir → …/dist/og-fonts
+COPY --from=builder /app/src/server/src/common/og-fonts ./src/server/dist/og-fonts
+
 # Web UI: app.ts looks for join(__dirname, "../public") → src/server/public
 COPY --from=builder /app/src/web/dist ./src/server/public
 

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BadRequestException } from "../../common/exceptions/http.exception.js";
+import { ogMetaTags } from "../../common/spa-html.js";
 import { PLATFORM_ENTRY_SOURCE, PLATFORM_SITE_API_SOURCE } from "./platform/site-api-source.js";
 import { SITE_RUNTIME_FILES, type SiteTree, getTreeDir, readSourceFile, treeContentHash } from "./sites-fs.js";
 
@@ -143,17 +144,30 @@ export async function buildSiteBundle(siteId: string, tree: SiteTree): Promise<S
   };
 }
 
+function siteOgHead(origin: string | undefined, slug: string, title: string): string {
+  if (!origin) return "";
+  const base = origin.replace(/\/$/, "");
+  return ogMetaTags({
+    title: `${title} · Raw Agents`,
+    description: `Published site on Raw Agents · /public/sites/${slug}`,
+    pageUrl: `${base}/public/sites/${encodeURIComponent(slug)}`,
+    imageUrl: `${base}/api/og/sites/${encodeURIComponent(slug)}.png`,
+  });
+}
+
 export function buildSiteShellHtml(opts: {
   title: string;
   apiBase: string;
   slug: string;
   assetBase: string;
+  origin?: string;
 }): string {
   const cssHref = `${opts.assetBase}/styles.css`;
   const jsHref = `${opts.assetBase}/app.js`;
+  const og = siteOgHead(opts.origin, opts.slug, opts.title);
 
   return compactHtml(
-    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="ra-site-api" content="${opts.apiBase}"/><meta name="ra-site-slug" content="${opts.slug}"/><title>${escapeHtml(opts.title)}</title><link rel="stylesheet" href="${cssHref}"/></head><body><div id="root"></div><script type="module" src="${jsHref}"></script></body></html>`,
+    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="ra-site-api" content="${opts.apiBase}"/><meta name="ra-site-slug" content="${opts.slug}"/><title>${escapeHtml(opts.title)}</title>${og}<link rel="stylesheet" href="${cssHref}"/></head><body><div id="root"></div><script type="module" src="${jsHref}"></script></body></html>`,
   );
 }
 
@@ -186,14 +200,16 @@ export function minifyCss(css: string): string {
     .trim();
 }
 
-export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?: string }) {
+export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?: string; origin?: string }) {
   const err = opts.error ? `<p class="error" role="alert">${escapeHtml(opts.error)}</p>` : "";
+  const og = siteOgHead(opts.origin, opts.slug, opts.title);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(opts.title)}</title>
+  ${og}
   <style>
     :root{color-scheme:dark}
     *{box-sizing:border-box}

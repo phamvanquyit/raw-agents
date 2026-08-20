@@ -6,13 +6,13 @@
  */
 
 import { eq } from "drizzle-orm";
-import { agents, getDb } from "./db/client.js";
+import { agents, getDb, sites } from "./db/client.js";
 
 const DEFAULT_TITLE = "Raw Agents";
 const DEFAULT_DESCRIPTION = "Raw Agents — AI Agent Management Platform";
 const OG_IMAGE_PATH = "/og-image.png";
-const OG_IMAGE_WIDTH = "1200";
-const OG_IMAGE_HEIGHT = "630";
+export const OG_IMAGE_WIDTH = "1200";
+export const OG_IMAGE_HEIGHT = "630";
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -79,41 +79,27 @@ function loadPublicChatOg(agentId: string): { title: string; description: string
   }
 }
 
-/**
- * Rewrite index.html with absolute OG/Twitter tags.
- * For `/chat/:agentId`, title/description come from the public agent when available.
- */
-export function buildSpaHtml(baseHtml: string, opts: { origin: string; path: string }): string {
-  const origin = opts.origin.replace(/\/$/, "");
-  const path = opts.path.startsWith("/") ? opts.path : `/${opts.path}`;
-  const pageUrl = `${origin}${path === "/" ? "/" : path}`;
-  const imageUrl = `${origin}${OG_IMAGE_PATH}`;
-
-  let title = DEFAULT_TITLE;
-  let description = DEFAULT_DESCRIPTION;
-
-  const chatMatch = path.match(/^\/chat\/([^/?#]+)\/?$/);
-  if (chatMatch) {
-    const meta = loadPublicChatOg(decodeURIComponent(chatMatch[1]));
-    if (meta) {
-      title = meta.title;
-      description = meta.description;
-    }
+function loadPublicSiteOg(slug: string): { title: string; description: string } | null {
+  try {
+    const db = getDb();
+    const site = db.select().from(sites).where(eq(sites.slug, slug.trim().toLowerCase())).get();
+    if (!site?.isPublished) return null;
+    const name = site.name?.trim() || "Site";
+    return {
+      title: `${name} · Raw Agents`,
+      description: `Published site on Raw Agents · /public/sites/${site.slug}`,
+    };
+  } catch {
+    return null;
   }
+}
 
-  // Drop tags we re-inject so rebuilds/dev HTML don't duplicate.
-  const html = baseHtml
-    .replace(/<title>[\s\S]*?<\/title>/i, "")
-    .replace(/<meta\s+name=["']description["'][^>]*>/gi, "")
-    .replace(/<meta\s+(?:property|name)=["'](?:og:[^"']+|twitter:[^"']+)["'][^>]*>/gi, "");
-
-  const t = escapeHtml(title);
-  const d = escapeHtml(description);
-  const u = escapeHtml(pageUrl);
-  const img = escapeHtml(imageUrl);
-
-  const tags = [
-    `<title>${t}</title>`,
+export function ogMetaTags(opts: { title: string; description: string; pageUrl: string; imageUrl: string }): string {
+  const t = escapeHtml(opts.title);
+  const d = escapeHtml(opts.description);
+  const u = escapeHtml(opts.pageUrl);
+  const img = escapeHtml(opts.imageUrl);
+  return [
     `<meta name="description" content="${d}" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:site_name" content="Raw Agents" />`,
@@ -130,10 +116,52 @@ export function buildSpaHtml(baseHtml: string, opts: { origin: string; path: str
     `<meta name="twitter:description" content="${d}" />`,
     `<meta name="twitter:image" content="${img}" />`,
   ].join("\n    ");
+}
+
+/**
+ * Rewrite index.html with absolute OG/Twitter tags.
+ * For `/chat/:agentId` and `/public/sites/:slug`, title/description/image come from the public entity.
+ */
+export function buildSpaHtml(baseHtml: string, opts: { origin: string; path: string }): string {
+  const origin = opts.origin.replace(/\/$/, "");
+  const path = opts.path.startsWith("/") ? opts.path : `/${opts.path}`;
+  const pageUrl = `${origin}${path === "/" ? "/" : path}`;
+  let imageUrl = `${origin}${OG_IMAGE_PATH}`;
+
+  let title = DEFAULT_TITLE;
+  let description = DEFAULT_DESCRIPTION;
+
+  const chatMatch = path.match(/^\/chat\/([^/?#]+)\/?$/);
+  if (chatMatch) {
+    const agentId = decodeURIComponent(chatMatch[1]);
+    const meta = loadPublicChatOg(agentId);
+    if (meta) {
+      title = meta.title;
+      description = meta.description;
+      imageUrl = `${origin}/api/og/chat/${encodeURIComponent(agentId)}.png`;
+    }
+  }
+
+  const siteMatch = path.match(/^\/public\/sites\/([^/?#]+)\/?$/);
+  if (siteMatch) {
+    const slug = decodeURIComponent(siteMatch[1]);
+    const meta = loadPublicSiteOg(slug);
+    if (meta) {
+      title = meta.title;
+      description = meta.description;
+      imageUrl = `${origin}/api/og/sites/${encodeURIComponent(slug)}.png`;
+    }
+  }
+
+  const html = baseHtml
+    .replace(/<title>[\s\S]*?<\/title>/i, "")
+    .replace(/<meta\s+name=["']description["'][^>]*>/gi, "")
+    .replace(/<meta\s+(?:property|name)=["'](?:og:[^"']+|twitter:[^"']+)["'][^>]*>/gi, "");
+
+  const tags = [`<title>${escapeHtml(title)}</title>`, ogMetaTags({ title, description, pageUrl, imageUrl })].join("\n    ");
 
   if (/<\/head>/i.test(html)) {
     return html.replace(/<\/head>/i, `    ${tags}\n  </head>`);
   }
-  // Malformed shell — still prepend tags
   return `${tags}\n${html}`;
 }
