@@ -1,5 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { buildSpaHtml, escapeHtml, requestOrigin } from "../common/spa-html.js";
+import { authRequest, createTestApp, setupAdmin } from "./test-helpers.js";
 
 const SHELL = `<!doctype html>
 <html lang="en">
@@ -68,5 +69,38 @@ describe("spa-html OG injection", () => {
     });
     expect(html).toContain("<title>Raw Agents</title>");
     expect(html).toContain('property="og:image" content="https://agents.example.com/og-image.png"');
+  });
+});
+
+describe("spa-html OG injection — public entities", () => {
+  let cleanup: () => void;
+  let token: string;
+  let app: ReturnType<typeof createTestApp>["app"];
+
+  beforeAll(async () => {
+    const t = createTestApp();
+    app = t.app;
+    cleanup = t.cleanup;
+    const admin = await setupAdmin(app);
+    token = admin.token;
+  });
+
+  afterAll(() => cleanup());
+
+  test("buildSpaHtml uses dynamic og image for public chat", async () => {
+    const created = await authRequest(app, token, "POST", "/api/agents", {
+      name: "Share Agent",
+      description: "A public chat agent",
+    });
+    const agent = (await created.json()) as { id: string };
+    await authRequest(app, token, "PUT", `/api/agents/${agent.id}`, { isPublic: true });
+
+    const html = buildSpaHtml(SHELL, {
+      origin: "https://agents.example.com",
+      path: `/chat/${agent.id}`,
+    });
+    expect(html).toContain("<title>Share Agent · Raw Agents</title>");
+    expect(html).toContain(`property="og:image" content="https://agents.example.com/api/og/chat/${agent.id}.png"`);
+    expect(html).toContain("A public chat agent");
   });
 });
