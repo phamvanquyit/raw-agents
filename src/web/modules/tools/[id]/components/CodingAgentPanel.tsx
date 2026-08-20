@@ -10,6 +10,8 @@ import { useRef, useState } from "react";
 
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
 import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
+import { AgentPanelComposer } from "src/components/chat/_components/AgentPanelComposer";
+import { AgentPanelEmptyState } from "src/components/chat/_components/AgentPanelEmptyState";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
@@ -21,8 +23,6 @@ const PANEL_DEFAULT = 380;
 const PANEL_MIN = 280;
 const PANEL_MAX = 560;
 
-const SUGGESTIONS = ["Add error handling and retries", "Move hardcoded values into @param", "Simplify this script and explain changes"];
-
 interface CodingAgentPanelProps {
   providerId: string | undefined;
   model: string;
@@ -30,7 +30,6 @@ interface CodingAgentPanelProps {
   onToolAction: (event: ToolActionEvent) => void;
   onModelChange: (providerId: string, model: string) => void;
   subtitle?: string;
-  suggestions?: string[];
 }
 
 export function CodingAgentPanel({
@@ -40,7 +39,6 @@ export function CodingAgentPanel({
   onToolAction,
   onModelChange,
   subtitle = "Edit, test, and fix this tool",
-  suggestions = SUGGESTIONS,
 }: CodingAgentPanelProps) {
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
@@ -78,12 +76,6 @@ export function CodingAgentPanel({
     document.addEventListener("mouseup", handleDragMouseUp);
   };
 
-  const sendSuggestion = (text: string) => {
-    if (!providerId || !model || generating) return;
-    scrollToBottom({ force: true });
-    void send(text, { providerId, model });
-  };
-
   return (
     <div className="flex h-full min-h-0 shrink-0">
       <div
@@ -94,56 +86,44 @@ export function CodingAgentPanel({
         ].join(" ")}
       />
 
-      <div className="flex flex-col h-full min-h-0 border-l border-border bg-card overflow-hidden" style={{ width }}>
+      <div className="flex flex-col h-full min-h-0 border-l border-border bg-[#1e1e1e] overflow-hidden" style={{ width }}>
         <div className="shrink-0 flex items-center gap-2 h-10 px-3 border-b border-border">
           <MagicStick size={14} className="text-brand shrink-0" />
           <span className="text-sm font-medium text-foreground">Assistant</span>
           <span className="text-xs text-muted-foreground truncate">{subtitle}</span>
         </div>
 
-        <MessageList
-          messages={messages}
-          generating={generating}
-          assistantLabel="AI Assistant"
-          emptyStateContent={
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-6 w-full">
-              <p className="text-sm text-muted-foreground leading-relaxed text-center m-0 max-w-64">
-                Ask for a rewrite, fix, or new capability. Changes land as a draft you can accept.
-              </p>
-              <div className="flex flex-col gap-1.5 w-full max-w-64">
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    disabled={!providerId || !model || generating}
-                    onClick={() => sendSuggestion(s)}
-                    className="w-full text-left px-3 py-2 rounded-lg border border-border bg-background text-xs text-tertiary-foreground hover:text-foreground hover:border-brand/30 hover:bg-accent/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
+        <AgentPanelComposer
+          input={
+            <InputArea
+              generating={generating}
+              placeholder="Describe what to change…"
+              onSend={(text) => {
+                if (!providerId || !model) return;
+                scrollToBottom({ force: true });
+                void send(text, { providerId, model });
+              }}
+              onCancel={cancel}
+              providerId={providerId}
+              model={model}
+              onModelChange={onModelChange}
+              focusSignal={providerId && model ? streamUrl : undefined}
+              enableTypeToFocus={false}
+            />
           }
-          messagesEndRef={messagesEndRef}
-          scrollContainerRef={scrollContainerRef}
-          className="selectable"
-        />
-
-        <InputArea
-          generating={generating}
-          placeholder="Describe what to change…"
-          onSend={(text) => {
-            if (!providerId || !model) return;
-            scrollToBottom({ force: true });
-            void send(text, { providerId, model });
-          }}
-          onCancel={cancel}
-          providerId={providerId}
-          model={model}
-          onModelChange={onModelChange}
-          focusSignal={providerId && model ? streamUrl : undefined}
-          enableTypeToFocus={false}
+          messages={
+            <MessageList
+              messages={messages}
+              generating={generating}
+              assistantLabel="AI Assistant"
+              emptyStateContent={
+                <AgentPanelEmptyState>Describe a rewrite, fix, or new capability. Changes land as a draft you can accept.</AgentPanelEmptyState>
+              }
+              messagesEndRef={messagesEndRef}
+              scrollContainerRef={scrollContainerRef}
+              className="selectable"
+            />
+          }
         />
       </div>
     </div>

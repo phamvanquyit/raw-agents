@@ -24,8 +24,6 @@ import { type JobSchedule, buildJobCrons, formatJobSchedulesLabel, jobIsSchedule
 import { JobRunsPanel } from "../components/JobRunsPanel";
 import { JobSchedulesEditor } from "../components/JobSchedulesEditor";
 
-const JOB_SUGGESTIONS = ["Call an agent and log the reply", "Read secrets and query a datatable", "Wrap work in rawagents.step for clearer timelines"];
-
 export default function JobEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -448,7 +446,6 @@ export default function JobEditPage() {
             });
           }}
           subtitle="Edit, test, and fix this job"
-          suggestions={JOB_SUGGESTIONS}
         />
       </div>
 

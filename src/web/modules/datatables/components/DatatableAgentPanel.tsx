@@ -3,6 +3,8 @@ import { useRef, useState } from "react";
 
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
 import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
+import { AgentPanelComposer } from "src/components/chat/_components/AgentPanelComposer";
+import { AgentPanelEmptyState } from "src/components/chat/_components/AgentPanelEmptyState";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 import type { ChatAgentMessage } from "src/components/chat/common/types";
@@ -13,12 +15,6 @@ export type { ToolActionEvent };
 const PANEL_DEFAULT = 380;
 const PANEL_MIN = 280;
 const PANEL_MAX = 560;
-
-const SUGGESTIONS = [
-  "Add a customers table with name, email, and status",
-  "Insert a few sample rows into the first table",
-  "Query rows and show a short summary",
-];
 
 function toolInputRecord(input: unknown): Record<string, unknown> {
   return input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
@@ -98,12 +94,6 @@ export function DatatableAgentPanel({ providerId, model, streamUrl, onSchemaChan
     document.addEventListener("mouseup", handleDragMouseUp);
   };
 
-  const sendSuggestion = (text: string) => {
-    if (!providerId || !model || generating) return;
-    scrollToBottom({ force: true });
-    void send(text, { providerId, model });
-  };
-
   return (
     <div className="flex h-full min-h-0 shrink-0">
       <div
@@ -114,55 +104,41 @@ export function DatatableAgentPanel({ providerId, model, streamUrl, onSchemaChan
         ].join(" ")}
       />
 
-      <div className="flex h-full min-h-0 flex-col overflow-hidden border-l border-border bg-card" style={{ width }}>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden border-l border-border bg-[#1e1e1e]" style={{ width }}>
         <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
           <MagicStick size={14} className="shrink-0 text-brand" />
           <span className="text-sm font-medium text-foreground">Assistant</span>
           <span className="truncate text-xs text-muted-foreground">Schema & rows</span>
         </div>
 
-        <MessageList
-          messages={messages}
-          generating={generating}
-          assistantLabel="Datatable Assistant"
-          emptyStateContent={
-            <div className="flex w-full flex-1 flex-col items-center justify-center gap-4 px-4 py-6">
-              <p className="m-0 max-w-64 text-center text-sm leading-relaxed text-muted-foreground">
-                Edit schema or rows — create tables, add columns, query and mutate data.
-              </p>
-              <div className="flex w-full max-w-64 flex-col gap-1.5">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    disabled={!providerId || !model || generating}
-                    onClick={() => sendSuggestion(s)}
-                    className="w-full cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-left text-xs text-tertiary-foreground transition-colors hover:border-brand/30 hover:bg-accent/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
+        <AgentPanelComposer
+          input={
+            <InputArea
+              generating={generating}
+              placeholder="Describe schema or row changes…"
+              onSend={(text) => {
+                if (!providerId || !model) return;
+                scrollToBottom({ force: true });
+                void send(text, { providerId, model });
+              }}
+              onCancel={cancel}
+              providerId={providerId}
+              model={model}
+              onModelChange={onModelChange}
+              enableTypeToFocus={false}
+            />
           }
-          messagesEndRef={messagesEndRef}
-          scrollContainerRef={scrollContainerRef}
-          className="selectable"
-        />
-
-        <InputArea
-          generating={generating}
-          placeholder="Describe schema or row changes…"
-          onSend={(text) => {
-            if (!providerId || !model) return;
-            scrollToBottom({ force: true });
-            void send(text, { providerId, model });
-          }}
-          onCancel={cancel}
-          providerId={providerId}
-          model={model}
-          onModelChange={onModelChange}
-          enableTypeToFocus={false}
+          messages={
+            <MessageList
+              messages={messages}
+              generating={generating}
+              assistantLabel="Datatable Assistant"
+              emptyStateContent={<AgentPanelEmptyState>Create tables, add columns, or query and mutate rows.</AgentPanelEmptyState>}
+              messagesEndRef={messagesEndRef}
+              scrollContainerRef={scrollContainerRef}
+              className="selectable"
+            />
+          }
         />
       </div>
     </div>
