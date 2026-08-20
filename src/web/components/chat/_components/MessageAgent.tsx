@@ -35,8 +35,8 @@ export function AgentAvatar({
   );
 }
 
-/** Live streaming thinking — expands in the outer chat scroller (no nested overflow) */
-function ActiveThinking({ thinking }: { thinking: string }) {
+/** Live thinking — shimmer only; full text is shown in CompletedThinking after it finishes */
+function ActiveThinking() {
   const [elapsedSec, setElapsedSec] = useState(0);
 
   useEffect(() => {
@@ -48,16 +48,12 @@ function ActiveThinking({ thinking }: { thinking: string }) {
     return () => clearInterval(id);
   }, []);
 
-  const label = elapsedSec < 1 ? "Thinking for <1s" : `Thinking for ${elapsedSec}s`;
+  const label = elapsedSec >= 3 ? `Thinking ${elapsedSec}s` : "Thinking";
 
   return (
-    <div className="px-4 pb-1" style={{ overflowAnchor: "none" }}>
-      <div className="flex items-center gap-1.5 py-0.5">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 animate-pulse" />
-        <span className="text-xs text-tertiary-foreground select-none">{label}</span>
-      </div>
-      <div className="mt-1 px-3 py-2 rounded-lg border border-border bg-muted/50">
-        <p className="text-xs text-tertiary-foreground leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
+    <div className="px-4 pb-0.5" style={{ overflowAnchor: "none" }}>
+      <div className="flex items-center min-h-[22px]">
+        <span className="text-[14px] leading-[22px] font-medium font-[family-name:var(--font-family-chat)] ca-status-shimmer">{label}</span>
       </div>
     </div>
   );
@@ -65,14 +61,14 @@ function ActiveThinking({ thinking }: { thinking: string }) {
 
 /** Completed thinking — collapsed summary, expandable */
 export function CompletedThinking({ thinking, duration }: { thinking: string; duration: number }) {
-  const label = duration < 1 ? "Thought for <1s" : `Thought for ${duration}s`;
+  if (duration < 1) return null;
   return (
     <details className="px-4 pb-2 group/thinking">
-      <summary className="cursor-pointer select-none text-[13px] text-tertiary-foreground hover:text-foreground flex items-center gap-1 py-0.5 list-none [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer select-none text-[14px] leading-[22px] font-medium font-[family-name:var(--font-family-chat)] text-tertiary-foreground hover:text-foreground flex items-center gap-1 py-0.5 list-none [&::-webkit-details-marker]:hidden">
         <svg className="w-3 h-3 transition-transform group-open/thinking:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
-        <span>{label}</span>
+        <span>{`Thought ${duration}s`}</span>
       </summary>
       <div className="mt-1 pl-4 max-h-40 overflow-y-auto">
         <p className="text-[13px] text-tertiary-foreground leading-relaxed whitespace-pre-wrap m-0">{thinking}</p>
@@ -97,7 +93,7 @@ export function MessageAgent({ msg }: MessageAgentProps) {
   return (
     <div className="mt-1 animate-[fadeIn_0.28s_ease-out_both]">
       {/* Thinking / reasoning content */}
-      {thinking && !isThinkingDone && <ActiveThinking thinking={thinking} />}
+      {thinking && !isThinkingDone && <ActiveThinking />}
       {thinking && isThinkingDone && <CompletedThinking thinking={thinking} duration={thinkingDuration} />}
       {/* Markdown content */}
       {msg.content ? (

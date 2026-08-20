@@ -24,7 +24,7 @@ export function MessageUser({ msg }: MessageUserProps) {
   return (
     <div className="animate-[fadeIn_0.28s_ease-out_both] mt-5">
       {/* Message row */}
-      <div className="flex items-start gap-3 px-4 pt-3 pb-2">
+      <div className="flex items-start gap-3 px-3 pt-3 pb-2">
         {/* Left: tag + message */}
         <div className="flex-1 min-w-0 flex flex-col bg-primary/10 px-4 py-2.5 rounded-xl">
           {/* Message text */}
@@ -33,7 +33,7 @@ export function MessageUser({ msg }: MessageUserProps) {
             className="relative overflow-hidden transition-[max-height] duration-300 ease-in-out"
             style={{ maxHeight: isExpanded || !isOverflow ? "none" : `${MAX_HEIGHT}px` }}
           >
-            <span className="font-[family-name:var(--font-family-chat)] text-[14px] leading-[1.75] text-[#ebebeb] whitespace-pre-wrap wrap-break-word">
+            <span className="font-[family-name:var(--font-family-chat)] text-[14px] leading-[22px] font-normal text-[#e8e8e8] [text-rendering:auto] [font-feature-settings:normal] whitespace-pre-wrap wrap-break-word">
               {msg.content}
             </span>
             {/* Gradient fade overlay */}

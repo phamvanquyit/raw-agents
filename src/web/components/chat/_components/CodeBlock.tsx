@@ -86,7 +86,7 @@ export function CodeBlock({ language = "", children, pendingMermaid = false }: C
   return (
     <div className="relative rounded-lg overflow-hidden bg-black/20 border border-white/5">
       {/* Label + Copy — floating inside code block */}
-      <div className="flex items-center justify-between px-3 py-2 select-none border-b border-white/5">
+      <div className="flex items-center justify-between px-2 pl-3 py-1 select-none border-b border-white/5">
         <span className="font-mono text-[11px] text-white/30">{label}</span>
         <button
           type="button"

@@ -146,7 +146,7 @@ export function MessageList({
   );
 
   // Stream fingerprint — content of the live bubble changes without length changing.
-  const streamFingerprint = lastMsg ? `${lastMsg.id}:${lastMsg.content.length}:${String(lastMsg.meta?.thinking ?? "").length}` : "";
+  const streamFingerprint = lastMsg ? `${lastMsg.id}:${lastMsg.content.length}` : "";
 
   useLayoutEffect(() => {
     if (!pinToBottom) return;
@@ -218,8 +218,8 @@ export function MessageList({
                   </div>
                 </RenderIf>
                 <div className="px-4 pb-0.5">
-                  <div className="flex items-center h-5">
-                    <span className="text-[10px] italic ca-status-shimmer">{statusLabel}</span>
+                  <div className="flex items-center min-h-[22px]">
+                    <span className="text-[14px] leading-[22px] font-medium font-[family-name:var(--font-family-chat)] ca-status-shimmer">{statusLabel}</span>
                   </div>
                 </div>
               </div>

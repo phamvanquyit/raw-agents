@@ -12,13 +12,14 @@ const borderlessInputTheme = {
       activeBorderColor: "transparent",
       hoverBorderColor: "transparent",
       activeShadow: "none",
+      colorText: "#e8e8e8",
     },
   },
 };
 
 interface InputAreaProps {
   generating: boolean;
-  placeholder: string;
+  placeholder?: string;
   onSend: (text: string) => void;
   onCancel: () => void;
   providerId?: string | null;
@@ -47,7 +48,7 @@ function getNativeTextArea(ref: TextAreaRef | null): HTMLTextAreaElement | null 
 
 export function InputArea({
   generating,
-  placeholder,
+  placeholder = "",
   onSend,
   onCancel,
   providerId,
@@ -128,7 +129,7 @@ export function InputArea({
     <div
       className={cn(
         "shrink-0 mx-2 mb-3 pt-1 rounded-xl border overflow-hidden flex flex-col",
-        noModel ? "bg-muted/50 border-border" : "bg-muted border-border",
+        noModel ? "bg-muted/50 border-border" : "bg-[#3c3c3c]/90 border-border",
         className,
       )}
     >
@@ -146,11 +147,11 @@ export function InputArea({
           classNames={{
             root: "bg-transparent shadow-none",
             textarea: cn(
-              "px-3 pt-3 pb-2 text-[14px] leading-[1.75] font-[family-name:var(--font-family-chat)] transition-none",
+              "px-3 pt-3 pb-2 text-[14px] leading-[22px] font-medium font-[family-name:var(--font-family-chat)] [text-rendering:auto] [font-feature-settings:normal] transition-none",
               "outline-none focus:outline-none focus-visible:!outline-none focus-visible:!outline-offset-0",
               noModel
                 ? "text-muted-foreground cursor-not-allowed placeholder:text-border-hover"
-                : "text-[#ebebeb] placeholder:text-muted-foreground placeholder:font-normal",
+                : "text-[#e8e8e8] placeholder:text-muted-foreground placeholder:font-medium",
             ),
           }}
         />
