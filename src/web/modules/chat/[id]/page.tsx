@@ -528,6 +528,7 @@ export default function PublicChatPage() {
             onSend={handleSend}
             onCancel={handleCancel}
             hideConfig
+            autoFocus
             focusSignal={conversationId}
           />
         </div>

@@ -28,6 +28,8 @@ interface InputAreaProps {
   hideConfig?: boolean;
   /** When this changes (e.g. conversation id), focus the input */
   focusSignal?: string | null;
+  /** Focus the input when this area mounts */
+  autoFocus?: boolean;
   /** Redirect bare keypresses into this input when focus is elsewhere (default true) */
   enableTypeToFocus?: boolean;
   className?: string;
@@ -56,6 +58,7 @@ export function InputArea({
   onModelChange,
   hideConfig,
   focusSignal,
+  autoFocus = false,
   enableTypeToFocus = true,
   className,
 }: InputAreaProps) {
@@ -68,18 +71,24 @@ export function InputArea({
   const sendEnabled = hasText && canSend;
 
   useEffect(() => {
-    if (focusSignal === undefined) return;
-    const api = textareaRef.current;
-    const ta = getNativeTextArea(api);
-    if (!api || !ta || ta.disabled) return;
+    const onSignal = focusSignal !== undefined;
+    if (!autoFocus && !onSignal) return;
+    if (onSignal) setText("");
 
-    setText("");
-
-    const timer = setTimeout(() => {
+    let tries = 0;
+    let timer = 0;
+    const tryFocus = () => {
+      const api = textareaRef.current;
+      const ta = getNativeTextArea(api);
+      if (!api || !ta || ta.disabled) {
+        if (tries++ < 20) timer = window.setTimeout(tryFocus, 40);
+        return;
+      }
       api.focus({ preventScroll: true });
-    }, 80);
+    };
+    timer = window.setTimeout(tryFocus, 0);
     return () => clearTimeout(timer);
-  }, [focusSignal]);
+  }, [autoFocus, focusSignal]);
 
   useEffect(() => {
     if (!enableTypeToFocus) return;

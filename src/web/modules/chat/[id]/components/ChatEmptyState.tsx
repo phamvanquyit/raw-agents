@@ -10,8 +10,6 @@ interface ChatEmptyStateProps {
 }
 
 export function ChatEmptyState({ agent, onStarter, disabled }: ChatEmptyStateProps) {
-  const modelLabel = agent.model?.split("/").pop() ?? null;
-  const toolCount = agent.tools?.length ?? 0;
   const description = agent.description?.trim() || null;
 
   return (
@@ -42,22 +40,6 @@ export function ChatEmptyState({ agent, onStarter, disabled }: ChatEmptyStatePro
         <p className="mt-2 mb-0 max-w-[360px] text-[13px] leading-relaxed text-tertiary-foreground line-clamp-2">{description}</p>
       ) : (
         <p className="mt-2 mb-0 max-w-[320px] text-[13px] leading-relaxed text-tertiary-foreground">Send a message to start working together.</p>
-      )}
-
-      {(modelLabel || toolCount > 0) && (
-        <div className="mt-3 flex items-center gap-2 text-[11px] text-quaternary-foreground">
-          {modelLabel && <span className="truncate max-w-[180px]">{modelLabel}</span>}
-          {modelLabel && toolCount > 0 && (
-            <span aria-hidden className="opacity-40">
-              ·
-            </span>
-          )}
-          {toolCount > 0 && (
-            <span>
-              {toolCount} {toolCount === 1 ? "tool" : "tools"}
-            </span>
-          )}
-        </div>
       )}
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-2 max-w-[520px]">

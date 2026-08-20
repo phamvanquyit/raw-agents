@@ -28,15 +28,12 @@ export function ChatSidebar({
   onSwitchConversation,
   onDeleteConversation,
 }: ChatSidebarProps) {
-  const modelLabel = agent.model?.split("/").pop() ?? null;
-
   return (
     <div className="flex flex-col h-full bg-card shrink-0 overflow-hidden" style={{ width }}>
       <div className="flex items-center gap-3 px-3.5 pt-4 pb-3.5 shrink-0 min-w-0">
         <UserAvatar name={agent.name} size={40} className="shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-[14px] font-semibold text-foreground truncate leading-snug">{agent.name}</div>
-          {modelLabel && <div className="mt-1 text-[11px] text-muted-foreground truncate leading-snug">{modelLabel}</div>}
         </div>
         <button
           type="button"
