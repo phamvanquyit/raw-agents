@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { Site } from "src/common/types";
+import { RawButton } from "src/components/RawButton";
 import RenderIf from "src/components/RenderIf";
 import { sitesApi } from "../common/sitesApi";
 
@@ -86,19 +87,40 @@ function SitePreview({ site, publicPath }: { site: Site; publicPath: string }) {
           <img src={thumbSrc ?? undefined} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover object-top" />
         </RenderIf>
       </div>
-      <Button
-        type="primary"
-        size="small"
-        block
-        icon={<SquareTopDown width={14} height={14} />}
-        onClick={(e) => {
-          e.stopPropagation();
-          window.open(publicPath, "_blank", "noopener,noreferrer");
-        }}
-      >
-        Open site
-      </Button>
+      <RenderIf condition={site.isPublished}>
+        <Button
+          type="primary"
+          size="small"
+          block
+          icon={<SquareTopDown width={14} height={14} />}
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(publicPath, "_blank", "noopener,noreferrer");
+          }}
+        >
+          Open site
+        </Button>
+      </RenderIf>
     </div>
+  );
+}
+
+export function SiteOpenPublicButton({ site }: { site: Site }) {
+  if (!site.isPublished) return null;
+
+  return (
+    <RawButton
+      type="text"
+      size="xs"
+      icon={<SquareTopDown width={12} height={12} />}
+      aria-label={`Open ${site.name}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        window.open(`/public/sites/${site.slug}`, "_blank", "noopener,noreferrer");
+      }}
+    >
+      Open
+    </RawButton>
   );
 }
 

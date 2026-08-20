@@ -1,12 +1,13 @@
-import CheckCircle from "@solar-icons/react/ui/CheckCircle";
-import CloseCircle from "@solar-icons/react/ui/CloseCircle";
-import { Alert, Button, Modal, message } from "antd";
+import Diskette from "@solar-icons/react/devices/Diskette";
+import { Alert, Modal, message } from "antd";
+import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { wsClient } from "src/common/api/wsClient";
 import { SettingKey } from "src/common/enum";
 import type { Skill, SkillReference } from "src/common/types";
 import { MonacoDiffEditor, MonacoEditor } from "src/components/MonacoEditor";
+import { RawButton } from "src/components/RawButton";
 import RenderIf from "src/components/RenderIf";
 import { fetchLlmProviders } from "src/modules/llm-providers/common/llmProvidersSlice";
 import { getSettingValues, saveSettingValues } from "src/modules/settings/common/settingsApi";
@@ -14,17 +15,19 @@ import { useAppDispatch, useAppSelector } from "src/store/store";
 import { ensureSkillMarkdown, parseSkillFrontmatter } from "../common/frontmatter";
 import { skillsApi } from "../common/skillsApi";
 import { deleteSkill, updateSkill, upsertSkillLocal } from "../common/skillsSlice";
-import { EditSkillHeader } from "./components/EditSkillHeader";
+import { EditSkillHeader, type SkillViewMode } from "./components/EditSkillHeader";
 import { SkillAgentPanel, type ToolActionEvent } from "./components/SkillAgentPanel";
+import { SkillDraftReviewBar } from "./components/SkillDraftReviewBar";
 import { type SkillEditorFile, SkillFileTree } from "./components/SkillFileTree";
+import { SkillMarkdownPreview } from "./components/SkillMarkdownPreview";
 
 function EditSkillSkeleton() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
+      <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border px-4">
         <div className="size-8 animate-pulse rounded-md bg-muted" />
         <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-        <div className="ml-auto h-7 w-16 animate-pulse rounded-md bg-muted" />
+        <div className="ml-auto h-7 w-40 animate-pulse rounded-md bg-muted" />
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="w-[220px] shrink-0 border-r border-border bg-card p-3">
@@ -72,10 +75,13 @@ export default function EditSkillPage() {
   const [savedSkill, setSavedSkill] = useState("");
   const [refDrafts, setRefDrafts] = useState<Record<string, string>>({});
   const [savedRefs, setSavedRefs] = useState<Record<string, string>>({});
-  /** path → AI draft content pending Accept */
   const [aiDrafts, setAiDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [viewMode, setViewMode] = useState<SkillViewMode>("preview");
+  const [agentGenerating, setAgentGenerating] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
 
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
@@ -143,7 +149,6 @@ export default function EditSkillPage() {
   const savedSkillRef = useRef(savedSkill);
   savedSkillRef.current = savedSkill;
 
-  // WS: sync drafts when AI writes / other tabs update
   useEffect(() => {
     if (!id) return;
     const unsub = wsClient.on<Skill>("skills:updated", (payload) => {
@@ -192,11 +197,39 @@ export default function EditSkillPage() {
 
   const draftPaths = useMemo(() => new Set(Object.keys(aiDrafts)), [aiDrafts]);
 
+  const draftFileList = useMemo(() => {
+    const sorted = [...refs].sort((a, b) => a.name.localeCompare(b.name));
+    const order = ["SKILL.md", ...sorted.map((r) => `references/${r.name}.md`)];
+    return order.filter((path) => draftPaths.has(path));
+  }, [refs, draftPaths]);
+
   const isDirty = dirtyPaths.size > 0;
 
   const editorValue = selected.kind === "skill" ? skillDraft : (refDrafts[selected.refId] ?? "");
   const selectedAiDraft = aiDrafts[selected.path] ?? null;
   const showDiff = selectedAiDraft != null && selectedAiDraft !== editorValue;
+  const previewValue = selectedAiDraft ?? editorValue;
+
+  const selectFileByPath = useCallback(
+    (path: string) => {
+      if (path === "SKILL.md") {
+        setSelected({ kind: "skill", path: "SKILL.md" });
+        return;
+      }
+      const ref = refs.find((r) => `references/${r.name}.md` === path);
+      if (ref) {
+        setSelected({ kind: "reference", path, refId: ref.id, name: ref.name });
+      }
+    },
+    [refs],
+  );
+
+  const handleReviewNext = useCallback(() => {
+    if (draftFileList.length === 0) return;
+    const idx = draftFileList.indexOf(selected.path);
+    const next = idx === -1 ? draftFileList[0] : draftFileList[(idx + 1) % draftFileList.length];
+    selectFileByPath(next);
+  }, [draftFileList, selected.path, selectFileByPath]);
 
   const handleEditorChange = (value: string | undefined) => {
     const next = value ?? "";
@@ -207,8 +240,8 @@ export default function EditSkillPage() {
     }
   };
 
-  const handleSave = async () => {
-    if (!id || !skill) return;
+  const handleSave = async (opts?: { quiet?: boolean }): Promise<boolean> => {
+    if (!id || !skill) return true;
     setSaving(true);
     setError("");
     try {
@@ -237,12 +270,25 @@ export default function EditSkillPage() {
       setRefDrafts(map);
       setSavedRefs({ ...map });
       syncAiDraftsFromServer((await skillsApi.get(id)) as Skill, references);
-      message.success("Saved");
+      if (!opts?.quiet) message.success("Saved");
+      return true;
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      if (!opts?.quiet) message.error(msg);
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleViewModeChange = async (next: SkillViewMode) => {
+    if (next === viewMode) return;
+    if (viewMode === "editor" && isDirty) {
+      const ok = await handleSave();
+      if (!ok) return;
+    }
+    setViewMode(next);
   };
 
   const handleDelete = () => {
@@ -273,6 +319,7 @@ export default function EditSkillPage() {
         refId: created.id,
         name: created.name,
       });
+      setViewMode("editor");
     },
     [id],
   );
@@ -319,10 +366,6 @@ export default function EditSkillPage() {
       const name = m[1];
       void skillsApi.listReferences(id).then((list) => {
         setRefs(list);
-        const map: Record<string, string> = {};
-        for (const r of list) {
-          map[r.id] = r.content;
-        }
         setRefDrafts((prev) => {
           const next = { ...prev };
           for (const r of list) {
@@ -349,6 +392,7 @@ export default function EditSkillPage() {
   const handleAcceptAiDraft = async () => {
     if (!id || !selectedAiDraft) return;
     const draft = selectedAiDraft;
+    setApproving(true);
     try {
       if (selected.kind === "skill") {
         const updated = (await dispatch(updateSkill({ id, content: draft })).unwrap()) as Skill;
@@ -372,15 +416,18 @@ export default function EditSkillPage() {
           return next;
         });
       }
-      message.success("Draft accepted");
+      message.success("Draft approved");
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApproving(false);
     }
   };
 
   const handleRejectAiDraft = async () => {
     if (!id) return;
     const published = editorValue;
+    setDiscarding(true);
     try {
       if (selected.kind === "skill") {
         await skillsApi.update(id, { draftContent: published });
@@ -394,9 +441,11 @@ export default function EditSkillPage() {
         delete next[selected.path];
         return next;
       });
-      message.success("Draft rejected");
+      message.success("Draft discarded");
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDiscarding(false);
     }
   };
 
@@ -467,6 +516,19 @@ export default function EditSkillPage() {
     return parsed.frontmatter.name?.trim() || skill?.name || "Skill";
   }, [skillDraft, skill?.name]);
 
+  const reviewBar =
+    draftFileList.length > 0 && !agentGenerating ? (
+      <SkillDraftReviewBar
+        changedFiles={draftFileList}
+        currentFile={selected.path}
+        onReviewNext={handleReviewNext}
+        onApprove={() => void handleAcceptAiDraft()}
+        onDiscard={() => void handleRejectAiDraft()}
+        approving={approving}
+        discarding={discarding}
+      />
+    ) : null;
+
   if (!id) return null;
 
   if (!skill) {
@@ -475,7 +537,13 @@ export default function EditSkillPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <EditSkillHeader title={headerTitle} isDirty={isDirty} saving={saving} onSave={() => void handleSave()} onDelete={handleDelete} />
+      <EditSkillHeader
+        title={headerTitle}
+        hasDraft={draftFileList.length > 0}
+        viewMode={viewMode}
+        onViewModeChange={(mode) => void handleViewModeChange(mode)}
+        onDelete={handleDelete}
+      />
 
       <RenderIf condition={!!error}>
         <Alert type="error" description={error} showIcon closable={{ onClose: () => setError("") }} className="m-3" />
@@ -495,13 +563,32 @@ export default function EditSkillPage() {
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex h-10 shrink-0 items-center border-b border-border bg-card/80 px-3">
             <span className="truncate font-mono text-xs text-muted-foreground">{selected.path}</span>
-            {showDiff && (
+            {showDiff ? (
               <span className="ml-2 rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-soft">AI draft</span>
-            )}
+            ) : null}
           </div>
-          <div className="monaco-scroll-pad-x relative min-h-0 flex-1 overflow-hidden">
-            {showDiff && selectedAiDraft != null ? (
-              <>
+
+          {viewMode === "preview" ? (
+            <div className="relative min-h-0 flex-1 overflow-hidden bg-card">
+              <div className="h-full overflow-y-auto">
+                <SkillMarkdownPreview content={previewValue} showFrontmatter={selected.kind === "skill"} />
+              </div>
+              <AnimatePresence>
+                {reviewBar ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-3"
+                  >
+                    <div className="pointer-events-auto">{reviewBar}</div>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="monaco-scroll-pad-x relative min-h-0 flex-1 overflow-hidden">
+              {showDiff && selectedAiDraft != null ? (
                 <MonacoDiffEditor
                   key={`diff-${selected.path}`}
                   language="markdown"
@@ -519,42 +606,55 @@ export default function EditSkillPage() {
                     lineDecorationsWidth: 0,
                   }}
                 />
-                <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-lg">
-                  <span className="mr-1 text-xs font-medium tracking-wide text-brand-soft">AI draft</span>
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={<CheckCircle size={14} />}
-                    onClick={() => void handleAcceptAiDraft()}
-                    className="!border-success !bg-success hover:!bg-success/90"
+              ) : (
+                <MonacoEditor
+                  key={selected.path}
+                  language="markdown"
+                  value={editorValue}
+                  onChange={handleEditorChange}
+                  onSave={() => void handleSave()}
+                  height="100%"
+                  options={{
+                    fontSize: 14,
+                    wordWrap: "on",
+                    lineNumbers: "off",
+                    glyphMargin: false,
+                    folding: false,
+                    lineDecorationsWidth: 0,
+                    guides: { indentation: false, highlightActiveIndentation: false },
+                  }}
+                />
+              )}
+
+              <AnimatePresence>
+                {isDirty || reviewBar ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2"
                   >
-                    Accept
-                  </Button>
-                  <Button size="small" danger icon={<CloseCircle size={14} />} onClick={() => void handleRejectAiDraft()}>
-                    Reject
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <MonacoEditor
-                key={selected.path}
-                language="markdown"
-                value={editorValue}
-                onChange={handleEditorChange}
-                onSave={() => void handleSave()}
-                height="100%"
-                options={{
-                  fontSize: 14,
-                  wordWrap: "on",
-                  lineNumbers: "off",
-                  glyphMargin: false,
-                  folding: false,
-                  lineDecorationsWidth: 0,
-                  guides: { indentation: false, highlightActiveIndentation: false },
-                }}
-              />
-            )}
-          </div>
+                    {isDirty ? (
+                      <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-lg">
+                        <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-brand-soft" />
+                        <span className="mr-1 text-xs font-medium tracking-wide text-brand-soft">Unsaved</span>
+                        <RawButton
+                          size="small"
+                          type="primary"
+                          icon={!saving ? <Diskette width={14} height={14} /> : undefined}
+                          loading={saving}
+                          onClick={() => void handleSave()}
+                        >
+                          {saving ? "Saving…" : "Save"}
+                        </RawButton>
+                      </div>
+                    ) : null}
+                    {reviewBar}
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
+          )}
         </main>
 
         <SkillAgentPanel
@@ -562,6 +662,11 @@ export default function EditSkillPage() {
           model={model}
           streamUrl={`/api/skills/${id}/assistant/stream`}
           onToolAction={handleToolAction}
+          onGeneratingChange={setAgentGenerating}
+          onBeforeSend={async () => {
+            if (viewMode !== "editor" || !isDirty) return;
+            await handleSave({ quiet: true });
+          }}
           onModelChange={(pid, m) => {
             setProviderId(pid);
             setModel(m);

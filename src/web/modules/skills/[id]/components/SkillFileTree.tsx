@@ -8,6 +8,7 @@ import { Form, Input, Modal, message } from "antd";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { cn } from "src/common/lib/cn";
 import type { SkillReference } from "src/common/types";
+import { slugify } from "src/common/utils/slug";
 
 export type SkillEditorFile = { kind: "skill"; path: "SKILL.md" } | { kind: "reference"; path: string; refId: string; name: string };
 
@@ -25,15 +26,6 @@ const PANEL_DEFAULT = 220;
 const PANEL_MIN = 160;
 const PANEL_MAX = 420;
 const REF_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-}
 
 export function SkillFileTree({ references, selected, dirtyPaths, draftPaths, onSelect, onCreateReference, onDeleteReference }: SkillFileTreeProps) {
   const sortedRefs = useMemo(() => [...references].sort((a, b) => a.name.localeCompare(b.name)), [references]);

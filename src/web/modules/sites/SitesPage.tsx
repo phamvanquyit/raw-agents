@@ -5,11 +5,12 @@ import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Site } from "src/common/types";
+import { normalizeSlugInput, slugify } from "src/common/utils/slug";
 import { PageShell } from "src/components/PageShell";
 import RenderIf from "src/components/RenderIf";
 import { useAppDispatch, useAppSelector } from "src/store/store";
 import { createSite, fetchSites } from "./common/sitesSlice";
-import { SITE_VISIBILITY_META, SiteNameCell, type SiteVisibility, SiteVisibilityIcon, siteVisibility } from "./components/SiteCard";
+import { SITE_VISIBILITY_META, SiteNameCell, SiteOpenPublicButton, type SiteVisibility, SiteVisibilityIcon, siteVisibility } from "./components/SiteCard";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -24,7 +25,7 @@ function CreateSiteDialog({ onClose, onCreated }: { onClose: () => void; onCreat
 
   const handleSubmit = async () => {
     const n = name.trim();
-    const s = slug.trim().toLowerCase();
+    const s = slugify(slug);
     if (!n) {
       setError("Name is required");
       return;
@@ -61,28 +62,14 @@ function CreateSiteDialog({ onClose, onCreated }: { onClose: () => void; onCreat
             onChange={(e) => {
               const v = e.target.value;
               setName(v);
-              if (
-                !slug ||
-                slug ===
-                  name
-                    .trim()
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "-")
-                    .replace(/^-|-$/g, "")
-              ) {
-                setSlug(
-                  v
-                    .trim()
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "-")
-                    .replace(/^-|-$/g, ""),
-                );
+              if (!slug || slug === slugify(name)) {
+                setSlug(slugify(v));
               }
             }}
           />
         </Form.Item>
         <Form.Item label="Slug" required extra="Public URL: /public/sites/{slug}">
-          <Input value={slug} placeholder="news" onChange={(e) => setSlug(e.target.value.toLowerCase())} />
+          <Input value={slug} placeholder="news" onChange={(e) => setSlug(normalizeSlugInput(e.target.value))} />
         </Form.Item>
       </Form>
     </Modal>
@@ -134,6 +121,13 @@ export default function SitesPage() {
       title: "Path",
       key: "path",
       render: (_, site) => <span className="font-mono text-xs text-tertiary-foreground">/public/sites/{site.slug}</span>,
+    },
+    {
+      title: "",
+      key: "open",
+      width: 88,
+      align: "right",
+      render: (_, site) => <SiteOpenPublicButton site={site} />,
     },
   ];
 

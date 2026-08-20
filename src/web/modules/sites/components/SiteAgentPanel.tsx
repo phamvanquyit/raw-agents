@@ -1,9 +1,12 @@
 import CloseCircle from "@solar-icons/react/ui/CloseCircle";
-import MagicStick from "@solar-icons/react/ui/MagicStick";
 import { useEffect, useRef, useState } from "react";
 
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
 import { useAssistantStreaming } from "src/common/hooks/useAssistantStreaming";
+import { AppLogo } from "src/components/AppLogo";
+import { RawButton } from "src/components/RawButton";
+import { AgentPanelComposer } from "src/components/chat/_components/AgentPanelComposer";
+import { AgentPanelEmptyState } from "src/components/chat/_components/AgentPanelEmptyState";
 import { InputArea } from "src/components/chat/_components/InputArea";
 import { MessageList } from "src/components/chat/_components/MessageList";
 import { useAutoScroll } from "src/components/chat/hooks/useAutoScroll";
@@ -11,11 +14,9 @@ import { siteTurnSummaryHint, summarizeSiteToolCall } from "../common/compactSit
 
 export type { ToolActionEvent };
 
-const PANEL_DEFAULT = 380;
-const PANEL_MIN = 280;
+const PANEL_DEFAULT = 360;
+const PANEL_MIN = 320;
 const PANEL_MAX = 560;
-
-const SUGGESTIONS = ["Improve the layout and spacing", "Make the hero section more distinctive", "Wire loader data into the visible UI"];
 
 export type SiteSelectionContext = {
   label: string;
@@ -32,6 +33,7 @@ interface SiteAgentPanelProps {
   onClearSelection?: () => void;
   onResizeDraggingChange?: (dragging: boolean) => void;
   onGeneratingChange?: (generating: boolean) => void;
+  onBeforeSend?: () => void | Promise<void>;
 }
 
 export function SiteAgentPanel({
@@ -44,12 +46,13 @@ export function SiteAgentPanel({
   onClearSelection,
   onResizeDraggingChange,
   onGeneratingChange,
+  onBeforeSend,
 }: SiteAgentPanelProps) {
   const [width, setWidth] = useState(PANEL_DEFAULT);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ active: false, startX: 0, startW: 0 });
 
-  const { messages, generating, send, cancel } = useAssistantStreaming({
+  const { messages, generating, send, cancel, clear } = useAssistantStreaming({
     streamUrl,
     onToolAction,
     summarizeToolCall: summarizeSiteToolCall,
@@ -105,21 +108,19 @@ export function SiteAgentPanel({
     endDrag();
   };
 
-  const buildMessage = (text: string) => {
-    if (!selectionContext?.detail) return text;
-    return `${selectionContext.detail}\n\n${text}`;
-  };
-
   const sendMessage = (text: string) => {
     if (!providerId || !model || generating) return;
     scrollToBottom({ force: true });
-    const payload = buildMessage(text);
+    const selectionDetail = selectionContext?.detail;
     onClearSelection?.();
-    void send(payload, { providerId, model });
+    void (async () => {
+      await onBeforeSend?.();
+      void send(text, { providerId, model, extraContext: selectionDetail });
+    })();
   };
 
   return (
-    <div className="flex h-full min-h-0 shrink-0">
+    <div className="flex h-[45vh] min-h-72 shrink-0 border-t border-border md:h-full md:min-h-0 md:border-t-0">
       <div
         onPointerDown={onResizePointerDown}
         onPointerMove={onResizePointerMove}
@@ -127,79 +128,79 @@ export function SiteAgentPanel({
         onPointerCancel={onResizePointerUp}
         onLostPointerCapture={endDrag}
         className={[
-          "w-px shrink-0 h-full cursor-col-resize touch-none z-10 transition-colors duration-150",
+          "hidden h-full w-px shrink-0 touch-none md:block md:cursor-col-resize z-10 transition-colors duration-150",
           isDragging ? "bg-brand/60" : "bg-border hover:bg-brand/40",
         ].join(" ")}
       />
 
-      <div className="flex flex-col h-full min-h-0 border-l border-border bg-card overflow-hidden" style={{ width }}>
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#1e1e1e] md:flex-none" style={{ width, maxWidth: "100%" }}>
         <div className="shrink-0 flex items-center gap-2 h-10 px-3 border-b border-border">
-          <MagicStick size={14} className="text-brand shrink-0" />
-          <span className="text-sm font-medium text-foreground">Assistant</span>
-          <span className="text-xs text-muted-foreground truncate">Edit this site draft</span>
+          <AppLogo variant="current" size={16} className="shrink-0 text-foreground opacity-40" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">Raw Agent</span>
+          <RawButton
+            type="text"
+            size="xs"
+            icon={
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            }
+            onClick={clear}
+            aria-label="New chat"
+            title="New chat"
+          />
         </div>
 
-        <MessageList
-          messages={messages}
-          generating={generating}
-          activityStatus={(() => {
-            const last = messages[messages.length - 1];
-            if (last?.role === "tool-call" && last.toolOutput) return "Thinking";
-            if (last?.role === "tool-call") return "Running tool";
-            return "Working";
-          })()}
-          assistantLabel="Site Assistant"
-          emptyStateContent={
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-6 w-full">
-              <p className="text-sm text-muted-foreground leading-relaxed text-center m-0 max-w-64">
-                Select an element with Inspect, then describe the change. Edits stay in draft until you Approve.
-              </p>
-              <div className="flex flex-col gap-1.5 w-full max-w-64">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    disabled={!providerId || !model || generating}
-                    onClick={() => sendMessage(s)}
-                    className="w-full text-left px-3 py-2 rounded-lg border border-border bg-background text-xs text-tertiary-foreground hover:text-foreground hover:border-brand/30 hover:bg-accent/40 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {s}
-                  </button>
-                ))}
+        <AgentPanelComposer
+          accessory={
+            selectionContext ? (
+              <div className="flex items-center gap-2 border-t border-border px-3 py-2 bg-accent/30">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">Selected</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground" title={selectionContext.label}>
+                  {selectionContext.label}
+                </span>
+                <button
+                  type="button"
+                  onClick={onClearSelection}
+                  className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                  aria-label="Clear selection"
+                >
+                  <CloseCircle width={14} height={14} />
+                </button>
               </div>
-            </div>
+            ) : undefined
           }
-          messagesEndRef={messagesEndRef}
-          scrollContainerRef={scrollContainerRef}
-          className="selectable"
-        />
-
-        {selectionContext ? (
-          <div className="shrink-0 flex items-center gap-2 border-t border-border px-3 py-2 bg-accent/30">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">Selected</span>
-            <span className="min-w-0 flex-1 truncate text-xs text-foreground" title={selectionContext.label}>
-              {selectionContext.label}
-            </span>
-            <button
-              type="button"
-              onClick={onClearSelection}
-              className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-              aria-label="Clear selection"
-            >
-              <CloseCircle width={14} height={14} />
-            </button>
-          </div>
-        ) : null}
-
-        <InputArea
-          generating={generating}
-          placeholder={selectionContext ? "Describe what to change on this element…" : "Describe what to change…"}
-          onSend={sendMessage}
-          onCancel={cancel}
-          providerId={providerId}
-          model={model}
-          onModelChange={onModelChange}
-          enableTypeToFocus={false}
+          input={
+            <InputArea
+              generating={generating}
+              placeholder="Describe what to change…"
+              onSend={sendMessage}
+              onCancel={cancel}
+              providerId={providerId}
+              model={model}
+              onModelChange={onModelChange}
+              enableTypeToFocus={false}
+            />
+          }
+          messages={
+            <MessageList
+              messages={messages}
+              generating={generating}
+              activityStatus={(() => {
+                const last = messages[messages.length - 1];
+                if (last?.role === "tool-call" && last.toolOutput) return "Thinking";
+                if (last?.role === "tool-call") return "Running tool";
+                return "Working";
+              })()}
+              assistantLabel="Raw Agent"
+              emptyStateContent={
+                <AgentPanelEmptyState>Describe a layout, copy, or wiring change. Drafts stay unpublished until you approve.</AgentPanelEmptyState>
+              }
+              messagesEndRef={messagesEndRef}
+              scrollContainerRef={scrollContainerRef}
+              className="selectable"
+            />
+          }
         />
       </div>
     </div>

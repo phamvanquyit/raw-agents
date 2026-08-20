@@ -1,27 +1,31 @@
 import AltArrowLeft from "@solar-icons/react/arrows/AltArrowLeft";
 import Refresh from "@solar-icons/react/arrows/Refresh";
-import Restart from "@solar-icons/react/arrows/Restart";
-import TransferHorizontal from "@solar-icons/react/arrows/TransferHorizontal";
+import CodeSquare from "@solar-icons/react/it/CodeSquare";
 import Global from "@solar-icons/react/map/Global";
 import PenNewSquare from "@solar-icons/react/messages/PenNewSquare";
+import Eye from "@solar-icons/react/security/Eye";
 import Lock from "@solar-icons/react/security/Lock";
 import LinkIcon from "@solar-icons/react/text-formatting/Link";
-import CheckCircle from "@solar-icons/react/ui/CheckCircle";
 import MenuDots from "@solar-icons/react/ui/MenuDots";
 import TrashBinMinimalistic from "@solar-icons/react/ui/TrashBinMinimalistic";
-import { Alert, Button, Dropdown, Form, Input, Modal, Popconfirm, Popover, Switch, Tag, message } from "antd";
+import { Alert, Button, Dropdown, Form, Input, Modal, Popover, Segmented, Switch, message } from "antd";
 import type { MenuProps } from "antd";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "src/common/api";
 import { SettingKey } from "src/common/enum";
 import type { ToolActionEvent } from "src/common/hooks/useAssistantStreaming";
-import type { Site } from "src/common/types";
+import type { Site, SiteSourceFile } from "src/common/types";
+import { normalizeSlugInput, slugify } from "src/common/utils/slug";
 import RenderIf from "src/components/RenderIf";
 import { getSettingValues } from "src/modules/settings/common/settingsApi";
 import { capturePreviewIframe } from "../common/capturePreviewIframe";
 import { sitesApi } from "../common/sitesApi";
 import { SiteAgentPanel } from "../components/SiteAgentPanel";
+import { SiteCodeEditor, type SiteCodeEditorHandle } from "./components/SiteCodeEditor";
+import { SiteDraftReviewBar } from "./components/SiteDraftReviewBar";
+
+type SiteViewMode = "preview" | "editor";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -41,7 +45,7 @@ function SiteSettingsModal({
 
   const handleSubmit = async () => {
     const n = name.trim();
-    const s = slug.trim().toLowerCase();
+    const s = slugify(slug);
     if (!n) {
       setError("Name is required");
       return;
@@ -74,10 +78,40 @@ function SiteSettingsModal({
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Form.Item>
         <Form.Item label="Slug" required extra="Public URL: /public/sites/{slug}">
-          <Input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} />
+          <Input value={slug} onChange={(e) => setSlug(normalizeSlugInput(e.target.value))} />
         </Form.Item>
       </Form>
     </Modal>
+  );
+}
+
+function SiteViewToggle({ value, onChange }: { value: SiteViewMode; onChange: (v: SiteViewMode) => void }) {
+  return (
+    <Segmented<SiteViewMode>
+      size="small"
+      value={value}
+      onChange={onChange}
+      options={[
+        {
+          value: "preview",
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              <Eye width={14} height={14} />
+              Preview
+            </span>
+          ),
+        },
+        {
+          value: "editor",
+          label: (
+            <span className="inline-flex items-center gap-1.5">
+              <CodeSquare width={14} height={14} />
+              Editor
+            </span>
+          ),
+        },
+      ]}
+    />
   );
 }
 
@@ -94,13 +128,8 @@ function BrowserChrome({
 }) {
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-card ${className ?? "rounded-xl border border-border"}`}>
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
-        <div className="flex shrink-0 items-center gap-1.5 pl-0.5">
-          <span className="size-2.5 rounded-full bg-[#ff5f57]" />
-          <span className="size-2.5 rounded-full bg-[#febc2e]" />
-          <span className="size-2.5 rounded-full bg-[#28c840]" />
-        </div>
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-border bg-background/90 px-3 py-1">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-muted/40 px-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md border border-border bg-background/90 px-2.5 py-1">
           <Lock width={11} height={11} className="shrink-0 text-muted-foreground" />
           <span className="truncate font-mono text-[12px] leading-none text-tertiary-foreground">{url}</span>
         </div>
@@ -127,16 +156,15 @@ export default function SiteEditorPage() {
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [compareOpen, setCompareOpen] = useState(false);
-  const [compareLoading, setCompareLoading] = useState(false);
-  const [draftCompareHtml, setDraftCompareHtml] = useState<string | null>(null);
-  const [prodCompareHtml, setProdCompareHtml] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentGenerating, setAgentGenerating] = useState(false);
   const [previewEpoch, setPreviewEpoch] = useState(0);
   const [previewAuthReady, setPreviewAuthReady] = useState(false);
+  const [viewMode, setViewMode] = useState<SiteViewMode>("preview");
+  const [filesEpoch, setFilesEpoch] = useState(0);
+  const codeEditorRef = useRef<SiteCodeEditorHandle>(null);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -238,53 +266,37 @@ export default function SiteEditorPage() {
     });
   }, []);
 
-  const handleApprove = async () => {
+  const handleApprove = async (file?: SiteSourceFile) => {
     if (!id) return;
     setApproving(true);
     try {
-      const s = await sitesApi.approve(id);
+      const s = await sitesApi.approve(id, file);
       setSite(s);
-      message.success("Draft approved → production");
+      message.success(file ? `${file} approved → production` : "Draft approved → production");
       runPreview();
-      setCompareOpen(false);
+      setFilesEpoch((n) => n + 1);
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : "Approve failed");
+      throw err;
     } finally {
       setApproving(false);
     }
   };
 
-  const handleDiscard = async () => {
+  const handleDiscard = async (file?: SiteSourceFile) => {
     if (!id) return;
     setDiscarding(true);
     try {
-      const s = await sitesApi.discard(id);
+      const s = await sitesApi.discard(id, file);
       setSite(s);
-      message.success("Draft discarded");
+      message.success(file ? `${file} discarded` : "Draft discarded");
       runPreview();
-      setCompareOpen(false);
+      setFilesEpoch((n) => n + 1);
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : "Discard failed");
+      throw err;
     } finally {
       setDiscarding(false);
-    }
-  };
-
-  const openCompare = async () => {
-    if (!id) return;
-    setCompareOpen(true);
-    setCompareLoading(true);
-    setDraftCompareHtml(null);
-    setProdCompareHtml(null);
-    try {
-      const [draftRes, prodRes] = await Promise.all([sitesApi.preview(id, { tree: "draft" }), sitesApi.preview(id, { tree: "prod" })]);
-      setDraftCompareHtml(draftRes.html || "");
-      setProdCompareHtml(prodRes.html || "");
-    } catch (err: unknown) {
-      message.error(err instanceof Error ? err.message : "Compare failed");
-      setCompareOpen(false);
-    } finally {
-      setCompareLoading(false);
     }
   };
 
@@ -293,7 +305,21 @@ export default function SiteEditorPage() {
     if (event.toolName === "edit_ui" || event.toolName === "edit_styles" || event.toolName === "edit_backend" || event.toolName === "edit_deps") {
       void reload();
       schedulePreviewReload();
+      setFilesEpoch((n) => n + 1);
     }
+  };
+
+  const handleViewModeChange = async (next: SiteViewMode) => {
+    if (next === viewMode) return;
+    if (viewMode === "editor") {
+      try {
+        await codeEditorRef.current?.flush();
+      } catch {
+        return;
+      }
+      runPreview();
+    }
+    setViewMode(next);
   };
 
   if (loading || !site) {
@@ -302,6 +328,7 @@ export default function SiteEditorPage() {
 
   const publicPath = `/public/sites/${site.slug}`;
   const publicLink = `${window.location.origin}${publicPath}`;
+  const previewLabel = site.isPublished ? publicLink : "Draft preview";
   const previewSrc = previewAuthReady ? `/api/sites/${id}/live?t=${previewEpoch}` : undefined;
   const passwordDirty = passwordTouched;
   const hasPassword = !!site.hasPublicPassword;
@@ -362,97 +389,122 @@ export default function SiteEditorPage() {
     },
   ];
 
+  const publicAccessControl = (
+    <Popover
+      trigger="click"
+      placement="bottomRight"
+      content={
+        <div className="flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3 p-1">
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/40 p-3">
+            <div className="min-w-0">
+              <p className="m-0 text-sm font-semibold text-foreground">Public access</p>
+              <p className="m-0 mt-0.5 text-xs leading-5 text-muted-foreground">
+                {site.isPublished ? "Anyone with the link can view this site." : "Publish this site to make it available at a public URL."}
+              </p>
+            </div>
+            <Switch
+              size="small"
+              checked={site.isPublished}
+              onChange={async (checked) => {
+                const updated = await sitesApi.update(site.id, { isPublished: checked });
+                setSite(updated);
+              }}
+            />
+          </div>
+          <RenderIf condition={site.isPublished}>
+            <div className="rounded-xl border border-border bg-background/60 p-3">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Live URL</span>
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-2.5 py-2">
+                <LinkIcon width={14} height={14} className="shrink-0 text-primary" />
+                <a
+                  href={publicLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-primary no-underline"
+                >
+                  {publicLink}
+                </a>
+                <Button size="small" onClick={() => void handleCopyLink()} className="shrink-0">
+                  Copy
+                </Button>
+              </div>
+            </div>
+          </RenderIf>
+          <div className="rounded-xl border border-border bg-background/60 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-foreground">Password protection</span>
+              <span
+                className={
+                  hasPassword
+                    ? "rounded-full bg-success/12 px-2 py-0.5 text-[11px] font-medium text-success"
+                    : "rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                }
+              >
+                {hasPassword ? "Enabled" : "Off"}
+              </span>
+            </div>
+            <Input.Password
+              className="mt-3"
+              visibilityToggle={{ visible: showPassword, onVisibleChange: setShowPassword }}
+              placeholder={hasPassword ? "Password is set — type to change" : "Leave blank for open access"}
+              value={localPassword}
+              onChange={(e) => {
+                setLocalPassword(e.target.value);
+                setPasswordTouched(true);
+              }}
+            />
+            <p className="m-0 mt-2 text-[11px] leading-4 text-muted-foreground">
+              {hasPassword ? "Clear the field and save to remove password protection." : "Visitors must enter this password to view the public site."}
+            </p>
+            <div className="mt-3 flex justify-end">
+              <Button size="small" type="primary" disabled={!passwordDirty} loading={savingPassword} onClick={() => void handleSavePassword()}>
+                Save password
+              </Button>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <Button
+        size="small"
+        icon={
+          site.isPublished ? (
+            hasPassword ? (
+              <Lock width={14} height={14} className="text-success" />
+            ) : (
+              <Global width={14} height={14} className="text-success" />
+            )
+          ) : (
+            <Global width={14} height={14} className="text-muted-foreground" />
+          )
+        }
+      >
+        <span className={site.isPublished ? "text-success" : "text-muted-foreground"}>{site.isPublished ? "Published" : "Unpublished"}</span>
+      </Button>
+    </Popover>
+  );
+
   return (
     <div className="flex h-screen flex-col bg-background">
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
-        <Link to="/sites" className="text-muted-foreground hover:text-foreground">
+      <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+        <Link
+          to="/sites"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Back to sites"
+        >
           <AltArrowLeft width={18} height={18} />
         </Link>
         <div className="min-w-0 flex-1">
+          <p className="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Site editor</p>
           <div className="flex items-center gap-2">
             <h1 className="truncate text-sm font-semibold">{site.name}</h1>
             <RenderIf condition={!!site.draftDirty}>
-              <Tag color="orange" className="m-0">
-                Draft changes
-              </Tag>
+              <span className="shrink-0 rounded-full bg-brand/12 px-2 py-0.5 text-[11px] font-medium leading-none text-brand-soft">Draft changes</span>
             </RenderIf>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Popover
-            trigger="click"
-            placement="bottomRight"
-            content={
-              <div className="flex w-80 flex-col gap-3 p-1">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="m-0 text-sm font-medium text-foreground">Public access</p>
-                    <p className="m-0 text-[11px] text-muted-foreground">
-                      {site.isPublished ? "Anyone with the link can view this site." : "Site is hidden from the public URL."}
-                    </p>
-                  </div>
-                  <Switch
-                    size="small"
-                    checked={site.isPublished}
-                    onChange={async (checked) => {
-                      const updated = await sitesApi.update(site.id, { isPublished: checked });
-                      setSite(updated);
-                    }}
-                  />
-                </div>
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-2.5 py-1.5">
-                  <LinkIcon width={13} height={13} className="shrink-0 text-primary" />
-                  <a
-                    href={publicLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium text-primary no-underline"
-                  >
-                    {publicLink}
-                  </a>
-                  <Button size="small" onClick={() => void handleCopyLink()} className="shrink-0">
-                    Copy
-                  </Button>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-medium text-muted-foreground">Access password</span>
-                  <Input.Password
-                    visibilityToggle={{ visible: showPassword, onVisibleChange: setShowPassword }}
-                    placeholder={hasPassword ? "Password is set — type to change" : "Leave blank for open access"}
-                    value={localPassword}
-                    onChange={(e) => {
-                      setLocalPassword(e.target.value);
-                      setPasswordTouched(true);
-                    }}
-                  />
-                  <p className="m-0 text-[10px] text-muted-foreground">
-                    {hasPassword ? "Clear the field and save to remove password protection." : "Visitors must enter this password to view the public site."}
-                  </p>
-                </div>
-                <div className="flex justify-end">
-                  <Button size="small" type="primary" disabled={!passwordDirty} loading={savingPassword} onClick={() => void handleSavePassword()}>
-                    Save
-                  </Button>
-                </div>
-              </div>
-            }
-          >
-            <Button
-              icon={
-                site.isPublished ? (
-                  hasPassword ? (
-                    <Lock width={14} height={14} className="text-success" />
-                  ) : (
-                    <Global width={14} height={14} className="text-success" />
-                  )
-                ) : (
-                  <Global width={14} height={14} className="text-muted-foreground" />
-                )
-              }
-            >
-              <span className={site.isPublished ? "text-success" : "text-muted-foreground"}>{site.isPublished ? "Published" : "Unpublished"}</span>
-            </Button>
-          </Popover>
+        <SiteViewToggle value={viewMode} onChange={(v) => void handleViewModeChange(v)} />
+        <div className="flex items-center">
           <Dropdown menu={{ items: menuItems }} trigger={["click"]} placement="bottomRight">
             <Button type="text" icon={<MenuDots width={16} height={16} weight="Bold" />} aria-label="Site menu" />
           </Dropdown>
@@ -463,75 +515,74 @@ export default function SiteEditorPage() {
         <SiteSettingsModal site={site} onClose={() => setSettingsOpen(false)} onSaved={setSite} />
       </RenderIf>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <div className="relative flex min-w-0 flex-1 flex-col">
-          <BrowserChrome
-            url={publicLink}
-            className="rounded-none border-r border-border"
-            trailing={
-              <Button
-                size="small"
-                type="text"
-                loading={previewLoading}
-                icon={<Refresh width={14} height={14} />}
-                onClick={runPreview}
-                aria-label="Refresh preview"
-              />
-            }
-          >
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              <iframe
-                ref={previewIframeRef}
-                key={previewEpoch}
-                title="preview"
-                className="min-h-0 flex-1 w-full bg-white"
-                style={{ pointerEvents: panelResizing ? "none" : undefined }}
-                src={previewSrc}
-                onLoad={onPreviewLoad}
-              />
-              <RenderIf condition={previewLoading}>
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50 text-sm text-muted-foreground backdrop-blur-[1px]">
-                  Loading preview…
+          {viewMode === "preview" ? (
+            <BrowserChrome
+              url={previewLabel}
+              className="rounded-none border-0 md:border-r md:border-border"
+              trailing={
+                <div className="flex shrink-0 items-center gap-0.5">
+                  {publicAccessControl}
+                  <Button
+                    size="small"
+                    type="text"
+                    loading={previewLoading}
+                    icon={<Refresh width={14} height={14} />}
+                    onClick={runPreview}
+                    aria-label="Refresh preview"
+                  />
                 </div>
-              </RenderIf>
-            </div>
-          </BrowserChrome>
-
-          <RenderIf condition={!!site.draftDirty && !agentGenerating}>
-            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
-              <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-border bg-card/95 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-md">
-                <Button size="small" icon={<TransferHorizontal width={14} height={14} />} onClick={() => void openCompare()}>
-                  Compare
-                </Button>
-                <Popconfirm
-                  title="Discard draft?"
-                  description="Reset draft to production. Unpublished changes will be lost."
-                  okText="Discard"
-                  okType="danger"
-                  cancelText="Cancel"
-                  onConfirm={() => void handleDiscard()}
-                  styles={{ root: { width: 280 } }}
-                >
-                  <Button size="small" color="default" variant="filled" icon={<Restart width={14} height={14} />} loading={discarding}>
-                    Discard
-                  </Button>
-                </Popconfirm>
-                <Popconfirm
-                  title="Approve draft?"
-                  description="Publish draft to production. This replaces the current live site."
-                  okText="Approve"
-                  okButtonProps={{ color: "green", variant: "solid" }}
-                  cancelText="Cancel"
-                  onConfirm={() => void handleApprove()}
-                  styles={{ root: { width: 280 } }}
-                >
-                  <Button size="small" color="green" variant="solid" icon={<CheckCircle width={14} height={14} />} loading={approving}>
-                    Approve
-                  </Button>
-                </Popconfirm>
+              }
+            >
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                <iframe
+                  ref={previewIframeRef}
+                  key={previewEpoch}
+                  title="preview"
+                  className="min-h-0 flex-1 w-full bg-white"
+                  style={{ pointerEvents: panelResizing ? "none" : undefined }}
+                  src={previewSrc}
+                  onLoad={onPreviewLoad}
+                />
+                <RenderIf condition={previewLoading}>
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50 text-sm text-muted-foreground backdrop-blur-[1px]">
+                    Loading preview…
+                  </div>
+                </RenderIf>
+                {site.draftDirty && !agentGenerating ? (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-3">
+                    <div className="pointer-events-auto">
+                      <SiteDraftReviewBar
+                        changedFiles={["app.tsx"]}
+                        onApprove={() => void handleApprove().catch(() => undefined)}
+                        onDiscard={() => void handleDiscard().catch(() => undefined)}
+                        approving={approving}
+                        discarding={discarding}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            </div>
-          </RenderIf>
+            </BrowserChrome>
+          ) : (
+            <SiteCodeEditor
+              ref={codeEditorRef}
+              siteId={site.id}
+              reloadToken={filesEpoch}
+              onSiteUpdated={setSite}
+              review={
+                site.draftDirty && !agentGenerating
+                  ? {
+                      onApprove: (file) => handleApprove(file),
+                      onDiscard: (file) => handleDiscard(file),
+                      approving,
+                      discarding,
+                    }
+                  : null
+              }
+            />
+          )}
         </div>
 
         <SiteAgentPanel
@@ -549,58 +600,16 @@ export default function SiteEditorPage() {
           }}
           onResizeDraggingChange={setPanelResizing}
           onGeneratingChange={setAgentGenerating}
+          onBeforeSend={async () => {
+            if (viewMode !== "editor") return;
+            try {
+              await codeEditorRef.current?.flush({ quiet: true });
+            } catch {
+              /* still send so the agent can fix unsaved editor errors */
+            }
+          }}
         />
       </div>
-
-      <Modal
-        open={compareOpen}
-        onCancel={() => setCompareOpen(false)}
-        title="Compare versions"
-        width="100%"
-        style={{ top: 0, margin: 0, paddingBottom: 0, maxWidth: "100vw" }}
-        styles={{
-          container: {
-            height: "100vh",
-            borderRadius: 0,
-            display: "flex",
-            flexDirection: "column",
-          },
-          body: {
-            flex: 1,
-            minHeight: 0,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            paddingTop: 12,
-          },
-        }}
-        footer={
-          <div className="flex items-center justify-end">
-            <Button size="small" onClick={() => setCompareOpen(false)}>
-              Close
-            </Button>
-          </div>
-        }
-      >
-        {compareLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading both versions…</div>
-        ) : (
-          <div className="grid h-full grid-cols-2 gap-3">
-            <div className="flex min-h-0 flex-col gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Production</span>
-              <BrowserChrome url={`${publicPath} · prod`} className="min-h-0">
-                <iframe title="prod-compare" className="min-h-0 flex-1 w-full bg-white" srcDoc={prodCompareHtml ?? ""} />
-              </BrowserChrome>
-            </div>
-            <div className="flex min-h-0 flex-col gap-1.5">
-              <span className="text-xs font-medium text-brand-soft">Draft</span>
-              <BrowserChrome url={`${publicPath} · draft`} className="min-h-0">
-                <iframe title="draft-compare" className="min-h-0 flex-1 w-full bg-white" srcDoc={draftCompareHtml ?? ""} />
-              </BrowserChrome>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

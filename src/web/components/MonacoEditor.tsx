@@ -55,6 +55,10 @@ function ensureRawDarkTheme(monacoInstance: Monaco) {
     colors: {
       "editor.lineHighlightBackground": "#ffffff0a",
       "editor.lineHighlightBorder": "#00000000",
+      "editorOverviewRuler.border": "#00000000",
+      "scrollbar.shadow": "#00000000",
+      "diffEditor.insertedTextBackground": "#00000000",
+      "diffEditor.removedTextBackground": "#00000000",
     },
   });
   if (!rawDarkThemeRegistered) {
@@ -65,21 +69,10 @@ function ensureRawDarkTheme(monacoInstance: Monaco) {
 function prepareMonaco(monacoInstance: Monaco) {
   ensureRawDarkTheme(monacoInstance);
   ensureMarkdownLanguage(monacoInstance);
+  ensureScriptDts(monacoInstance);
 }
 
-function ensureScriptDts(monacoInstance: Monaco) {
-  if (scriptDtsRegistered) return;
-  scriptDtsRegistered = true;
-  const defaults = monacoInstance.languages.typescript.typescriptDefaults;
-  defaults.setCompilerOptions({
-    ...defaults.getCompilerOptions(),
-    target: monacoInstance.languages.typescript.ScriptTarget.ESNext,
-    module: monacoInstance.languages.typescript.ModuleKind.ESNext,
-    moduleResolution: monacoInstance.languages.typescript.ModuleResolutionKind.NodeJs,
-    allowNonTsExtensions: true,
-  });
-  defaults.addExtraLib(
-    `declare module "rawagents"{
+const JOB_SCRIPT_DTS = `declare module "rawagents"{
   const rawagents: any;
   export default rawagents;
 }
@@ -92,9 +85,102 @@ declare const process: {
 };
 
 declare const Bun: any;
-`,
-    "ts:job-script.d.ts",
-  );
+`;
+
+const REACT_SITE_DTS = `declare module "react" {
+  export type ReactNode = any;
+  export type Dispatch<A> = (value: A) => void;
+  export type SetStateAction<S> = S | ((prevState: S) => S);
+  export type DependencyList = readonly any[];
+  export function useState<S = any>(initial?: S | (() => S)): [S, Dispatch<SetStateAction<S>>];
+  export function useEffect(effect: () => void | (() => void), deps?: DependencyList): void;
+  export function useLayoutEffect(effect: () => void | (() => void), deps?: DependencyList): void;
+  export function useMemo<T>(factory: () => T, deps?: DependencyList): T;
+  export function useCallback<T extends (...args: any[]) => any>(fn: T, deps?: DependencyList): T;
+  export function useRef<T>(initial: T): { current: T };
+  export function useRef<T>(initial: T | null): { current: T | null };
+  export function useId(): string;
+  export function useReducer<R extends (state: any, action: any) => any>(reducer: R, initialState: any): [any, (action: any) => void];
+  export function useContext<T>(context: T): T;
+  export function createContext<T>(defaultValue: T): T;
+  export function createElement(type: any, props?: any, ...children: any[]): any;
+  export function memo<T>(component: T): T;
+  export function forwardRef<T, P = any>(render: any): any;
+  export function lazy(factory: () => Promise<any>): any;
+  export function startTransition(cb: () => void): void;
+  export const Fragment: any;
+  export const StrictMode: any;
+  export const Suspense: any;
+  export const Children: any;
+  const React: {
+    useState: typeof useState;
+    useEffect: typeof useEffect;
+    createElement: typeof createElement;
+    Fragment: any;
+    [key: string]: any;
+  };
+  export default React;
+  export as namespace React;
+  namespace JSX {
+    type Element = any;
+    interface IntrinsicElements { [elemName: string]: any }
+    interface ElementChildrenAttribute { children: any }
+  }
+}
+
+declare module "react/jsx-runtime" {
+  export function jsx(type: any, props: any, key?: any): any;
+  export function jsxs(type: any, props: any, key?: any): any;
+  export function jsxDEV(type: any, props: any, key?: any): any;
+  export const Fragment: any;
+}
+
+declare module "react-dom/client" {
+  export function createRoot(container: any): { render(node: any): void; unmount(): void };
+}
+
+declare module "react-dom" {
+  export function createPortal(node: any, container: any): any;
+}
+
+declare namespace JSX {
+  type Element = any;
+  interface IntrinsicElements { [elemName: string]: any }
+  interface ElementChildrenAttribute { children: any }
+}
+`;
+
+const SITE_API_DTS = `export function loadSiteData(query?: Record<string, unknown>): Promise<any>;
+export function siteAction(body?: any): Promise<any>;
+export function peekSiteData(): any;
+`;
+
+function ensureScriptDts(monacoInstance: Monaco) {
+  if (scriptDtsRegistered) return;
+  scriptDtsRegistered = true;
+  const ts = monacoInstance.languages.typescript;
+  const compilerOptions = {
+    ...ts.typescriptDefaults.getCompilerOptions(),
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+    jsx: ts.JsxEmit.ReactJSX,
+    allowJs: true,
+    allowNonTsExtensions: true,
+    esModuleInterop: true,
+    allowSyntheticDefaultImports: true,
+    noEmit: true,
+    skipLibCheck: true,
+    noImplicitAny: false,
+    strict: false,
+    strictNullChecks: false,
+    lib: ["esnext", "dom"],
+  };
+  ts.typescriptDefaults.setCompilerOptions(compilerOptions);
+  ts.javascriptDefaults.setCompilerOptions(compilerOptions);
+  ts.typescriptDefaults.addExtraLib(JOB_SCRIPT_DTS, "ts:job-script.d.ts");
+  ts.typescriptDefaults.addExtraLib(REACT_SITE_DTS, "ts:react-site.d.ts");
+  ts.typescriptDefaults.addExtraLib(SITE_API_DTS, "file:///site-api.js");
 }
 
 const DEFAULT_OPTIONS: editorNS.IStandaloneEditorConstructionOptions = {
@@ -106,10 +192,13 @@ const DEFAULT_OPTIONS: editorNS.IStandaloneEditorConstructionOptions = {
   wordWrap: "off",
   automaticLayout: true,
   scrollbar: {
-    verticalScrollbarSize: 6,
-    horizontalScrollbarSize: 6,
+    verticalScrollbarSize: 10,
+    horizontalScrollbarSize: 10,
     horizontal: "visible",
   },
+  overviewRulerBorder: false,
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
   stickyScroll: { enabled: false },
   renderLineHighlight: "line",
   unicodeHighlight: {
@@ -133,7 +222,6 @@ export function MonacoEditor({ theme = RAW_DARK_THEME, options, height = "100%",
   const handleMount: EditorProps["onMount"] = useCallback(
     (editor: EditorInstance, monacoInstance: Monaco) => {
       prepareMonaco(monacoInstance);
-      ensureScriptDts(monacoInstance);
       monacoInstance.editor.setTheme(theme);
       editor.updateOptions({
         unicodeHighlight: {
@@ -170,10 +258,13 @@ const DEFAULT_DIFF_OPTIONS: editorNS.IDiffEditorConstructionOptions = {
   wordWrap: "off",
   automaticLayout: true,
   scrollbar: {
-    verticalScrollbarSize: 6,
-    horizontalScrollbarSize: 6,
+    verticalScrollbarSize: 10,
+    horizontalScrollbarSize: 10,
     horizontal: "visible",
   },
+  overviewRulerBorder: false,
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
   stickyScroll: { enabled: false },
   readOnly: true,
   renderSideBySide: false,
@@ -194,7 +285,6 @@ export function MonacoDiffEditor({ theme = RAW_DARK_THEME, options, height = "10
   const handleMount: NonNullable<MonacoDiffEditorProps["onMount"]> = useCallback(
     (editor, monacoInstance) => {
       prepareMonaco(monacoInstance);
-      ensureScriptDts(monacoInstance);
       onMount?.(editor, monacoInstance);
     },
     [onMount],

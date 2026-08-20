@@ -57,7 +57,7 @@ export const sitesApi = {
       matchMethod: "anchor" | "fuzzy" | "none";
     }>(`/api/sites/${id}/resolve-selection`, body),
 
-  approve: (id: string) => apiClient.post<Site>(`/api/sites/${id}/approve`, {}),
+  approve: (id: string, file?: string) => apiClient.post<Site>(`/api/sites/${id}/approve`, file ? { file } : {}),
 
-  discard: (id: string) => apiClient.post<Site>(`/api/sites/${id}/discard`, {}),
+  discard: (id: string, file?: string) => apiClient.post<Site>(`/api/sites/${id}/discard`, file ? { file } : {}),
 };

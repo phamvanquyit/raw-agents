@@ -159,11 +159,22 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
     thinkingStartRef.current = 0;
   }, []);
 
+  const clear = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setMessages([]);
+    setGenerating(false);
+    thinkingRef.current = "";
+    thinkingStartRef.current = 0;
+  }, []);
+
   const send = useCallback(
-    async (text: string, options: { providerId: string; model: string }) => {
+    async (text: string, options: { providerId: string; model: string; extraContext?: string }) => {
       const { providerId, model } = options;
       if (!text.trim() || generating) return;
       if (!providerId || !model) return;
+      const extra = options.extraContext?.trim();
+      const apiContent = extra ? `${extra}\n\n${text}` : text;
 
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -268,7 +279,7 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
           body: JSON.stringify({
             providerId,
             modelId: model,
-            messages: [...aiHistory, { role: "user", content: text }],
+            messages: [...aiHistory, { role: "user", content: apiContent }],
             publicOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
           }),
           signal: controller.signal,
@@ -475,5 +486,5 @@ export function useAssistantStreaming({ streamUrl, onToolAction, summarizeToolCa
     [generating, messages, streamUrl],
   );
 
-  return { messages, generating, send, cancel };
+  return { messages, generating, send, cancel, clear };
 }
