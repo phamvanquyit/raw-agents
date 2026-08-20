@@ -1,4 +1,4 @@
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import {
   type McpCatalogTool,
   type NewAgent,
@@ -79,6 +79,16 @@ export function getAgent(id: string) {
   return getDb().select().from(agents).where(eq(agents.id, id)).get();
 }
 
+function nextSortOrder(teamId: string | null): number {
+  const db = getDb();
+  const rows =
+    teamId == null
+      ? db.select({ sortOrder: agents.sortOrder }).from(agents).where(isNull(agents.teamId)).all()
+      : db.select({ sortOrder: agents.sortOrder }).from(agents).where(eq(agents.teamId, teamId)).all();
+  if (rows.length === 0) return 0;
+  return rows.reduce((min, row) => Math.min(min, row.sortOrder), rows[0].sortOrder) - 1;
+}
+
 /**
  * List agents filtered by ownership:
  * - admin sees all agents
@@ -119,10 +129,13 @@ function randomAvatarJson(): string {
 
 export function createAgent(body: Omit<NewAgent, "id" | "createdAt" | "updatedAt">) {
   const now = new Date();
+  const teamId = body.teamId ?? null;
   const newAgent: NewAgent = {
     ...body,
     avatar: body.avatar?.trim() ? body.avatar : randomAvatarJson(),
     id: crypto.randomUUID(),
+    teamId,
+    sortOrder: body.sortOrder ?? nextSortOrder(teamId),
     createdAt: now,
     updatedAt: now,
   };
@@ -132,14 +145,33 @@ export function createAgent(body: Omit<NewAgent, "id" | "createdAt" | "updatedAt
 }
 
 export function updateAgent(id: string, body: Partial<NewAgent>) {
-  getDb()
-    .update(agents)
+  const db = getDb();
+  if (body.teamId !== undefined && body.sortOrder === undefined) {
+    const current = db.select({ teamId: agents.teamId }).from(agents).where(eq(agents.id, id)).get();
+    const nextTeamId = body.teamId ?? null;
+    if ((current?.teamId ?? null) !== nextTeamId) {
+      body.sortOrder = nextSortOrder(nextTeamId);
+    }
+  }
+
+  db.update(agents)
     .set({ ...body, updatedAt: new Date() })
     .where(eq(agents.id, id))
     .run();
-  const updated = getDb().select().from(agents).where(eq(agents.id, id)).get();
+  const updated = db.select().from(agents).where(eq(agents.id, id)).get();
   wsHub.emit("agents:updated", updated);
   return updated;
+}
+
+export function reorderAgents(teamId: string | null, agentIds: string[]) {
+  const db = getDb();
+  for (let i = 0; i < agentIds.length; i++) {
+    const id = agentIds[i];
+    if (!id) continue;
+    db.update(agents).set({ teamId, sortOrder: i, updatedAt: new Date() }).where(eq(agents.id, id)).run();
+  }
+  wsHub.emit("agents:reordered", { teamId, agentIds });
+  return { teamId, agentIds };
 }
 
 export function deleteAgent(id: string) {
@@ -185,6 +217,7 @@ export function cloneAgent(sourceId: string, createdBy?: string) {
     aiModel: src.aiModel,
     callableAgentIds: src.callableAgentIds ?? [],
     teamId: src.teamId,
+    sortOrder: nextSortOrder(src.teamId ?? null),
     createdBy: createdBy ?? src.createdBy,
     createdAt: now,
     updatedAt: now,

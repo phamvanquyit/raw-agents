@@ -13,6 +13,7 @@ import {
   listSkillAssignments,
   removeAssignment,
   removeSkillAssignment,
+  reorderAgents,
   setAssignments,
   setSkillAssignments,
   updateAgent,
@@ -29,6 +30,12 @@ const app = new Hono();
 app.get("/", (c) => {
   const user = (c as any).get("user") as { id: string; role: string } | undefined;
   return c.json(listAgentsEnriched(c.req.query(), user));
+});
+
+// PUT /api/agents/reorder — persist board order within a team (or ungrouped)
+app.put("/reorder", async (c) => {
+  const body = await c.req.json<{ teamId?: string | null; agentIds?: string[] }>();
+  return c.json(reorderAgents(body.teamId ?? null, body.agentIds ?? []));
 });
 
 // GET /api/agents/:id
