@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { getDb, sites } from "../../common/db/client.js";
 import { listQuery } from "../../common/db/list-query.util.js";
 import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from "../../common/exceptions/http.exception.js";
+import { slugify } from "../../common/utils/slug.js";
 import { wsHub } from "../../common/ws/wsHub.js";
 import { resolveSiteSelection } from "./common/resolve-selection.js";
 import { buildSiteBundle, buildSiteShellHtml, buildSiteUnlockHtml, invalidateSiteCaches as invalidateBundleCaches } from "./sites-bundle.js";
@@ -113,7 +114,7 @@ export async function verifySitePublicAccessToken(slug: string, token?: string) 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function assertSlug(slug: string) {
-  const s = slug?.trim().toLowerCase() ?? "";
+  const s = slugify(slug ?? "");
   if (!s) throw new BadRequestException("slug is required");
   if (s.length > 80) throw new BadRequestException("slug is too long");
   if (!SLUG_RE.test(s)) throw new BadRequestException("slug must be lowercase alphanumeric with hyphens");
@@ -343,10 +344,26 @@ export async function installDeps(id: string, tree: SiteTree = "draft") {
   return safe;
 }
 
-export async function approveSite(id: string) {
+function parseOptionalSourceFiles(file?: string): SiteSourceFile[] | undefined {
+  if (file === undefined || file === "") return undefined;
+  if (!isAllowedSourceFile(file)) throw new BadRequestException(`Invalid file: ${file}`);
+  return [file];
+}
+
+export async function approveSite(id: string, file?: string) {
   getSiteOrThrow(id);
-  promoteDraftToProd(id);
+  const files = parseOptionalSourceFiles(file);
+  promoteDraftToProd(id, files);
   invalidateSiteCaches(id);
+
+  const needsInstall = !files || files.includes("package.json");
+  if (!needsInstall) {
+    const db = getDb();
+    const [row] = db.update(sites).set({ updatedAt: new Date() }).where(eq(sites.id, id)).returning().all();
+    const safe = toSiteResponse(row);
+    wsHub.emit("sites:updated", safe);
+    return safe;
+  }
 
   const db = getDb();
   db.update(sites).set({ depsStatus: "installing", depsError: null, updatedAt: new Date() }).where(eq(sites.id, id)).run();
@@ -369,9 +386,9 @@ export async function approveSite(id: string) {
   return safe;
 }
 
-export function discardSiteDraft(id: string) {
+export function discardSiteDraft(id: string, file?: string) {
   getSiteOrThrow(id);
-  discardDraft(id);
+  discardDraft(id, parseOptionalSourceFiles(file));
   invalidateSiteCaches(id);
   const db = getDb();
   const [row] = db.update(sites).set({ draftUpdatedAt: new Date(), updatedAt: new Date() }).where(eq(sites.id, id)).returning().all();

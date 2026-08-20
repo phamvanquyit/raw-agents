@@ -26,7 +26,7 @@ const DEFAULT_BACKEND = `export async function handle({ request, rawagents, quer
   }
 
   const contentType = request.headers.get("content-type") || "";
-  let body = {};
+  let body: Record<string, unknown> = {};
   if (contentType.includes("application/json")) {
     body = await request.json().catch(() => ({}));
   } else {
@@ -244,22 +244,22 @@ export function writeScaffold(siteId: string, slug: string): void {
   }
 }
 
-function copySourceFiles(fromDir: string, toDir: string): void {
+function copySourceFiles(fromDir: string, toDir: string, files: readonly SiteSourceFile[] = SITE_SOURCE_FILES): void {
   mkdirSync(toDir, { recursive: true });
-  for (const file of SITE_SOURCE_FILES) {
+  for (const file of files) {
     const src = join(fromDir, file);
     if (existsSync(src)) copyFileSync(src, join(toDir, file));
   }
 }
 
 /** Promote draft source → prod (does not copy node_modules). */
-export function promoteDraftToProd(siteId: string): void {
-  copySourceFiles(getTreeDir(siteId, "draft"), getTreeDir(siteId, "prod"));
+export function promoteDraftToProd(siteId: string, files?: readonly SiteSourceFile[]): void {
+  copySourceFiles(getTreeDir(siteId, "draft"), getTreeDir(siteId, "prod"), files);
 }
 
 /** Reset draft source from prod. */
-export function discardDraft(siteId: string): void {
-  copySourceFiles(getTreeDir(siteId, "prod"), getTreeDir(siteId, "draft"));
+export function discardDraft(siteId: string, files?: readonly SiteSourceFile[]): void {
+  copySourceFiles(getTreeDir(siteId, "prod"), getTreeDir(siteId, "draft"), files);
 }
 
 export function removeSiteDir(siteId: string): void {

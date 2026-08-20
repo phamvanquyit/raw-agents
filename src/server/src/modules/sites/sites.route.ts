@@ -185,13 +185,15 @@ app.post("/:id/resolve-selection", async (c) => {
 app.post("/:id/approve", async (c) => {
   const id = c.req.param("id");
   svc.requireSiteAccess(id, authUser(c));
-  return c.json(await svc.approveSite(id));
+  const body = (await c.req.json().catch(() => ({}))) as { file?: string };
+  return c.json(await svc.approveSite(id, body.file));
 });
 
-app.post("/:id/discard", (c) => {
+app.post("/:id/discard", async (c) => {
   const id = c.req.param("id");
   svc.requireSiteAccess(id, authUser(c));
-  return c.json(svc.discardSiteDraft(id));
+  const body = (await c.req.json().catch(() => ({}))) as { file?: string };
+  return c.json(svc.discardSiteDraft(id, body.file));
 });
 
 app.post("/:id/agent/stream", async (c) => {
