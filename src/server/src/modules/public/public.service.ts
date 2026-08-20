@@ -44,20 +44,10 @@ export async function verifyPublicToken(agentId: string, token: string): Promise
   }
 }
 
-export function getPublicAgent(agentId: string) {
+export type PublicAgentTool = { name: string; label: string; icon: string | null };
+
+export function listPublicAgentTools(agentId: string): PublicAgentTool[] {
   const db = getDb();
-  const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
-  if (!agent) throw new BadRequestException("Agent not found");
-  if (!agent.isPublic) throw new BadRequestException("Thật đáng tiếc, Agent này không được chia sẻ công khai.");
-
-  // Resolve provider label
-  let providerLabel: string | undefined;
-  if (agent.aiProvider) {
-    const provider = db.select().from(llmProviders).where(eq(llmProviders.id, agent.aiProvider)).get();
-    providerLabel = provider?.label;
-  }
-
-  // Resolve assigned tools
   const toolRows = db
     .select({ toolId: agentToolAssignments.toolId, name: agentTools.name, label: agentTools.label, icon: agentTools.icon })
     .from(agentToolAssignments)
@@ -65,7 +55,7 @@ export function getPublicAgent(agentId: string) {
     .where(eq(agentToolAssignments.agentId, agentId))
     .all();
 
-  const tools = toolRows.map((t) => {
+  return toolRows.map((t) => {
     if (t.toolId.startsWith("builtin:")) {
       const builtin = getBuiltinTool(t.toolId);
       return { name: builtin?.name ?? t.toolId, label: builtin?.label ?? t.toolId, icon: null };
@@ -83,6 +73,19 @@ export function getPublicAgent(agentId: string) {
     }
     return { name: t.name ?? "", label: t.label ?? "", icon: t.icon ?? null };
   });
+}
+
+export function getPublicAgent(agentId: string) {
+  const db = getDb();
+  const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
+  if (!agent) throw new BadRequestException("Agent not found");
+  if (!agent.isPublic) throw new BadRequestException("Thật đáng tiếc, Agent này không được chia sẻ công khai.");
+
+  let providerLabel: string | undefined;
+  if (agent.aiProvider) {
+    const provider = db.select().from(llmProviders).where(eq(llmProviders.id, agent.aiProvider)).get();
+    providerLabel = provider?.label;
+  }
 
   return {
     data: {
@@ -92,7 +95,7 @@ export function getPublicAgent(agentId: string) {
       requiresPassword: !!agent.publicPassword && agent.publicPassword.length > 0,
       model: agent.aiModel ?? undefined,
       providerLabel: providerLabel ?? undefined,
-      tools,
+      tools: listPublicAgentTools(agentId),
     },
   };
 }
