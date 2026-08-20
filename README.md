@@ -8,10 +8,10 @@ Self-hosted AI agents with a web UI — extend them with Python/JS tools & MCP, 
 
 ## Features
 
-- 🤖 **Multi-Agent Management** — Create and configure multiple AI agents with personas, tools, and avatars
+- 🤖 **Multi-Agent Management** — Create and configure multiple AI agents with personas, tools, and avatars; drag to reorder on the board
 - 🧠 **Multi-Provider** — OpenAI, Anthropic, Google Gemini, OpenRouter and more via LangChain
 - 🛠️ **Custom Tools** — JavaScript / Python tools, organized in folders on a tree-style Tools page
-- 📚 **Skills** — Shared markdown skill catalog with AI-assisted editing; assign to agents for progressive disclosure (`read_skill`)
+- 📚 **Skills** — Shared markdown skill catalog with AI-assisted editing and per-file draft review; assign to agents for progressive disclosure (`read_skill`)
 - 🧩 **Memory** — Per-agent user knowledge graph (nodes/edges) via the agent menu and `memory` tool
 - 📝 **Instruct** — Full-page system prompt editor as an agent detail tab (also from the flow graph)
 - 🔌 **MCP Servers** — Connect remote MCP servers (SSE / Streamable HTTP), sync catalogs, and attach tools to agents
@@ -20,7 +20,7 @@ Self-hosted AI agents with a web UI — extend them with Python/JS tools & MCP, 
 - 🗄️ **KV Store** — Key-value storage accessible from Python tools via `import rawagents` (`rawagents.kv`)
 - 🔐 **Secrets Management** — Encrypted secret storage with AES-256-GCM (`rawagents.secrets`)
 - 📊 **Datatables** — Workspace tables (projects → tables → rows) with schema editor / agent, per-project tools on the agent flow, and `rawagents.datatable`
-- 📄 **Sites** — AI-assisted React sites (`app.tsx` / `backend.ts` / `styles.css`) with draft/publish, live HTML preview, list thumbnails from preview, and optional public password links
+- 📄 **Sites** — AI-assisted React sites (`app.tsx` / `backend.ts` / `styles.css`) with draft/publish, per-file review, TypeScript/JSON diagnostics, live HTML preview, list thumbnails from preview, and optional public password links
 - ⏰ **Jobs** — Cron-scheduled Bun/TypeScript scripts with admin UI, AI editor, and `rawagents.agents` to call workspace agents
 - 💬 **Real-time Chat** — Live streaming chat with agents; refresh (F5) resumes an in-progress reply
 - 🔗 **Public Sharing** — Share agents via public links with optional password protection; Open Graph previews for shared chat links

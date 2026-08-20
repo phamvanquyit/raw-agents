@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-08-20
+
+### Added
+- Drag agents between teams (or ungrouped) on the board; order is persisted
+- Site and skill editors can approve or discard one draft file at a time, with a review bar
+- Site `preview_site` returns TypeScript and JSON editor errors so the agent can fix them in-turn
+- Vietnamese and other accented names keep letters in slugs and tool names (diacritics stripped, not dropped)
+
+### Changed
+- Brand mark, login, sidebar settings, and public site unlock page match the new visual identity
+- Chat typography and thinking status are tighter; live thinking no longer dumps the full draft mid-stream
+
+### Upgrade notes
+- Rebuild or re-pull the Docker image
+- SQLite migration `0045_agents_sort_order` applies on startup
+
 ## [0.23.3] - 2026-08-18
 
 ### Added
@@ -481,6 +497,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rebuild/re-pull the Docker image if you use the browser tool in containers
 - MCP URLs must be public `http`/`https` (private/local addresses are blocked)
 
+[0.24.0]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.3...v0.24.0
 [0.23.3]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.2...v0.23.3
 [0.23.2]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.1...v0.23.2
 [0.23.1]: https://github.com/phamvanquyit/raw-agents/compare/v0.23.0...v0.23.1
