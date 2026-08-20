@@ -187,7 +187,7 @@ export function minifyCss(css: string): string {
 }
 
 export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?: string }) {
-  const err = opts.error ? `<p style="color:#b91c1c;font-size:13px">${escapeHtml(opts.error)}</p>` : "";
+  const err = opts.error ? `<p class="error" role="alert">${escapeHtml(opts.error)}</p>` : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -195,24 +195,63 @@ export function buildSiteUnlockHtml(opts: { title: string; slug: string; error?:
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(opts.title)}</title>
   <style>
-    body{margin:0;font-family:system-ui,sans-serif;background:#fafafa;color:#111}
-    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-    .card{width:100%;max-width:360px;background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:28px}
-    h1{font-size:18px;margin:0 0 6px} p{margin:0 0 16px;color:#666;font-size:13px}
-    input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font:inherit}
-    button{margin-top:12px;width:100%;padding:10px;border:0;border-radius:8px;background:#111;color:#fff;font:inherit;cursor:pointer}
+    :root{color-scheme:dark}
+    *{box-sizing:border-box}
+    body{margin:0;min-width:320px;background:#121212;color:#ebebeb;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .wrap{position:relative;display:flex;min-height:100vh;align-items:center;justify-content:center;overflow:hidden;padding:24px}
+    .grid{pointer-events:none;position:absolute;inset:0;opacity:.58;background-image:linear-gradient(90deg,rgba(221,118,39,.09) 1px,transparent 1px),linear-gradient(rgba(221,118,39,.07) 1px,transparent 1px);background-size:48px 48px}
+    .halo{pointer-events:none;position:absolute;top:0;right:0;left:0;height:34rem;background:radial-gradient(ellipse 56% 46% at 50% 0%,rgba(221,118,39,.22),transparent)}
+    .shell{position:relative;width:100%;max-width:448px}
+    .status{display:flex;align-items:center;justify-content:space-between;margin:0 4px 12px;color:#9a9a9a;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;font-weight:500;letter-spacing:.16em}
+    .secure{display:flex;align-items:center;gap:6px;color:#ffa333}
+    .dot{width:6px;height:6px;border-radius:999px;background:#ffa333}
+    .card{overflow:hidden;border:1px solid rgba(102,102,102,.2);border-radius:16px;background:#191919}
+    .header{padding:24px 32px 20px;border-bottom:1px solid rgba(102,102,102,.12)}
+    .identity{display:flex;align-items:flex-start;gap:16px}
+    .lock{display:grid;flex:0 0 auto;width:44px;height:44px;place-items:center;border:1px solid rgba(221,118,39,.3);border-radius:12px;background:rgba(221,118,39,.1);color:#ffa333}
+    .eyebrow{margin:0 0 4px;color:#ffa333;font-size:12px;font-weight:500;letter-spacing:.08em}
+    h1{overflow:hidden;margin:0;color:#ebebeb;font-size:24px;font-weight:600;line-height:32px;text-overflow:ellipsis;white-space:nowrap}
+    .description{margin:20px 0 0;max-width:340px;color:#9a9a9a;font-size:13px;line-height:19px}
+    form{padding:24px 32px 32px}
+    label{display:block;margin-bottom:16px;color:#ebebeb;font-size:12px;font-weight:500}
+    .input-wrap{position:relative;display:block;margin-top:8px}
+    .input-lock{position:absolute;top:50%;left:14px;width:16px;height:16px;transform:translateY(-50%);color:#8a8a8a}
+    input{width:100%;height:40px;border:1px solid rgba(102,102,102,.2);border-radius:6px;background:#121212;color:#ebebeb;padding:0 14px 0 40px;font:inherit;font-size:14px;outline:none;transition:border-color .15s}
+    input::placeholder{color:#6e6e6e}
+    input:focus{border-color:rgba(235,235,235,.3)}
+    .error{margin:0 0 16px;padding:8px 12px;border:1px solid rgba(239,68,68,.25);border-radius:6px;background:rgba(239,68,68,.1);color:#ef4444;font-size:12px;font-weight:500;line-height:16px}
+    button{width:100%;height:40px;border:0;border-radius:6px;background:#dd7627;color:#fff;font:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s}
+    button:hover{background:#ffa333}
+    button:focus-visible{outline:2px solid #ffa333;outline-offset:3px}
+    .help{margin:24px 0 0;color:#6e6e6e;text-align:center;font-size:12px;line-height:16px}
+    @media(max-width:480px){.wrap{padding:20px}.header{padding:24px 24px 20px}form{padding:24px}.status{font-size:10px}}
   </style>
 </head>
 <body>
-  <div class="wrap"><div class="card">
-    <h1>${escapeHtml(opts.title)}</h1>
-    <p>Enter password to continue</p>
-    ${err}
-    <form id="f">
-      <input id="p" type="password" placeholder="Password" autocomplete="current-password" required />
-      <button type="submit">Unlock</button>
-    </form>
-  </div></div>
+  <main class="wrap">
+    <div class="grid" aria-hidden="true"></div>
+    <div class="halo" aria-hidden="true"></div>
+    <section class="shell" aria-labelledby="site-title">
+      <div class="status"><span>ACCESS GATEWAY</span><span class="secure"><i class="dot"></i>ENCRYPTED</span></div>
+      <div class="card">
+        <header class="header">
+          <div class="identity">
+            <div class="lock" aria-hidden="true"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path><path d="M12 14v2"></path></svg></div>
+            <div><p class="eyebrow">PRIVATE SITE</p><h1 id="site-title">${escapeHtml(opts.title)}</h1></div>
+          </div>
+          <p class="description">This space is protected. Enter the access password to continue.</p>
+        </header>
+        <form id="f">
+          <label for="p">Access password
+            <span class="input-wrap"><svg class="input-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg><input id="p" type="password" placeholder="Enter password" autocomplete="current-password" required /></span>
+          </label>
+          ${err}
+          <button type="submit">Unlock site</button>
+        </form>
+      </div>
+      <p class="help">Request access from the site owner if you do not have a password.</p>
+    </section>
+  </main>
   <script>
     (async function () {
       var slug = ${JSON.stringify(opts.slug)};
