@@ -1,84 +1,10 @@
+import { slugify } from "src/common/utils/slug";
 import type { Param } from "./constants";
 
 // ─── String Helpers ───────────────────────────────────────────────────────────
 
 export function toSnakeCase(text: string): string {
-  const map: Record<string, string> = {
-    à: "a",
-    á: "a",
-    ả: "a",
-    ã: "a",
-    ạ: "a",
-    ă: "a",
-    ắ: "a",
-    ặ: "a",
-    ằ: "a",
-    ẳ: "a",
-    ẵ: "a",
-    â: "a",
-    ấ: "a",
-    ầ: "a",
-    ẩ: "a",
-    ẫ: "a",
-    ậ: "a",
-    è: "e",
-    é: "e",
-    ẻ: "e",
-    ẽ: "e",
-    ẹ: "e",
-    ê: "e",
-    ế: "e",
-    ề: "e",
-    ể: "e",
-    ễ: "e",
-    ệ: "e",
-    ì: "i",
-    í: "i",
-    ỉ: "i",
-    ĩ: "i",
-    ị: "i",
-    ò: "o",
-    ó: "o",
-    ỏ: "o",
-    õ: "o",
-    ọ: "o",
-    ô: "o",
-    ố: "o",
-    ồ: "o",
-    ổ: "o",
-    ỗ: "o",
-    ộ: "o",
-    ơ: "o",
-    ớ: "o",
-    ờ: "o",
-    ở: "o",
-    ỡ: "o",
-    ợ: "o",
-    ù: "u",
-    ú: "u",
-    ủ: "u",
-    ũ: "u",
-    ụ: "u",
-    ư: "u",
-    ứ: "u",
-    ừ: "u",
-    ử: "u",
-    ữ: "u",
-    ự: "u",
-    ỳ: "y",
-    ý: "y",
-    ỷ: "y",
-    ỹ: "y",
-    ỵ: "y",
-    đ: "d",
-  };
-  return text
-    .toLowerCase()
-    .split("")
-    .map((c) => map[c] ?? c)
-    .join("")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+  return slugify(text, "_");
 }
 
 // ─── Param ↔ JSON Schema (legacy, UI-table based) ────────────────────────────
@@ -293,11 +219,7 @@ export function parseMetaFromCode(code: string): CodeMeta {
   if (descMatch) meta.description = descMatch[1].trim();
   // Auto-derive snake_case name from label
   if (meta.label) {
-    meta.name = meta.label
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
+    meta.name = toSnakeCase(meta.label);
   }
   return meta;
 }

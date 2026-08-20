@@ -1,3 +1,5 @@
+import { slugify } from "../../../common/utils/slug.js";
+
 // ─── Code Annotation Parser ──────────────────────────────────────────────────
 // Parses @name, @description, and @param annotations from Python tool code.
 // Used server-side to auto-derive tool metadata whenever codeContent is updated.
@@ -72,11 +74,7 @@ export function parseMetaFromCode(code: string): CodeMeta {
   const descMatch = code.match(/^#\s*@description\s+(.+)$/m);
   if (descMatch) meta.description = descMatch[1].trim();
   if (meta.label) {
-    meta.name = meta.label
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
+    meta.name = slugify(meta.label, "_");
   }
   return meta;
 }

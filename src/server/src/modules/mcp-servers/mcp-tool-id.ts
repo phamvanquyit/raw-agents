@@ -1,3 +1,5 @@
+import { stripDiacritics } from "../../common/utils/slug.js";
+
 /** Virtual tool assignment id: mcp:{serverId}:{mcpToolName} */
 
 export function buildMcpToolId(serverId: string, toolName: string): string {
@@ -24,7 +26,7 @@ export function buildMcpLangGraphName(serverName: string, toolName: string): str
 }
 
 function toSnakeCase(str: string): string {
-  return str
+  return stripDiacritics(str)
     .replace(/([A-Z])/g, "_$1")
     .replace(/[\s\-]+/g, "_")
     .replace(/[^a-zA-Z0-9_]/g, "")
