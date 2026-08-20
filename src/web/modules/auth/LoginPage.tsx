@@ -70,30 +70,42 @@ export default function LoginPage() {
   if (checking) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-background">
-      <div className="relative w-full max-w-[400px] mx-4">
-        <div className="rounded-md border border-border bg-card overflow-hidden">
-          <div className="flex flex-col items-center pt-8 pb-4 px-6">
-            <div className="mb-4">
-              <AppLogo size={48} />
+    <div className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-background p-5 sm:p-6">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,color-mix(in_oklab,var(--brand)_9%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_oklab,var(--brand)_6%,transparent)_1px,transparent_1px)] [background-size:48px_48px]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(ellipse_56%_46%_at_50%_0%,color-mix(in_oklab,var(--brand)_22%,transparent),transparent)]"
+      />
+
+      <div className="relative w-full max-w-[448px]">
+        <div className="mb-3 flex items-center justify-between px-1 text-2xs font-medium tracking-[0.16em] text-tertiary-foreground">
+          <span>ACCESS CONSOLE</span>
+          <span className="flex items-center gap-1.5 text-brand-soft">
+            <span className="size-1.5 rounded-full bg-brand-soft" />
+            SIGN IN
+          </span>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border-subtle px-6 py-6 sm:px-8">
+            <div className="flex items-start gap-4">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-brand/30 bg-brand/10">
+                <AppLogo size={32} />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1 text-xs font-medium tracking-[0.08em] text-brand-soft">RAW AGENTS</p>
+                <h1 className="text-xl font-semibold leading-8 text-foreground">Welcome back</h1>
+              </div>
             </div>
-            <h1 className="font-display text-xl font-medium text-foreground mb-1">Welcome Back</h1>
-            <p className="text-sm text-muted-foreground">Sign in to continue to Raw Agents</p>
+            <p className="mt-5 max-w-sm text-sm leading-5 text-tertiary-foreground">Sign in to manage your agents, tools, and workflows.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="px-6 pb-6 pt-2">
-            <div className="flex flex-col gap-4">
-              <Form.Item
-                label={
-                  <span className="text-muted-foreground">
-                    Username or Email
-                    <span className="text-destructive"> *</span>
-                  </span>
-                }
-                layout="vertical"
-                required
-                className="!mb-0"
-              >
+          <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-8 sm:pb-8">
+            <div className="flex flex-col gap-5">
+              <Form.Item label={<span className="text-foreground">Username</span>} layout="vertical" required className="!mb-0">
                 <Input
                   type="text"
                   value={username}
@@ -102,47 +114,35 @@ export default function LoginPage() {
                   autoComplete="username"
                   autoFocus
                   disabled={loading}
+                  size="large"
                 />
               </Form.Item>
 
-              <Form.Item
-                label={
-                  <span className="text-muted-foreground">
-                    Password
-                    <span className="text-destructive"> *</span>
-                  </span>
-                }
-                layout="vertical"
-                required
-                className="!mb-0"
-              >
-                <Input
-                  type="password"
+              <Form.Item label={<span className="text-foreground">Password</span>} layout="vertical" required className="!mb-0">
+                <Input.Password
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   disabled={loading}
+                  size="large"
                 />
               </Form.Item>
 
               <RenderIf condition={!!error}>
-                <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
+                <div role="alert" className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2">
                   <p className="text-xs text-destructive font-medium">{error}</p>
                 </div>
               </RenderIf>
 
-              <Button htmlType="submit" type="primary" size="large" block loading={loading} className="mt-1">
-                Sign In
+              <Button htmlType="submit" type="primary" size="large" block loading={loading} className="mt-1 !h-10 !rounded-md">
+                Sign in to workspace
               </Button>
             </div>
           </form>
         </div>
 
-        <div className="flex items-center justify-center mt-4 gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-          <span className="text-[10px] text-muted-foreground font-mono">Raw Agents</span>
-        </div>
+        <p className="mt-5 text-center text-xs leading-4 text-quaternary-foreground">Use the account created during initial setup.</p>
       </div>
     </div>
   );

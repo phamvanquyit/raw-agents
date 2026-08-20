@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="252" height="32" viewBox="0 0 252 32" fill="none">
+  <rect x="4" y="4" width="11" height="11" rx="3" fill="#111111"/>
+  <circle cx="22.75" cy="9.5" r="5.75" fill="#DD7627"/>
+  <rect x="4" y="17" width="11" height="11" rx="3" fill="#111111"/>
+  <text x="40" y="22.5" fill="#111111" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="-0.4">Raw Agents</text>
+</svg>

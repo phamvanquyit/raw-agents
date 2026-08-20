@@ -77,9 +77,11 @@ export const antdTheme: ThemeConfig = {
     Input: {
       // Slightly lighter than modal/card (#191919) so fields read as controls.
       colorBgContainer: "#212121",
-      // Hover/focus: slightly lighter border (not primary), no ring.
-      hoverBorderColor: "rgba(255, 255, 255, 0.28)",
-      activeBorderColor: "rgba(255, 255, 255, 0.28)",
+      hoverBg: "#2a2a2a",
+      activeBg: "#2a2a2a",
+      // Hover/focus: keep default border, lift background instead, no ring.
+      hoverBorderColor: "rgba(102, 102, 102, 0.2)",
+      activeBorderColor: "rgba(102, 102, 102, 0.2)",
       activeShadow: "none",
       errorActiveShadow: "none",
       warningActiveShadow: "none",

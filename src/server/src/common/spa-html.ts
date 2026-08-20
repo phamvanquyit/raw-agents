@@ -11,8 +11,8 @@ import { agents, getDb } from "./db/client.js";
 const DEFAULT_TITLE = "Raw Agents";
 const DEFAULT_DESCRIPTION = "Raw Agents — AI Agent Management Platform";
 const OG_IMAGE_PATH = "/og-image.png";
-const OG_IMAGE_WIDTH = "1731";
-const OG_IMAGE_HEIGHT = "909";
+const OG_IMAGE_WIDTH = "1200";
+const OG_IMAGE_HEIGHT = "630";
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

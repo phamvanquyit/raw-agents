@@ -109,6 +109,24 @@ function SidebarNavLink({ item, end }: { item: NavItem; end?: boolean }) {
   );
 }
 
+function SettingsPanelHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      aria-label="Back to workspace"
+      className="group mb-2 flex h-8 w-full min-w-0 items-center gap-2 border-0 bg-transparent px-0.5 text-left cursor-pointer"
+    >
+      <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-tertiary-foreground transition-colors duration-150 group-hover:bg-secondary group-hover:text-sidebar-foreground">
+        <span className="flex size-4 items-center justify-center transition-transform duration-150 group-hover:-translate-x-px motion-reduce:transition-none [&_svg]:size-4">
+          <AltArrowLeft width={16} height={16} weight="Bold" />
+        </span>
+      </span>
+      <span className="min-w-0 truncate text-sm font-semibold tracking-tight text-sidebar-foreground">Settings</span>
+    </button>
+  );
+}
+
 function SidebarNavButton({
   label,
   icon,
@@ -244,12 +262,9 @@ export function AppSidebar() {
   };
 
   return (
-    <aside
-      className="flex h-screen shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
-      style={{ width: SIDEBAR_W }}
-    >
+    <aside className="flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground" style={{ width: SIDEBAR_W }}>
       <div className="flex h-12 w-full min-w-0 shrink-0 items-center gap-2.5 px-4">
-        <AppLogo size={22} className="shrink-0 text-brand" />
+        <AppLogo size={22} className="shrink-0" />
         <span className="truncate text-base font-semibold tracking-tight text-sidebar-foreground">Raw Agents</span>
       </div>
       <SketchDivider className="mb-2" />
@@ -289,8 +304,9 @@ export function AppSidebar() {
             )}
           </nav>
 
-          <nav className="flex h-full w-1/2 flex-col gap-1 overflow-y-auto px-2.5 pb-4">
-            <SidebarNavButton label="Settings" icon={<AltArrowLeft {...ICON} />} onClick={backToMain} />
+          <nav className="flex h-full w-1/2 flex-col overflow-y-auto px-2.5 pb-4">
+            <SettingsPanelHeader onBack={backToMain} />
+            <SketchDivider className="mx-0.5 mb-2" />
             <div className="flex flex-col gap-1">
               {SETTINGS_TABS.map((tab) => {
                 const Icon = tab.icon;

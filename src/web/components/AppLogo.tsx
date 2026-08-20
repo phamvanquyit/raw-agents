@@ -1,51 +1,42 @@
 import { useId } from "react";
 
 type AppLogoProps = {
-  fill?: string;
+  variant?: "icon" | "color" | "current";
   size?: number;
-  strokeWidth?: number;
   className?: string;
 };
 
-const MAIN_PATH = "M176 176H610C661 176 699 196 729 238L806 349L654 575L824 832H663L518 579L666 354L614 282C605 270 593 264 574 264H258L176 176Z";
-const ACCENT_PATH = "M224 370H536L452 500H344V553L562 832H416L224 574V370Z";
-
-export function AppLogo({ size = 40, className }: AppLogoProps) {
+export function AppLogo({ variant = "icon", size = 40, className }: AppLogoProps) {
   const uid = useId().replace(/:/g, "");
-  const bevel = `logo-bevel-${uid}`;
-  const shadow = `logo-shadow-${uid}`;
+  const isMark = variant === "color" || variant === "current";
+  const fill = variant === "current" ? "currentColor" : undefined;
 
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 1024 1024"
+      viewBox="0 0 32 32"
       width={size}
       height={size}
+      fill="none"
       role="img"
       aria-labelledby={`app-logo-title-${uid}`}
       className={className}
     >
       <title id={`app-logo-title-${uid}`}>Raw Agents</title>
-      <defs>
-        <filter id={bevel} x="-5%" y="-5%" width="110%" height="110%" colorInterpolationFilters="sRGB">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="1.6" result="height" />
-          <feSpecularLighting in="height" surfaceScale="3.8" specularConstant="0.65" specularExponent="32" lightingColor="#ffffff" result="spec">
-            <feDistantLight azimuth="315" elevation="55" />
-          </feSpecularLighting>
-          <feComposite in="spec" in2="SourceAlpha" operator="in" result="specClip" />
-          <feComposite in="SourceGraphic" in2="specClip" operator="arithmetic" k1="0" k2="1" k3="0.4" k4="0" result="lit" />
-          <feComposite in="lit" in2="SourceAlpha" operator="in" />
-        </filter>
-        <filter id={shadow} x="-18%" y="-12%" width="140%" height="140%" colorInterpolationFilters="sRGB">
-          <feDropShadow dx="14" dy="20" stdDeviation="16" floodColor="#000000" floodOpacity="0.18" />
-        </filter>
-      </defs>
-      <g filter={`url(#${shadow})`}>
-        <g filter={`url(#${bevel})`}>
-          <path fill="#DD7627" d={MAIN_PATH} />
-          <path fill="#FFA333" d={ACCENT_PATH} />
-        </g>
-      </g>
+      {isMark ? (
+        <>
+          <rect x="4" y="4" width="11" height="11" rx="3" fill={fill ?? "#111111"} />
+          <circle cx="22.75" cy="9.5" r="5.75" fill={fill ?? "#DD7627"} />
+          <rect x="4" y="17" width="11" height="11" rx="3" fill={fill ?? "#111111"} />
+        </>
+      ) : (
+        <>
+          <rect width="32" height="32" rx="8" fill="#111111" />
+          <rect x="6" y="6" width="9" height="9" rx="2.4" fill="#FFFFFF" />
+          <circle cx="21.5" cy="10.5" r="4.7" fill="#DD7627" />
+          <rect x="6" y="17" width="9" height="9" rx="2.4" fill="#FFFFFF" />
+        </>
+      )}
     </svg>
   );
 }
