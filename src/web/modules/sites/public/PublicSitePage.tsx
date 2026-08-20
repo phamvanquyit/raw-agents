@@ -1,7 +1,8 @@
 import Lock from "@solar-icons/react/security/Lock";
-import { Button, message } from "antd";
+import { message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { PublicUnlockScreen } from "src/components/PublicUnlockScreen";
 import { injectSiteFrameBridge, isSrcDocFrameNavigatedAway } from "../common/injectSiteFrameBridge";
 import type { SiteActionResult } from "../common/siteFormSubmit";
 import { useSiteFormSubmit } from "../common/useSiteFormSubmit";
@@ -36,7 +37,6 @@ export default function PublicSitePage() {
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
   const [frameEpoch, setFrameEpoch] = useState(0);
   const [pageQuery, setPageQuery] = useState<Record<string, string>>(() => (typeof window !== "undefined" ? queryFromSearch(window.location.search) : {}));
   const pageQueryRef = useRef(pageQuery);
@@ -105,12 +105,6 @@ export default function PublicSitePage() {
       cancelled = true;
     };
   }, [slug, fetchSite]);
-
-  useEffect(() => {
-    if (requiresPassword && !isAuthenticated) {
-      passwordRef.current?.focus();
-    }
-  }, [requiresPassword, isAuthenticated]);
 
   useEffect(() => {
     if (siteName) document.title = siteName;
@@ -213,40 +207,16 @@ export default function PublicSitePage() {
 
   if (requiresPassword && !isAuthenticated) {
     return (
-      <div className="relative flex h-screen w-full flex-col items-center justify-center overflow-hidden bg-background p-6">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-48"
-          style={{
-            background: "radial-gradient(ellipse 80% 100% at 50% 0%, color-mix(in oklab, var(--muted) 55%, transparent), transparent)",
-          }}
-        />
-        <div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-8">
-          <div className="mb-7 flex flex-col items-center">
-            <div className="mb-4 flex size-12 items-center justify-center rounded-full border border-border bg-muted">
-              <Lock width={20} height={20} className="text-muted-foreground" />
-            </div>
-            <h2 className="m-0 text-[18px] font-semibold text-foreground">{siteName || "Protected site"}</h2>
-            <p className="mb-0 mt-1.5 text-[13px] text-muted-foreground">Enter password to continue</p>
-          </div>
-          <form onSubmit={(e) => void verifyPassword(e)} className="flex flex-col gap-3">
-            <div className="relative">
-              <Lock size={15} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                ref={passwordRef}
-                type="password"
-                placeholder="Password"
-                value={enteredPassword}
-                onChange={(e) => setEnteredPassword(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background py-2.5 pr-4 pl-9 font-[inherit] text-[14px] text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-ring/50 focus:ring-1 focus:ring-ring/20"
-              />
-            </div>
-            {authError ? <span className="pl-1 text-[12px] font-medium text-destructive">{authError}</span> : null}
-            <Button type="primary" htmlType="submit" block disabled={!enteredPassword} loading={verifying}>
-              Unlock
-            </Button>
-          </form>
-        </div>
-      </div>
+      <PublicUnlockScreen
+        icon={<Lock width={32} height={32} className="text-brand-soft" />}
+        title={siteName || "Protected site"}
+        description="Enter password to continue"
+        password={enteredPassword}
+        onPasswordChange={setEnteredPassword}
+        onSubmit={(e) => void verifyPassword(e)}
+        error={authError}
+        verifying={verifying}
+      />
     );
   }
 
